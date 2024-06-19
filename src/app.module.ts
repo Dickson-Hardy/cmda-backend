@@ -8,9 +8,19 @@ import { ResourcesModule } from './resources/resources.module';
 import { AdminModule } from './admin/admin.module';
 import { ProductsModule } from './products/products.module';
 import { NuggetsModule } from './nuggets/nuggets.module';
+import { ConfigModule, ConfigService } from '@nestjs/config';
+import { MongooseModule } from '@nestjs/mongoose';
 
 @Module({
   imports: [
+    ConfigModule.forRoot({ isGlobal: true }),
+    MongooseModule.forRootAsync({
+      imports: [ConfigModule],
+      useFactory: async (configService: ConfigService) => ({
+        uri: configService.get<string>('MONGODB_URI'),
+      }),
+      inject: [ConfigService],
+    }),
     UsersModule,
     AuthModule,
     EventsModule,
