@@ -5,8 +5,9 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { PassportModule } from '@nestjs/passport';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
-import { UserSchema } from 'src/users/schemas/users.schema';
+import { User, UserSchema } from 'src/users/users.schema';
 import { JwtStrategy } from './jwt.strategy';
+import { Counter, CounterSchema } from 'src/counter/counter.module';
 
 @Module({
   imports: [
@@ -17,12 +18,15 @@ import { JwtStrategy } from './jwt.strategy';
         return {
           secret: config.get<string>('JWT_SECRET'),
           signOptions: {
-            expiresIn: config.get<string | number>('JWT_EXPIRES'),
+            expiresIn: config.get<string | number>('JWT_EXPIRE'),
           },
         };
       },
     }),
-    MongooseModule.forFeature([{ name: 'User', schema: UserSchema }]),
+    MongooseModule.forFeature([
+      { name: User.name, schema: UserSchema },
+      { name: Counter.name, schema: CounterSchema },
+    ]),
   ],
   controllers: [AuthController],
   providers: [AuthService, JwtStrategy],

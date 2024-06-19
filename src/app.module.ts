@@ -10,7 +10,6 @@ import { ProductsModule } from './products/products.module';
 import { NuggetsModule } from './nuggets/nuggets.module';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { MongooseModule } from '@nestjs/mongoose';
-import { BookModule } from './book/book.module';
 
 @Module({
   imports: [
@@ -29,7 +28,6 @@ import { BookModule } from './book/book.module';
     AdminModule,
     ProductsModule,
     NuggetsModule,
-    BookModule,
   ],
   controllers: [AppController],
   providers: [AppService],

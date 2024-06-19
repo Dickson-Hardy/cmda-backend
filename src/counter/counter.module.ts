@@ -1,9 +1,8 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-
-export type CounterDocument = Counter & Document;
+import { Document } from 'mongoose';
 
 @Schema()
-export class Counter {
+export class Counter extends Document {
   @Prop({ required: true })
   sequenceName: string;
 
