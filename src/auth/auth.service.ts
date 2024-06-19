@@ -55,7 +55,9 @@ export class AuthService {
       // create user based on role && ignore non-related fields
       const user = await this.userModel.create({
         ...createUserDto,
+        email,
         password: hashedPassword,
+        role,
         ...(role === 'Student' ? { admissionYear, yearOfStudy } : { licenseNumber, specialty }),
         ...(role === 'GlobalNetwork' ? { country } : {}),
       });
