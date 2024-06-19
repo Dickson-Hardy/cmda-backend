@@ -1,6 +1,6 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document } from 'mongoose';
-import { Counter } from 'src/counter/counter.module';
+import { Counter } from '../counter/counter.module';
 
 export enum UserRole {
   STUDENT = 'Student',
