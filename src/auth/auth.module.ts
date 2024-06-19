@@ -5,9 +5,9 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { PassportModule } from '@nestjs/passport';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
-import { User, UserSchema } from 'src/users/users.schema';
+import { User, UserSchema } from '../users/users.schema';
 import { JwtStrategy } from './jwt.strategy';
-import { Counter, CounterSchema } from 'src/counter/counter.module';
+import { Counter, CounterSchema } from '../counter/counter.module';
 
 @Module({
   imports: [

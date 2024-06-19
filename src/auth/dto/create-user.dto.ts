@@ -9,7 +9,7 @@ import {
   IsNumber,
   IsEmpty,
 } from 'class-validator';
-import { UserGender, UserRole } from 'src/users/users.schema';
+import { UserGender, UserRole } from '../../users/users.schema';
 
 export class CreateUserDto {
   @ApiProperty({ example: 'string', description: 'First name of the user' })
