@@ -28,6 +28,12 @@ export class User extends Document {
   id: number;
 
   @Prop()
+  avatarUrl: string;
+
+  @Prop()
+  avatarCloudId: string;
+
+  @Prop()
   firstName: string;
 
   @Prop()
