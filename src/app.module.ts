@@ -7,12 +7,14 @@ import { EventsModule } from './events/events.module';
 import { ResourcesModule } from './resources/resources.module';
 import { AdminModule } from './admin/admin.module';
 import { ProductsModule } from './products/products.module';
-import { NuggetsModule } from './nuggets/nuggets.module';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { MongooseModule } from '@nestjs/mongoose';
 import { APP_GUARD } from '@nestjs/core';
 import { AuthGuard } from './auth/guards/auth.guard';
 import { RolesGuard } from './auth/guards/roles.guard';
+import { DevotionalsModule } from './devotionals/devotionals.module';
+import { FaithEntryModule } from './faithentry/faithentry.module';
+import { VacancyModule } from './vacancy/vacancy.module';
 
 @Module({
   imports: [
@@ -29,7 +31,9 @@ import { RolesGuard } from './auth/guards/roles.guard';
     EventsModule,
     ResourcesModule,
     ProductsModule,
-    NuggetsModule,
+    DevotionalsModule,
+    FaithEntryModule,
+    VacancyModule,
     AdminModule,
   ],
   controllers: [AppController],
