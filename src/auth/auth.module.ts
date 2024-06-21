@@ -2,16 +2,16 @@ import { Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
 import { MongooseModule } from '@nestjs/mongoose';
-import { PassportModule } from '@nestjs/passport';
+// import { PassportModule } from '@nestjs/passport';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { User, UserSchema } from '../users/users.schema';
-import { JwtStrategy } from './jwt.strategy';
-import { Counter, CounterSchema } from '../counter/counter.module';
+// import { JwtStrategy } from './auth.strategy';
+import { Counter, CounterSchema } from '../_global/schema/counter.schema';
 
 @Module({
   imports: [
-    PassportModule.register({ defaultStrategy: 'jwt' }),
+    // PassportModule.register({ defaultStrategy: 'jwt' }),
     JwtModule.registerAsync({
       inject: [ConfigService],
       useFactory: (config: ConfigService) => {
@@ -29,7 +29,7 @@ import { Counter, CounterSchema } from '../counter/counter.module';
     ]),
   ],
   controllers: [AuthController],
-  providers: [AuthService, JwtStrategy],
-  exports: [JwtStrategy, PassportModule],
+  providers: [AuthService],
+  exports: [AuthService],
 })
 export class AuthModule {}

@@ -8,8 +8,9 @@ import {
   MinLength,
   IsNumber,
   IsEmpty,
+  IsStrongPassword,
 } from 'class-validator';
-import { UserGender, UserRole } from '../../users/users.schema';
+import { UserGender, UserRole } from '../../users/user.constant';
 
 export class CreateUserDto {
   @ApiProperty({ example: 'string', description: 'First name of the user' })
@@ -39,6 +40,10 @@ export class CreateUserDto {
   @ApiProperty({ example: 'string', description: 'Password for the user', minLength: 8 })
   @IsNotEmpty()
   @MinLength(8)
+  @IsStrongPassword(
+    { minLength: 8, minLowercase: 1, minNumbers: 1, minSymbols: 1, minUppercase: 1 },
+    { message: 'Password must contain at least one uppercase, lowercase, number & special chars' },
+  )
   password: string;
 
   @ApiProperty({
@@ -68,11 +73,14 @@ export class CreateUserDto {
   @IsEnum(UserRole, { message: 'correct values for role are Student, Doctor or GlobalNetwork' })
   readonly role: UserRole;
 
-  @IsEmpty({ message: 'invalid payload field - membershipId' })
+  @IsEmpty({ message: 'membershipId cannot be manually set or updated' })
   readonly membershipId: string;
 
-  @IsEmpty({ message: 'invalid payload field - emailVerified' })
+  @IsEmpty({ message: 'emailVerified cannot be manually set or updated' })
   readonly emailVerified: boolean;
+
+  @IsEmpty({ message: 'fullName cannot be manually set or updated' })
+  readonly fullName: string;
 
   @ApiProperty({
     example: 'string - student chapter or state of country',
@@ -119,13 +127,4 @@ export class CreateUserDto {
   @IsOptional()
   @IsString()
   readonly specialty?: string; // doctor || globalnetwork
-
-  @ApiProperty({
-    example: 'string - required for globalnetwork',
-    description: 'Country for the global network. Required if role is GlobalNetwork',
-    required: false,
-  })
-  @IsOptional()
-  @IsString()
-  readonly country?: string; // globalnetwork
 }

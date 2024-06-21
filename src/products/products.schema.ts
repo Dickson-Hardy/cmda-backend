@@ -1,0 +1,47 @@
+import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
+import { Document } from 'mongoose';
+import slugify from 'slugify';
+import { ProductCategory } from './products.constant';
+
+@Schema({ timestamps: true, versionKey: false })
+export class Product extends Document {
+  @Prop({ unique: true })
+  name: string;
+
+  @Prop()
+  description: string;
+
+  @Prop({ lowercase: true })
+  slug: string;
+
+  @Prop()
+  price: number;
+
+  @Prop()
+  category: ProductCategory;
+
+  @Prop()
+  stock: number;
+
+  @Prop()
+  brand: string;
+
+  @Prop()
+  featuredImage: string;
+
+  @Prop([String])
+  images: string[];
+
+  @Prop({ default: 0 })
+  rating: number;
+}
+
+export const ProductSchema = SchemaFactory.createForClass(Product);
+
+// Add pre-save hook to generate slug
+ProductSchema.pre<Product>('save', async function (next) {
+  if (this.isNew || this.isModified('name')) {
+    this.slug = slugify(this.name, { lower: true });
+  }
+  next();
+});

@@ -1,5 +1,5 @@
 export interface ISuccessResponse {
   success: boolean;
   message: string;
-  data: unknown;
+  data?: unknown;
 }

@@ -1,17 +1,9 @@
-import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
+import { Prop, Schema, SchemaFactory, raw } from '@nestjs/mongoose';
 import { Document } from 'mongoose';
-import { Counter } from '../counter/counter.module';
-
-export enum UserRole {
-  STUDENT = 'Student',
-  DOCTOR = 'Doctor',
-  GLOBALNETWORK = 'GlobalNetwork',
-}
-
-export enum UserGender {
-  MALE = 'Male',
-  FEMALE = 'Female',
-}
+import { Counter } from '../_global/schema/counter.schema';
+import { UserGender, UserRole } from './user.constant';
+import mongoose from 'mongoose';
+import { Event } from '../events/events.schema';
 
 @Schema({
   timestamps: true,
@@ -19,14 +11,12 @@ export enum UserGender {
   toJSON: {
     transform: (doc, ret) => {
       delete ret.password;
-      delete ret._id;
+      delete ret.passwordResetToken;
+      delete ret.verificationCode;
     },
   },
 })
 export class User extends Document {
-  @Prop()
-  id: number;
-
   @Prop()
   avatarUrl: string;
 
@@ -41,6 +31,9 @@ export class User extends Document {
 
   @Prop()
   lastName: string;
+
+  @Prop()
+  fullName: string;
 
   @Prop({ unique: [true, 'Duplicate email entered'] })
   email: string;
@@ -64,7 +57,7 @@ export class User extends Document {
   emailVerified: boolean;
 
   @Prop()
-  region: string; // chapter for student, state for doctors / global network
+  region: string;
 
   @Prop()
   admissionYear: number; // student
@@ -78,13 +71,32 @@ export class User extends Document {
   @Prop()
   specialty: string; // doctor || globalnetwork
 
+  @Prop({ type: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Event' }] })
+  eventsRegistered: Event[];
+
   @Prop()
-  country: string; // globalnetwork
+  verificationCode: string;
+
+  @Prop()
+  passwordResetToken: string;
+
+  // @Prop({ type: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }] })
+  // volunteershipRegistered: User[];
+
+  @Prop(
+    raw({
+      facebook: { type: String },
+      twitter: { type: String },
+      instagram: { type: String },
+      linkedin: { type: String },
+    }),
+  )
+  socials: Record<string, string>;
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);
 
-// Add pre-save hook to generate sequential ID and update membershipId
+// Add pre-save hook to generate sequential membershipID
 UserSchema.pre<User>('save', async function (next) {
   if (this.isNew) {
     const CounterModel = this.db.model<Counter>('Counter');
@@ -93,8 +105,15 @@ UserSchema.pre<User>('save', async function (next) {
       { $inc: { sequenceValue: 1 } },
       { new: true, upsert: true },
     );
-    this.id = counter.sequenceValue;
-    this.membershipId = `CM1${String(this.id).padStart(8, '0')}`;
+    this.membershipId = `CM1${String(counter.sequenceValue).padStart(8, '0')}`;
+  }
+  if (
+    this.isNew ||
+    this.isModified('firstName') ||
+    this.isModified('middleName') ||
+    this.isModified('lastName')
+  ) {
+    this.fullName = (this.firstName + ' ' + (this.middleName || '') + ' ' + this.lastName).trim();
   }
   next();
 });
