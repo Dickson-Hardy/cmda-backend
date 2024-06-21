@@ -13,6 +13,12 @@ import { LoginDto } from './dto/login.dto';
 import { User } from '../users/users.schema';
 import { ISuccessResponse } from '../_global/interface/success-response';
 import { ConfigService } from '@nestjs/config';
+import { UserRole } from '../users/user.constant';
+import { UpdateUserDto } from './dto/update-user.dto';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
+import { VerifyEmailDto } from './dto/verify-email.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
+import { ChangePasswordDto } from './dto/change-password-dto';
 
 @Injectable()
 export class AuthService {
@@ -48,13 +54,15 @@ export class AuthService {
       } = signUpDto;
 
       // check for role specific fields and throw error
-      if (role === 'Student' && (!admissionYear || !yearOfStudy)) {
-        throw new BadRequestException('admissionYear and yearOfStudy are compulsory for students');
-      }
-      if (['Doctor', 'GlobalNetwork'].includes(role) && (!licenseNumber || !specialty)) {
-        throw new BadRequestException(
-          'licenseNumber and specialty are compulsory for doctors / globalnetwork members',
-        );
+      if (role === UserRole.STUDENT) {
+        if (!admissionYear || !yearOfStudy)
+          throw new BadRequestException('admissionYear, yearOfStudy are compulsory for students');
+      } else {
+        if (!licenseNumber || !specialty) {
+          throw new BadRequestException(
+            'licenseNumber, specialty are compulsory for doctors / globalnetwork members',
+          );
+        }
       }
       // hash password
       const hashedPassword = await bcrypt.hash(password, 10);
@@ -64,7 +72,9 @@ export class AuthService {
         email,
         password: hashedPassword,
         role,
-        ...(role === 'Student' ? { admissionYear, yearOfStudy } : { licenseNumber, specialty }),
+        ...(role === UserRole.STUDENT
+          ? { admissionYear, yearOfStudy }
+          : { licenseNumber, specialty }),
       });
       // accessToken using id and email
       const accessToken = this.jwtService.sign({ id: user._id, email, role: user.role });
@@ -109,7 +119,7 @@ export class AuthService {
     };
   }
 
-  async updateProfile(id: string, updateProfileDto): Promise<ISuccessResponse> {
+  async updateProfile(id: string, updateProfileDto: UpdateUserDto): Promise<ISuccessResponse> {
     const NON_EDITABLES = [
       '_id',
       'membershipId',
@@ -117,19 +127,44 @@ export class AuthService {
       'eventsRegistered',
       'avatarUrl',
       'avatarCloudId',
+      'role',
     ];
     NON_EDITABLES.forEach((key) => {
       delete updateProfileDto[key];
     });
-    const user = await this.userModel.findByIdAndUpdate(id, updateProfileDto, { new: true });
+    const user = await this.userModel.findById(id);
+    const { admissionYear, yearOfStudy, licenseNumber, specialty, ...otherUpdateData } =
+      updateProfileDto;
+    // check for role specific fields and throw error
+    if (user.role === UserRole.STUDENT) {
+      if (!admissionYear || !yearOfStudy) {
+        throw new BadRequestException('admissionYear, yearOfStudy are compulsory for students');
+      }
+    } else {
+      if (!licenseNumber || !specialty) {
+        throw new BadRequestException(
+          'licenseNumber, specialty are compulsory for doctors / globalnetwork members',
+        );
+      }
+    }
+    const newUser = await user.updateOne(
+      {
+        ...otherUpdateData,
+        ...(user.role === UserRole.STUDENT
+          ? { admissionYear, yearOfStudy }
+          : { licenseNumber, specialty }),
+      },
+      { new: true },
+    );
+
     return {
       success: true,
       message: 'Profile updated successfully',
-      data: user,
+      data: newUser,
     };
   }
 
-  async resendVerifyCode(resendCodeDto): Promise<ISuccessResponse> {
+  async resendVerifyCode(resendCodeDto: ForgotPasswordDto): Promise<ISuccessResponse> {
     console.log('DTO', resendCodeDto);
     return {
       success: true,
@@ -137,7 +172,7 @@ export class AuthService {
     };
   }
 
-  async verifyEmail(verifyEmailDto): Promise<ISuccessResponse> {
+  async verifyEmail(verifyEmailDto: VerifyEmailDto): Promise<ISuccessResponse> {
     const { code, email } = verifyEmailDto;
     const user = await this.userModel.findOne({ email });
     if (user.verificationCode !== code) {
@@ -150,7 +185,7 @@ export class AuthService {
     };
   }
 
-  async forgotPassword(forgotPasswordDto): Promise<ISuccessResponse> {
+  async forgotPassword(forgotPasswordDto: ForgotPasswordDto): Promise<ISuccessResponse> {
     console.log('DTO', forgotPasswordDto);
     return {
       success: true,
@@ -158,7 +193,7 @@ export class AuthService {
     };
   }
 
-  async resetPassword(resetPasswordDto): Promise<ISuccessResponse> {
+  async resetPassword(resetPasswordDto: ResetPasswordDto): Promise<ISuccessResponse> {
     const { token, newPassword, confirmPassword } = resetPasswordDto;
     if (newPassword !== confirmPassword) {
       throw new BadRequestException('confirmPassword does not match newPassword');
@@ -174,7 +209,10 @@ export class AuthService {
     };
   }
 
-  async changePassword(id: string, changePasswordDto): Promise<ISuccessResponse> {
+  async changePassword(
+    id: string,
+    changePasswordDto: ChangePasswordDto,
+  ): Promise<ISuccessResponse> {
     const { oldPassword, newPassword, confirmPassword } = changePasswordDto;
     if (newPassword !== confirmPassword) {
       throw new BadRequestException('confirmPassword does not match newPassword');

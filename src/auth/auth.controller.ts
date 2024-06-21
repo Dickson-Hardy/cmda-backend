@@ -6,6 +6,12 @@ import { ApiBearerAuth, ApiBody, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Roles } from './decorators/roles.decorator';
 import { AllUserRoles } from '../users/user.constant';
 import { Public } from './decorators/public.decorator';
+import { UpdateUserDto } from './dto/update-user.dto';
+import { IJwtPayload } from '../_global/interface/jwt-payload';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
+import { ChangePasswordDto } from './dto/change-password-dto';
+import { VerifyEmailDto } from './dto/verify-email.dto';
 
 @ApiTags('Auth')
 @Controller('auth')
@@ -31,45 +37,58 @@ export class AuthController {
   @Get('me')
   @Roles(AllUserRoles)
   @ApiBearerAuth()
-  getProfile(@Req() id: string) {
-    return this.authService.getProfile(id);
+  @ApiOperation({ summary: 'Returns profile of current user' })
+  getProfile(@Req() req: { user: IJwtPayload }) {
+    return this.authService.getProfile(req.user.id);
   }
 
   @Patch('me')
   @Roles(AllUserRoles)
   @ApiBearerAuth()
-  updateProfile(@Req() id: string, @Body() updateProfileDto) {
-    return this.authService.updateProfile(id, updateProfileDto);
+  @ApiOperation({ summary: 'Updates profile of current user' })
+  @ApiBody({ type: UpdateUserDto })
+  updateProfile(@Req() req: { user: IJwtPayload }, @Body() updateProfileDto: UpdateUserDto) {
+    return this.authService.updateProfile(req.user.id, updateProfileDto);
   }
 
   @Post('verify-email')
   @Public()
-  verifyEmail(@Body() verifyEmailDto) {
+  @ApiOperation({ summary: "Verify user's email account" })
+  @ApiBody({ type: VerifyEmailDto })
+  verifyEmail(@Body() verifyEmailDto: VerifyEmailDto) {
     return this.authService.verifyEmail(verifyEmailDto);
   }
 
   @Post('resend-verify-code')
   @Public()
-  resendVerifyCode(@Body() resendCodeDto) {
+  @ApiOperation({ summary: 'Resend email verification code' })
+  @ApiBody({ type: ForgotPasswordDto })
+  resendVerifyCode(@Body() resendCodeDto: ForgotPasswordDto) {
     return this.authService.resendVerifyCode(resendCodeDto);
   }
 
   @Post('forgot-password')
   @Public()
-  forgotPassword(@Body() forgotPasswordDto) {
+  @ApiOperation({ summary: 'Sends password reset token to email' })
+  @ApiBody({ type: ForgotPasswordDto })
+  forgotPassword(@Body() forgotPasswordDto: ForgotPasswordDto) {
     return this.authService.forgotPassword(forgotPasswordDto);
   }
 
   @Post('reset-password')
   @Public()
-  resetPassword(@Body() resetPasswordDto) {
+  @ApiOperation({ summary: 'Resets the password of the user' })
+  @ApiBody({ type: ResetPasswordDto })
+  resetPassword(@Body() resetPasswordDto: ResetPasswordDto) {
     return this.authService.resetPassword(resetPasswordDto);
   }
 
   @Post('change-password')
   @Roles(AllUserRoles)
   @ApiBearerAuth()
-  changePassword(@Req() id, @Body() changePasswordDto) {
-    return this.authService.changePassword(id, changePasswordDto);
+  @ApiOperation({ summary: 'Change password of current user' })
+  @ApiBody({ type: ChangePasswordDto })
+  changePassword(@Req() req: { user: IJwtPayload }, @Body() changePasswordDto: ChangePasswordDto) {
+    return this.authService.changePassword(req.user.id, changePasswordDto);
   }
 }
