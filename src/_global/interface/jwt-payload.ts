@@ -1,7 +1,7 @@
 import { AdminRole } from '../../admin/admin.constant';
 import { UserRole } from '../../users/user.constant';
 
-export interface JwtPayload {
+export interface IJwtPayload {
   id: string;
   email: string;
   role: AdminRole | UserRole;
