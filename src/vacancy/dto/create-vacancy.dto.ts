@@ -7,6 +7,7 @@ import {
   IsDate,
   ArrayNotEmpty,
   ArrayMinSize,
+  IsOptional,
 } from 'class-validator';
 
 export class CreateVacancyDto {
@@ -50,7 +51,7 @@ export class CreateVacancyDto {
   contactEmail: string;
 
   @ApiProperty({ example: 'Please send your resume and cover letter...' })
-  @IsNotEmpty()
+  @IsOptional()
   @IsString()
   applicationInstructions: string;
 
