@@ -165,7 +165,8 @@ export class AuthService {
         );
       }
     }
-    const newUser = await user.updateOne(
+    const newUser = await this.userModel.findByIdAndUpdate(
+      user._id,
       {
         ...otherUpdateData,
         ...(user.role === UserRole.STUDENT

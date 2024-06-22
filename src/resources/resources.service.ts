@@ -47,10 +47,10 @@ export class ResourcesService {
     let resourceData: any;
 
     if (WordPressCategories.includes(category)) {
-      const wordPressBase = this.config.get('WORDPRESS_BASE');
-      if (!sourceUrl.includes(wordPressBase)) {
+      const wordPressSource = this.config.get('WORDPRESS_SOURCE');
+      if (!sourceUrl.includes(wordPressSource)) {
         throw new BadRequestException(
-          'sourceUrl for ' + category + ' must be a wordpress link from ' + wordPressBase,
+          'sourceUrl for ' + category + ' must be a wordpress link from ' + wordPressSource,
         );
       }
       resourceData = await this.fetchWordPressPost(sourceUrl);
@@ -66,11 +66,80 @@ export class ResourcesService {
     return response;
   }
 
+  async findAll(query: PaginationQueryDto): Promise<ISuccessResponse> {
+    const { keyword, limit, page } = query;
+    const perPage = Number(limit) || 10;
+    const currentPage = Number(page) || 1;
+    const searchCriteria = keyword ? { title: { $regex: keyword, $options: 'i' } } : {};
+
+    const resources = await this.resourceModel
+      .find(searchCriteria)
+      .sort({ createdAt: -1 })
+      .limit(perPage)
+      .skip(perPage * (currentPage - 1));
+    const totalItems = await this.resourceModel.countDocuments(searchCriteria);
+    const totalPages = Math.ceil(totalItems / perPage);
+
+    return {
+      success: true,
+      message: 'Resources fetched successfully',
+      data: {
+        items: resources,
+        meta: { currentPage, itemsPerPage: perPage, totalItems, totalPages },
+      },
+    };
+  }
+
+  async findOne(slug: string): Promise<ISuccessResponse> {
+    const resource = await this.resourceModel.findOne({ slug });
+    if (!resource) throw new NotFoundException('Resource with slug does not exist');
+    return {
+      success: true,
+      message: 'Resource fetched successfully',
+      data: resource,
+    };
+  }
+
+  async updateOne(slug: string): Promise<ISuccessResponse> {
+    const resource = await this.resourceModel.findOne({ slug });
+    if (!resource) throw new NotFoundException('Resource with slug does not exist');
+    let updatedResourceData: any;
+    if (WordPressCategories.includes(resource.category)) {
+      const url = this.config.get('WORDPRESS_SOURCE') + slug;
+      updatedResourceData = await this.fetchWordPressPost(url);
+    } else {
+      const url = this.config.get('YOUTUBE_SOURCE') + '?v=' + slug;
+      updatedResourceData = await this.fetchYouTubeVideo(url);
+    }
+
+    const newResource = await this.resourceModel.findByIdAndUpdate(
+      resource._id,
+      updatedResourceData,
+      { new: true },
+    );
+
+    return {
+      success: true,
+      message: 'Resource updated successfully',
+      data: newResource,
+    };
+  }
+
+  async removeOne(slug: string): Promise<ISuccessResponse> {
+    const resource = await this.resourceModel.findOneAndDelete({ slug });
+    if (!resource) throw new NotFoundException('Resource with slug does not exist');
+    return {
+      success: true,
+      message: 'Resource deleted successfully',
+      data: resource,
+    };
+  }
+
   private async fetchWordPressPost(url: string): Promise<Partial<Resource>> {
     try {
-      const wordPressBase = this.config.get('WORDPRESS_BASE');
-      const slug = url.split(wordPressBase)[1];
-      const apiUrl = `${wordPressBase}${this.config.get('WORDPRESS_API_POST_PATH')}&slug=${slug}`;
+      const wordPressSource = this.config.get('WORDPRESS_SOURCE');
+      const slug = url.split(wordPressSource)[1];
+      const apiUrl = `${wordPressSource}${this.config.get('WORDPRESS_API_POST_PATH')}&slug=${slug}`;
       const response = await axios.get(apiUrl);
       const post = response.data?.[0];
 
@@ -124,61 +193,5 @@ export class ResourcesService {
     };
 
     return resource;
-  }
-
-  async findAll(query: PaginationQueryDto): Promise<ISuccessResponse> {
-    const { keyword, limit, page } = query;
-    const perPage = Number(limit) || 10;
-    const currentPage = Number(page) || 1;
-    const searchCriteria = keyword ? { title: { $regex: keyword, $options: 'i' } } : {};
-
-    const resources = await this.resourceModel
-      .find(searchCriteria)
-      .sort({ createdAt: -1 })
-      .limit(perPage)
-      .skip(perPage * (currentPage - 1));
-    const totalItems = await this.resourceModel.countDocuments(searchCriteria);
-    const totalPages = Math.ceil(totalItems / perPage);
-
-    return {
-      success: true,
-      message: 'Resources fetched successfully',
-      data: {
-        items: resources,
-        meta: { currentPage, itemsPerPage: perPage, totalItems, totalPages },
-      },
-    };
-  }
-
-  async findOne(slug: string): Promise<ISuccessResponse> {
-    const resource = await this.resourceModel.findOne({ slug });
-    if (!resource) throw new NotFoundException('Resource with slug does not exist');
-    return {
-      success: true,
-      message: 'Resource fetched successfully',
-      data: resource,
-    };
-  }
-
-  async updateOne(slug: string, updateResourceDto): Promise<ISuccessResponse> {
-    const resource = await this.resourceModel.findOneAndUpdate({ slug }, updateResourceDto, {
-      new: true,
-    });
-    if (!resource) throw new NotFoundException('Resource with slug does not exist');
-    return {
-      success: true,
-      message: 'Resource updated successfully',
-      data: resource,
-    };
-  }
-
-  async removeOne(slug: string): Promise<ISuccessResponse> {
-    const resource = await this.resourceModel.findOneAndDelete({ slug });
-    if (!resource) throw new NotFoundException('Resource with slug does not exist');
-    return {
-      success: true,
-      message: 'Resource deleted successfully',
-      data: resource,
-    };
   }
 }

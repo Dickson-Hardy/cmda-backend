@@ -2,7 +2,6 @@ import { Controller, Get, Post, Body, Patch, Param, Delete, Query } from '@nestj
 import { ApiBearerAuth, ApiBody, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { AllAdminRoles } from '../admin/admin.constant';
 import { Roles } from '../auth/decorators/roles.decorator';
-import { Public } from '../auth/decorators/public.decorator';
 import { CreateVacancyDto } from './dto/create-vacancy.dto';
 import { PaginationQueryDto } from '../_global/dto/pagination-query.dto';
 import { UpdateVacancyDto } from './dto/update-vacancy.dto';
@@ -30,7 +29,7 @@ export class VacancyController {
   }
 
   @Get('jobs/:id')
-  @Public()
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'Get a volunteer job by id' })
   findOne(@Param('id') id: string) {
     return this.vacancyService.findOne(id);
