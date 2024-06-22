@@ -10,14 +10,14 @@ export class Resource extends Document {
   @Prop()
   description: string;
 
-  @Prop({ lowercase: true, unique: true })
+  @Prop({ unique: true })
   slug: string;
 
   @Prop()
   featuredImage: string;
 
   @Prop()
-  mediaUrl: string;
+  sourceUrl: string;
 
   @Prop()
   category: ResourceCategory;

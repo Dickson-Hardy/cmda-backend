@@ -1,5 +1,6 @@
-import { IsString, IsNotEmpty, IsOptional, IsDate, IsArray } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsDate, IsArray, IsEnum } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ResourceCategory } from '../resources.constant';
 
 export class CreateResourceDto {
   @ApiProperty({
@@ -35,20 +36,20 @@ export class CreateResourceDto {
   featuredImage: string;
 
   @ApiPropertyOptional({
-    description: 'Media URL associated with the resource',
+    description: 'The URL associated with the resource',
     example: 'http://example.com/media.mp4',
   })
   @IsString()
-  @IsOptional()
-  mediaUrl?: string;
+  sourceUrl: string;
 
   @ApiProperty({
     description: 'Type of the resource',
     example: 'video',
   })
+  @IsEnum({})
   @IsString()
   @IsNotEmpty()
-  type: string; // or enum ResourceType if you have it defined
+  category: ResourceCategory; // or enum ResourceType if you have it defined
 
   @ApiPropertyOptional({
     description: 'Tags associated with the resource',
