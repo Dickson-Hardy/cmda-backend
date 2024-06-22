@@ -2,6 +2,8 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
+  InternalServerErrorException,
+  NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
@@ -19,6 +21,8 @@ import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { VerifyEmailDto } from './dto/verify-email.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { ChangePasswordDto } from './dto/change-password-dto';
+import { EmailService } from '../email/email.service';
+import ShortUniqueId from 'short-unique-id';
 
 @Injectable()
 export class AuthService {
@@ -27,6 +31,7 @@ export class AuthService {
     private userModel: Model<User>,
     private jwtService: JwtService,
     private configService: ConfigService,
+    private emailService: EmailService,
   ) {}
 
   async validateToken(token: string) {
@@ -78,6 +83,19 @@ export class AuthService {
       });
       // accessToken using id and email
       const accessToken = this.jwtService.sign({ id: user._id, email, role: user.role });
+      // send welcome mail
+      const { randomUUID } = new ShortUniqueId({ length: 6, dictionary: 'alphanum_upper' });
+      const code = randomUUID();
+      const res = await this.emailService.sendWelcomeEmail({
+        name: user.firstName,
+        email,
+        code,
+      });
+      if (res.success) {
+        await user.updateOne({ verificationCode: code });
+      } else {
+        throw new InternalServerErrorException('Error on email server but user was created');
+      }
       // return response
       return {
         success: true,
@@ -165,20 +183,40 @@ export class AuthService {
   }
 
   async resendVerifyCode(resendCodeDto: ForgotPasswordDto): Promise<ISuccessResponse> {
-    console.log('DTO', resendCodeDto);
+    const { email } = resendCodeDto;
+    const user = await this.userModel.findOne({ email });
+    if (!user) {
+      throw new NotFoundException('Email does not exist');
+    }
+    if (user.emailVerified) {
+      throw new BadRequestException('Email is already verified');
+    }
+    const { randomUUID } = new ShortUniqueId({ length: 6, dictionary: 'alphanum_upper' });
+    const code = randomUUID();
+    const res = await this.emailService.sendVerificationCodeEmail({
+      name: user.firstName,
+      email,
+      code,
+    });
+    if (res.success) {
+      await user.updateOne({ verificationCode: code });
+    } else {
+      throw new InternalServerErrorException('Error on email server, please try again later');
+    }
+
     return {
       success: true,
-      message: 'Verify code resent successfully',
+      message: 'Email verification code resent successfully',
     };
   }
 
   async verifyEmail(verifyEmailDto: VerifyEmailDto): Promise<ISuccessResponse> {
     const { code, email } = verifyEmailDto;
-    const user = await this.userModel.findOne({ email });
-    if (user.verificationCode !== code) {
+    const user = await this.userModel.findOne({ email, verificationCode: code.toUpperCase() });
+    if (!user) {
       throw new BadRequestException('Email verification code is invalid');
     }
-    user.updateOne({ emailVerified: true, verificationCode: '' });
+    await user.updateOne({ emailVerified: true, verificationCode: '' });
     return {
       success: true,
       message: 'Email verified successfully',
@@ -186,10 +224,25 @@ export class AuthService {
   }
 
   async forgotPassword(forgotPasswordDto: ForgotPasswordDto): Promise<ISuccessResponse> {
-    console.log('DTO', forgotPasswordDto);
+    const { email } = forgotPasswordDto;
+    const user = await this.userModel.findOne({ email });
+    if (user) {
+      const { randomUUID } = new ShortUniqueId({ length: 6, dictionary: 'alphanum_upper' });
+      const code = randomUUID();
+      const res = await this.emailService.sendPasswordResetTokenEmail({
+        name: user.firstName,
+        email,
+        code,
+      });
+      if (res.success) {
+        await user.updateOne({ passwordResetToken: code });
+      } else {
+        throw new InternalServerErrorException('Error on email server, please try again later');
+      }
+    }
     return {
       success: true,
-      message: 'Password reset token has been sent to your email',
+      message: "Password reset token has been sent to your email if it exists'",
     };
   }
 
@@ -198,11 +251,15 @@ export class AuthService {
     if (newPassword !== confirmPassword) {
       throw new BadRequestException('confirmPassword does not match newPassword');
     }
-    const user = await this.userModel.findOne({ passwordResetToken: token });
+    const user = await this.userModel.findOne({ passwordResetToken: token.toUpperCase() });
     if (!user) {
       throw new BadRequestException('Password reset token is invalid');
     }
     user.updateOne({ password: newPassword, passwordResetToken: '' });
+    await this.emailService.sendPasswordResetSuccessEmail({
+      name: user.firstName,
+      email: user.email,
+    });
     return {
       success: true,
       message: 'Password reset successful',
@@ -222,7 +279,8 @@ export class AuthService {
     if (!isPasswordMatched) {
       throw new BadRequestException('Old password is incorrect');
     }
-    user.updateOne({ password: newPassword });
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    user.updateOne({ password: hashedPassword });
     return {
       success: true,
       message: 'Password changed successfully',

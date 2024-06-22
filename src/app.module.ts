@@ -15,6 +15,9 @@ import { RolesGuard } from './auth/guards/roles.guard';
 import { DevotionalsModule } from './devotionals/devotionals.module';
 import { FaithEntryModule } from './faithentry/faithentry.module';
 import { VacancyModule } from './vacancy/vacancy.module';
+import { EmailModule } from './email/email.module';
+import { PaymentsModule } from './payments/payments.module';
+import { ChatsModule } from './chats/chats.module';
 
 @Module({
   imports: [
@@ -35,6 +38,9 @@ import { VacancyModule } from './vacancy/vacancy.module';
     FaithEntryModule,
     VacancyModule,
     AdminModule,
+    EmailModule,
+    PaymentsModule,
+    ChatsModule,
   ],
   controllers: [AppController],
   providers: [

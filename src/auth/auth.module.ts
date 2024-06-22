@@ -2,19 +2,17 @@ import { Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
 import { MongooseModule } from '@nestjs/mongoose';
-// import { PassportModule } from '@nestjs/passport';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { User, UserSchema } from '../users/users.schema';
-// import { JwtStrategy } from './auth.strategy';
 import { Counter, CounterSchema } from '../_global/schema/counter.schema';
+import { EmailModule } from '../email/email.module';
 
 @Module({
   imports: [
-    // PassportModule.register({ defaultStrategy: 'jwt' }),
     JwtModule.registerAsync({
       inject: [ConfigService],
-      useFactory: (config: ConfigService) => {
+      useFactory: async (config: ConfigService) => {
         return {
           secret: config.get<string>('JWT_SECRET'),
           signOptions: {
@@ -27,6 +25,7 @@ import { Counter, CounterSchema } from '../_global/schema/counter.schema';
       { name: User.name, schema: UserSchema },
       { name: Counter.name, schema: CounterSchema },
     ]),
+    EmailModule,
   ],
   controllers: [AuthController],
   providers: [AuthService],
