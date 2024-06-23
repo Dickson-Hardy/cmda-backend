@@ -1,4 +1,4 @@
-import { IsNumber, Min, IsOptional, IsString } from 'class-validator';
+import { IsOptional, IsString } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
 export class PaginationQueryDto {
@@ -7,15 +7,13 @@ export class PaginationQueryDto {
   @IsString()
   keyword?: string;
 
-  @ApiPropertyOptional({ description: 'Number of items per page', minimum: 1, type: Number })
+  @ApiPropertyOptional({ description: 'Number of items per page' })
   @IsOptional()
-  @IsNumber()
-  @Min(1)
-  limit?: number;
+  @IsString()
+  limit?: string;
 
-  @ApiPropertyOptional({ description: 'Current page number', minimum: 1, type: Number })
+  @ApiPropertyOptional({ description: 'Current page number' })
   @IsOptional()
-  @IsNumber()
-  @Min(1)
-  page?: number;
+  @IsString()
+  page?: string;
 }

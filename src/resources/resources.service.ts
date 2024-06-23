@@ -149,7 +149,7 @@ export class ResourcesService {
 
       const resource = {
         title: post.title.rendered,
-        description: post.excerpt.rendered,
+        description: post.content.rendered,
         slug: post.slug,
         featuredImage: post._embedded['wp:featuredmedia']?.[0]?.source_url || '',
         sourceUrl: url,
