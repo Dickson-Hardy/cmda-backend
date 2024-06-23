@@ -6,10 +6,16 @@ import { ValidationPipe } from '@nestjs/common';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
-  // enable cors
   app.enableCors({
-    origin: 'http://localhost:4040',
+    origin: [
+      'http://localhost:4040',
+      'https://cmda-membership.vercel.app',
+      'https://cmda-admin.vercel.app',
+    ],
+    allowedHeaders: ['Accept', 'Content-Type'],
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
+    preflightContinue: false,
+    optionsSuccessStatus: 204,
     credentials: true,
   });
 

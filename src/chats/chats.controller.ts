@@ -4,6 +4,7 @@ import { CreateChatDto } from './dto/create-chat.dto';
 import { UpdateChatDto } from './dto/update-chat.dto';
 import { ApiTags } from '@nestjs/swagger';
 
+//  not worked on yet
 @ApiTags('Chats')
 @Controller('chats')
 export class ChatsController {
