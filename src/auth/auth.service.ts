@@ -23,6 +23,7 @@ import { ResetPasswordDto } from './dto/reset-password.dto';
 import { ChangePasswordDto } from './dto/change-password-dto';
 import { EmailService } from '../email/email.service';
 import ShortUniqueId from 'short-unique-id';
+import { CloudinaryService } from '../cloudinary/cloudinary.service';
 
 @Injectable()
 export class AuthService {
@@ -32,6 +33,7 @@ export class AuthService {
     private jwtService: JwtService,
     private configService: ConfigService,
     private emailService: EmailService,
+    private cloudinaryService: CloudinaryService,
   ) {}
 
   async validateToken(token: string) {
@@ -137,7 +139,11 @@ export class AuthService {
     };
   }
 
-  async updateProfile(id: string, updateProfileDto: UpdateUserDto): Promise<ISuccessResponse> {
+  async updateProfile(
+    id: string,
+    updateProfileDto: UpdateUserDto,
+    file: Express.Multer.File,
+  ): Promise<ISuccessResponse> {
     const NON_EDITABLES = [
       '_id',
       'membershipId',
@@ -153,18 +159,28 @@ export class AuthService {
     const user = await this.userModel.findById(id);
     const { admissionYear, yearOfStudy, licenseNumber, specialty, ...otherUpdateData } =
       updateProfileDto;
-    // check for role specific fields and throw error
+    // remove unpermitted role fields
     if (user.role === UserRole.STUDENT) {
-      if (!admissionYear || !yearOfStudy) {
-        throw new BadRequestException('admissionYear, yearOfStudy are compulsory for students');
-      }
+      delete updateProfileDto.licenseNumber;
+      delete updateProfileDto.specialty;
     } else {
-      if (!licenseNumber || !specialty) {
-        throw new BadRequestException(
-          'licenseNumber, specialty are compulsory for doctors / globalnetwork members',
-        );
+      delete updateProfileDto.admissionYear;
+      delete updateProfileDto.yearOfStudy;
+    }
+
+    let [avatarUrl, avatarCloudId] = [user.avatarUrl, user.avatarCloudId];
+    if (file) {
+      const upload = await this.cloudinaryService.uploadFile(file, 'Avatars');
+      if (upload.url) {
+        avatarUrl = upload.secure_url;
+        avatarCloudId = upload.public_id;
+        // delete previous file
+        if (user.avatarCloudId) {
+          await this.cloudinaryService.deleteFile(user.avatarCloudId);
+        }
       }
     }
+
     const newUser = await this.userModel.findByIdAndUpdate(
       user._id,
       {
@@ -172,6 +188,8 @@ export class AuthService {
         ...(user.role === UserRole.STUDENT
           ? { admissionYear, yearOfStudy }
           : { licenseNumber, specialty }),
+        avatarUrl,
+        avatarCloudId,
       },
       { new: true },
     );

@@ -4,10 +4,14 @@ import { Model } from 'mongoose';
 import { ISuccessResponse } from '../_global/interface/success-response';
 import { User } from './users.schema';
 import { UserPaginationQueryDto } from './dto/user-pagination.dto';
+import { CloudinaryService } from '../cloudinary/cloudinary.service';
 
 @Injectable()
 export class UsersService {
-  constructor(@InjectModel(User.name) private userModel: Model<User>) {}
+  constructor(
+    @InjectModel(User.name) private userModel: Model<User>,
+    private cloudinaryService: CloudinaryService,
+  ) {}
 
   async findAll(query: UserPaginationQueryDto): Promise<ISuccessResponse> {
     const { fullName, limit, page } = query;
@@ -45,7 +49,13 @@ export class UsersService {
 
   async remove(membershipId: string): Promise<ISuccessResponse> {
     const user = await this.userModel.findOneAndDelete({ membershipId });
-    if (!user) throw new NotFoundException('User with membershipId does not exist');
+    if (!user) {
+      throw new NotFoundException('User with membershipId does not exist');
+    }
+    if (user.avatarCloudId) {
+      await this.cloudinaryService.deleteFile(user.avatarCloudId);
+    }
+
     return {
       success: true,
       message: 'User deleted successfully',

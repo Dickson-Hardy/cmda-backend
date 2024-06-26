@@ -27,10 +27,13 @@ export class Product extends Document {
   brand: string;
 
   @Prop()
-  featuredImage: string;
+  featuredImageUrl: string;
 
-  @Prop([String])
-  images: string[];
+  @Prop()
+  featuredImageCloudId: string;
+
+  // @Prop([String])
+  // images: string[];
 
   @Prop({ default: 0 })
   rating: number;

@@ -1,10 +1,22 @@
-import { Controller, Get, Post, Body, Param, Patch, Delete, Query } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Param,
+  Patch,
+  Delete,
+  Query,
+  UseInterceptors,
+  UploadedFile,
+} from '@nestjs/common';
 import { EventsService } from './events.service';
 import { CreateEventDto } from './dto/create-event.dto';
 import { ApiBearerAuth, ApiBody, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { PaginationQueryDto } from '../_global/dto/pagination-query.dto';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { AllAdminRoles } from '../admin/admin.constant';
+import { FileInterceptor } from '@nestjs/platform-express';
 
 @ApiTags('Events')
 @Controller('events')
@@ -16,8 +28,9 @@ export class EventsController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Create an event' })
   @ApiBody({ type: CreateEventDto })
-  create(@Body() createEventDto: CreateEventDto) {
-    return this.eventsService.create(createEventDto);
+  @UseInterceptors(FileInterceptor('featuredImage'))
+  create(@Body() createEventDto: CreateEventDto, @UploadedFile() file: Express.Multer.File) {
+    return this.eventsService.create(createEventDto, file);
   }
 
   @Get()
@@ -38,8 +51,13 @@ export class EventsController {
   @Roles(AllAdminRoles)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Update an event by its slug' })
-  updateOne(@Param('slug') slug: string, @Body() updateEventDto) {
-    return this.eventsService.updateOne(slug, updateEventDto);
+  @UseInterceptors(FileInterceptor('featuredImage'))
+  updateOne(
+    @Param('slug') slug: string,
+    @Body() updateEventDto,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    return this.eventsService.updateOne(slug, updateEventDto, file);
   }
 
   @Delete(':slug')

@@ -5,6 +5,7 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { Admin, AdminSchema } from './admin.schema';
 import { JwtModule } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
+import { EmailModule } from '../email/email.module';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { ConfigService } from '@nestjs/config';
       },
     }),
     MongooseModule.forFeature([{ name: Admin.name, schema: AdminSchema }]),
+    EmailModule,
   ],
   controllers: [AdminController],
   providers: [AdminService],

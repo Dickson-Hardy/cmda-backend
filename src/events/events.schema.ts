@@ -16,7 +16,10 @@ export class Event extends Document {
   slug: string;
 
   @Prop()
-  featuredImage: string;
+  featuredImageUrl: string;
+
+  @Prop()
+  featuredImageCloudId: string;
 
   @Prop()
   location: string;

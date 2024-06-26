@@ -18,6 +18,7 @@ import { VacancyModule } from './vacancy/vacancy.module';
 import { EmailModule } from './email/email.module';
 import { PaymentsModule } from './payments/payments.module';
 import { ChatsModule } from './chats/chats.module';
+import { CloudinaryModule } from './cloudinary/cloudinary.module';
 
 @Module({
   imports: [
@@ -41,6 +42,7 @@ import { ChatsModule } from './chats/chats.module';
     EmailModule,
     PaymentsModule,
     ChatsModule,
+    CloudinaryModule,
   ],
   controllers: [AppController],
   providers: [

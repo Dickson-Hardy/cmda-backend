@@ -1,4 +1,15 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, Query } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Patch,
+  Param,
+  Delete,
+  Query,
+  UseInterceptors,
+  UploadedFile,
+} from '@nestjs/common';
 import { ProductsService } from './products.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
@@ -6,6 +17,7 @@ import { ApiBearerAuth, ApiBody, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { PaginationQueryDto } from '../_global/dto/pagination-query.dto';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { AllAdminRoles } from '../admin/admin.constant';
+import { FileInterceptor } from '@nestjs/platform-express';
 
 @ApiTags('Products')
 @Controller('products')
@@ -17,8 +29,9 @@ export class ProductsController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Create a product' })
   @ApiBody({ type: CreateProductDto })
-  create(@Body() createProductDto) {
-    return this.productsService.create(createProductDto);
+  @UseInterceptors(FileInterceptor('featuredImage'))
+  create(@Body() createProductDto: CreateProductDto, @UploadedFile() file: Express.Multer.File) {
+    return this.productsService.create(createProductDto, file);
   }
 
   @Get()
@@ -40,8 +53,13 @@ export class ProductsController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Update a product by its slug' })
   @ApiBody({ type: UpdateProductDto })
-  update(@Param('slug') slug: string, @Body() updateProductDto) {
-    return this.productsService.update(slug, updateProductDto);
+  @UseInterceptors(FileInterceptor('featuredImage'))
+  update(
+    @Param('slug') slug: string,
+    @Body() updateProductDto,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    return this.productsService.update(slug, updateProductDto, file);
   }
 
   @Delete(':slug')

@@ -6,17 +6,34 @@ import { Model } from 'mongoose';
 import { ISuccessResponse } from '../_global/interface/success-response';
 import { PaginationQueryDto } from '../_global/dto/pagination-query.dto';
 import { Event } from './events.schema';
+import { CloudinaryService } from '../cloudinary/cloudinary.service';
 
 @Injectable()
 export class EventsService {
   constructor(
     @InjectModel(Event.name)
     private eventModel: Model<Event>,
+    private cloudinaryService: CloudinaryService,
   ) {}
 
-  async create(createEventDto: CreateEventDto): Promise<ISuccessResponse> {
+  async create(
+    createEventDto: CreateEventDto,
+    file: Express.Multer.File,
+  ): Promise<ISuccessResponse> {
     try {
-      const event = await this.eventModel.create(createEventDto);
+      let [featuredImageUrl, featuredImageCloudId] = ['', ''];
+      if (file) {
+        const upload = await this.cloudinaryService.uploadFile(file, 'Events');
+        if (upload.url) {
+          featuredImageUrl = upload.secure_url;
+          featuredImageCloudId = upload.public_id;
+        }
+      }
+      const event = await this.eventModel.create({
+        ...createEventDto,
+        featuredImageCloudId,
+        featuredImageUrl,
+      });
       return {
         success: true,
         message: 'Event created successfully',
@@ -66,19 +83,45 @@ export class EventsService {
     };
   }
 
-  async updateOne(slug: string, updateEventDto): Promise<ISuccessResponse> {
+  async updateOne(
+    slug: string,
+    updateEventDto,
+    file: Express.Multer.File,
+  ): Promise<ISuccessResponse> {
     const NON_EDITABLES = ['slug', 'participants'];
     NON_EDITABLES.forEach((key) => {
       delete updateEventDto[key];
     });
-    const event = await this.eventModel.findOneAndUpdate({ slug }, updateEventDto, { new: true });
+
+    const event = await this.eventModel.findOne({ slug });
     if (!event) {
       throw new NotFoundException('No event with such slug');
     }
+
+    let [featuredImageUrl, featuredImageCloudId] = [
+      event.featuredImageUrl,
+      event.featuredImageCloudId,
+    ];
+    if (file) {
+      const upload = await this.cloudinaryService.uploadFile(file, 'Events');
+      if (upload.url) {
+        featuredImageUrl = upload.secure_url;
+        featuredImageCloudId = upload.public_id;
+      }
+      if (event.featuredImageCloudId) {
+        await this.cloudinaryService.deleteFile(event.featuredImageCloudId);
+      }
+    }
+    const newEvent = await this.eventModel.findOneAndUpdate(
+      { slug },
+      { ...updateEventDto, featuredImageCloudId, featuredImageUrl },
+      { new: true },
+    );
+
     return {
       success: true,
       message: 'Event updated successfully',
-      data: event,
+      data: newEvent,
     };
   }
 
@@ -87,6 +130,10 @@ export class EventsService {
     if (!event) {
       throw new NotFoundException('No event with such slug');
     }
+    if (event.featuredImageCloudId) {
+      await this.cloudinaryService.deleteFile(event.featuredImageCloudId);
+    }
+
     return {
       success: true,
       message: 'Event deleted successfully',

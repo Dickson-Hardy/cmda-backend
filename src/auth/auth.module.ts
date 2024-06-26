@@ -7,6 +7,7 @@ import { AuthService } from './auth.service';
 import { User, UserSchema } from '../users/users.schema';
 import { Counter, CounterSchema } from '../_global/schema/counter.schema';
 import { EmailModule } from '../email/email.module';
+import { CloudinaryModule } from '../cloudinary/cloudinary.module';
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { EmailModule } from '../email/email.module';
       { name: Counter.name, schema: CounterSchema },
     ]),
     EmailModule,
+    CloudinaryModule,
   ],
   controllers: [AuthController],
   providers: [AuthService],

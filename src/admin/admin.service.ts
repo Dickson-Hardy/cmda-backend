@@ -12,6 +12,8 @@ import { ISuccessResponse } from '../_global/interface/success-response';
 import { LoginAdminDto } from './dto/login-admin.dto';
 import * as bcrypt from 'bcryptjs';
 import { JwtService } from '@nestjs/jwt';
+import { EmailService } from '../email/email.service';
+import ShortUniqueId from 'short-unique-id';
 
 @Injectable()
 export class AdminService {
@@ -19,28 +21,26 @@ export class AdminService {
     @InjectModel(Admin.name)
     private adminModel: Model<Admin>,
     private jwtService: JwtService,
+    private emailService: EmailService,
   ) {}
 
   async create(createAdminDto: CreateAdminDto): Promise<ISuccessResponse> {
     try {
-      const { fullName, email, password, role } = createAdminDto;
-      let defaultPass: string;
-      if (!password) {
-        //   generate password
-        const n = await this.adminModel.countDocuments();
-        defaultPass = 'Password#' + (n + 1);
-      }
-      const admin = await this.adminModel.create({
-        fullName,
-        email,
-        role,
-        password: password || defaultPass,
-      });
-      const accessToken = this.jwtService.sign({ id: admin._id, email, role: admin.role });
+      const { fullName, email, role } = createAdminDto;
+
+      // generate password
+      const { randomUUID } = new ShortUniqueId({ length: 5, dictionary: 'alphanum_upper' });
+      const pass = randomUUID();
+      const password = 'Cmda24@' + pass;
+
+      this.emailService.sendAdminCredentialsEmail({ name: fullName, email, password });
+
+      const admin = await this.adminModel.create({ fullName, email, role, password });
+
       return {
         success: true,
         message: 'Admin created successfully',
-        data: defaultPass ? admin : { admin, accessToken },
+        data: admin,
       };
     } catch (error) {
       if (error.code === 11000) {

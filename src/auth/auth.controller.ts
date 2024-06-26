@@ -1,4 +1,13 @@
-import { Body, Controller, Get, Patch, Post, Req } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Patch,
+  Post,
+  Req,
+  UploadedFile,
+  UseInterceptors,
+} from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { LoginDto } from './dto/login.dto';
@@ -12,6 +21,7 @@ import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { ChangePasswordDto } from './dto/change-password-dto';
 import { VerifyEmailDto } from './dto/verify-email.dto';
+import { FileInterceptor } from '@nestjs/platform-express';
 
 @ApiTags('Auth')
 @Controller('auth')
@@ -47,8 +57,13 @@ export class AuthController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Updates profile of current user' })
   @ApiBody({ type: UpdateUserDto })
-  updateProfile(@Req() req: { user: IJwtPayload }, @Body() updateProfileDto: UpdateUserDto) {
-    return this.authService.updateProfile(req.user.id, updateProfileDto);
+  @UseInterceptors(FileInterceptor('avatar'))
+  updateProfile(
+    @Req() req: { user: IJwtPayload },
+    @Body() updateProfileDto: UpdateUserDto,
+    @UploadedFile() avatar: Express.Multer.File,
+  ) {
+    return this.authService.updateProfile(req.user.id, updateProfileDto, avatar);
   }
 
   @Post('verify-email')

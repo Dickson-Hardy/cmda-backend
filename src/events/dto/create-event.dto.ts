@@ -28,12 +28,12 @@ export class CreateEventDto {
   description: string;
 
   @ApiProperty({
-    example: 'https://example.com/image.jpg',
-    description: 'Featured image URL of the event',
+    type: 'string',
+    format: 'binary',
+    description: 'Featured image URL of the event as a file',
   })
   @IsNotEmpty()
-  @IsString()
-  featuredImage: string;
+  featuredImage: any;
 
   @ApiProperty({
     example: 'New York, NY',

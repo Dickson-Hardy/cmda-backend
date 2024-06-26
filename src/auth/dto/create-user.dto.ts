@@ -6,9 +6,9 @@ import {
   IsOptional,
   IsString,
   MinLength,
-  IsNumber,
   IsEmpty,
   IsStrongPassword,
+  IsNumberString,
 } from 'class-validator';
 import { UserGender, UserRole } from '../../users/user.constant';
 
@@ -96,7 +96,7 @@ export class CreateUserDto {
     required: false,
   })
   @IsOptional()
-  @IsNumber()
+  @IsNumberString()
   readonly admissionYear?: number; // student
 
   @ApiProperty({

@@ -6,17 +6,37 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Product } from './products.schema';
 import { Model } from 'mongoose';
 import { PaginationQueryDto } from '../_global/dto/pagination-query.dto';
+import { CreateProductDto } from './dto/create-product.dto';
+import { CloudinaryService } from '../cloudinary/cloudinary.service';
 
 @Injectable()
 export class ProductsService {
   constructor(
     @InjectModel(Product.name)
     private productModel: Model<Product>,
+    private cloudinaryService: CloudinaryService,
   ) {}
 
-  async create(createEventDto): Promise<ISuccessResponse> {
+  async create(
+    createProductDto: CreateProductDto,
+    file: Express.Multer.File,
+  ): Promise<ISuccessResponse> {
     try {
-      const product = await this.productModel.create(createEventDto);
+      let [featuredImageUrl, featuredImageCloudId] = ['', ''];
+      if (file) {
+        const upload = await this.cloudinaryService.uploadFile(file, 'Products');
+        if (upload.url) {
+          featuredImageUrl = upload.secure_url;
+          featuredImageCloudId = upload.public_id;
+        }
+      }
+
+      const product = await this.productModel.create({
+        ...createProductDto,
+        featuredImageUrl,
+        featuredImageCloudId,
+      });
+
       return {
         success: true,
         message: 'Product created successfully',
@@ -66,21 +86,47 @@ export class ProductsService {
     };
   }
 
-  async update(slug: string, updateProductDto): Promise<ISuccessResponse> {
-    const NON_EDITABLES = ['slug'];
+  async update(
+    slug: string,
+    updateProductDto,
+    file: Express.Multer.File,
+  ): Promise<ISuccessResponse> {
+    const NON_EDITABLES = ['slug', 'featuredImageUrl', 'featuredImageCloudId'];
     NON_EDITABLES.forEach((key) => {
       delete updateProductDto[key];
     });
-    const product = await this.productModel.findOneAndUpdate({ slug }, updateProductDto, {
-      new: true,
-    });
+
+    const product = await this.productModel.findOne({ slug });
     if (!product) {
       throw new NotFoundException('Product slug does not exist');
     }
+
+    let [featuredImageUrl, featuredImageCloudId] = [
+      product.featuredImageUrl,
+      product.featuredImageCloudId,
+    ];
+    if (file) {
+      const upload = await this.cloudinaryService.uploadFile(file, 'Products');
+      if (upload.url) {
+        featuredImageUrl = upload.secure_url;
+        featuredImageCloudId = upload.public_id;
+
+        if (product.featuredImageCloudId) {
+          await this.cloudinaryService.deleteFile(product.featuredImageCloudId);
+        }
+      }
+    }
+
+    const newProduct = await this.productModel.findOneAndUpdate(
+      { slug },
+      { ...updateProductDto, featuredImageCloudId, featuredImageUrl },
+      { new: true },
+    );
+
     return {
       success: true,
       message: 'Product updated successfully',
-      data: product,
+      data: newProduct,
     };
   }
 
@@ -89,6 +135,10 @@ export class ProductsService {
     if (!product) {
       throw new NotFoundException('Product slug does not exist');
     }
+    if (product.featuredImageCloudId) {
+      await this.cloudinaryService.deleteFile(product.featuredImageCloudId);
+    }
+
     return {
       success: true,
       message: 'Product deleted successfully',
