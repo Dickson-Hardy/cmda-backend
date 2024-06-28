@@ -23,7 +23,7 @@ export class EventsService {
     try {
       let [featuredImageUrl, featuredImageCloudId] = ['', ''];
       if (file) {
-        const upload = await this.cloudinaryService.uploadFile(file, 'Events');
+        const upload = await this.cloudinaryService.uploadFile(file, 'events');
         if (upload.url) {
           featuredImageUrl = upload.secure_url;
           featuredImageCloudId = upload.public_id;
@@ -103,7 +103,7 @@ export class EventsService {
       event.featuredImageCloudId,
     ];
     if (file) {
-      const upload = await this.cloudinaryService.uploadFile(file, 'Events');
+      const upload = await this.cloudinaryService.uploadFile(file, 'events');
       if (upload.url) {
         featuredImageUrl = upload.secure_url;
         featuredImageCloudId = upload.public_id;

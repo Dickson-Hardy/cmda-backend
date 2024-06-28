@@ -170,7 +170,7 @@ export class AuthService {
 
     let [avatarUrl, avatarCloudId] = [user.avatarUrl, user.avatarCloudId];
     if (file) {
-      const upload = await this.cloudinaryService.uploadFile(file, 'Avatars');
+      const upload = await this.cloudinaryService.uploadFile(file, 'avatars');
       if (upload.url) {
         avatarUrl = upload.secure_url;
         avatarCloudId = upload.public_id;

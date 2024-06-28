@@ -17,6 +17,13 @@ export class UsersController {
     return this.usersService.findAll(query);
   }
 
+  @Get('stats')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Returns total members for each role - student, doctor, global' })
+  getStats() {
+    return this.usersService.getStats();
+  }
+
   @Get(':membershipId')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get a user by membershipId' })

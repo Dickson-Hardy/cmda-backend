@@ -27,6 +27,13 @@ export class ResourcesController {
     return this.resourcesService.createFromUrl(createResourceFromUrlDto);
   }
 
+  @Get('stats')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Returns total count for each resource category' })
+  getStats() {
+    return this.resourcesService.getStats();
+  }
+
   @Get(':slug')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get a resource by slug' })

@@ -1,21 +1,23 @@
-import { IsNumber, Min, IsOptional, IsString } from 'class-validator';
+import { IsOptional, IsString, IsNumberString } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
 export class UserPaginationQueryDto {
-  @ApiPropertyOptional({ description: 'filter record by fullName', type: String })
+  @ApiPropertyOptional({
+    description:
+      'Search term to filter users by name, email, role, chapters, specialty, licenseNumber, etc',
+    type: String,
+  })
   @IsOptional()
   @IsString()
-  fullName?: string;
+  searchBy?: string;
 
-  @ApiPropertyOptional({ description: 'number of items per page', minimum: 1, type: Number })
+  @ApiPropertyOptional({ description: 'Number of users per page, default is 10' })
   @IsOptional()
-  @IsNumber()
-  @Min(1)
-  limit?: number;
+  @IsNumberString()
+  limit?: number | string;
 
-  @ApiPropertyOptional({ description: 'current page number', minimum: 1, type: Number })
+  @ApiPropertyOptional({ description: 'Page number, default is 1' })
   @IsOptional()
-  @IsNumber()
-  @Min(1)
-  page?: number;
+  @IsNumberString()
+  page?: number | string;
 }

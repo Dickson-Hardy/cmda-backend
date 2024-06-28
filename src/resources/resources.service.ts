@@ -11,7 +11,7 @@ import { Resource } from './resources.schema';
 import { Model } from 'mongoose';
 import { PaginationQueryDto } from '../_global/dto/pagination-query.dto';
 import { CreateResourceFromUrlDto } from './dto/create-resource-from-url.dto';
-import { WordPressCategories, YoutubeCategories } from './resources.constant';
+import { ResourceCategory, WordPressCategories, YoutubeCategories } from './resources.constant';
 import axios from 'axios';
 import { ConfigService } from '@nestjs/config';
 
@@ -87,6 +87,28 @@ export class ResourcesService {
         items: resources,
         meta: { currentPage, itemsPerPage: perPage, totalItems, totalPages },
       },
+    };
+  }
+
+  async getStats(): Promise<ISuccessResponse> {
+    const totalResources = await this.resourceModel.countDocuments();
+    const totalNewsletters = await this.resourceModel.countDocuments({
+      category: ResourceCategory.NEWSLETTER,
+    });
+    const totalArticles = await this.resourceModel.countDocuments({
+      category: ResourceCategory.ARTICLE,
+    });
+    const totalWebinars = await this.resourceModel.countDocuments({
+      category: ResourceCategory.WEBINAR,
+    });
+    const totalOthers = await this.resourceModel.countDocuments({
+      category: ResourceCategory.OTHERS,
+    });
+
+    return {
+      success: true,
+      message: 'Resource statistics calculated successfully',
+      data: { totalResources, totalArticles, totalNewsletters, totalWebinars, totalOthers },
     };
   }
 

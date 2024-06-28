@@ -28,6 +28,9 @@ export class Event extends Document {
   region: string[];
 
   @Prop()
+  date: Date;
+
+  @Prop()
   category: EventCategory;
 
   @Prop({ default: ['All'] })

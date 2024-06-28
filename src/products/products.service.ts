@@ -24,7 +24,7 @@ export class ProductsService {
     try {
       let [featuredImageUrl, featuredImageCloudId] = ['', ''];
       if (file) {
-        const upload = await this.cloudinaryService.uploadFile(file, 'Products');
+        const upload = await this.cloudinaryService.uploadFile(file, 'products');
         if (upload.url) {
           featuredImageUrl = upload.secure_url;
           featuredImageCloudId = upload.public_id;
@@ -106,7 +106,7 @@ export class ProductsService {
       product.featuredImageCloudId,
     ];
     if (file) {
-      const upload = await this.cloudinaryService.uploadFile(file, 'Products');
+      const upload = await this.cloudinaryService.uploadFile(file, 'products');
       if (upload.url) {
         featuredImageUrl = upload.secure_url;
         featuredImageCloudId = upload.public_id;

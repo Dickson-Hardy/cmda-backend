@@ -5,6 +5,7 @@ import { ISuccessResponse } from '../_global/interface/success-response';
 import { User } from './users.schema';
 import { UserPaginationQueryDto } from './dto/user-pagination.dto';
 import { CloudinaryService } from '../cloudinary/cloudinary.service';
+import { UserRole } from './user.constant';
 
 @Injectable()
 export class UsersService {
@@ -14,10 +15,23 @@ export class UsersService {
   ) {}
 
   async findAll(query: UserPaginationQueryDto): Promise<ISuccessResponse> {
-    const { fullName, limit, page } = query;
+    const { searchBy, limit, page } = query;
     const perPage = Number(limit) || 10;
     const currentPage = Number(page) || 1;
-    const searchCriteria = fullName ? { fullName: { $regex: fullName, $options: 'i' } } : {};
+    const searchCriteria = searchBy
+      ? {
+          $or: [
+            { firstName: new RegExp(searchBy, 'i') },
+            { middleName: new RegExp(searchBy, 'i') },
+            { lastName: new RegExp(searchBy, 'i') },
+            { email: new RegExp(searchBy, 'i') },
+            { region: new RegExp(searchBy, 'i') },
+            { specialty: new RegExp(searchBy, 'i') },
+            { role: new RegExp(searchBy, 'i') },
+            { licenseNumber: new RegExp(searchBy, 'i') },
+          ],
+        }
+      : {};
 
     const users = await this.userModel
       .find(searchCriteria)
@@ -34,6 +48,21 @@ export class UsersService {
         items: users,
         meta: { currentPage, itemsPerPage: perPage, totalItems, totalPages },
       },
+    };
+  }
+
+  async getStats(): Promise<ISuccessResponse> {
+    const totalMembers = await this.userModel.countDocuments();
+    const totalStudents = await this.userModel.countDocuments({ role: UserRole.STUDENT });
+    const totalDoctors = await this.userModel.countDocuments({ role: UserRole.DOCTOR });
+    const totalGlobalNetworks = await this.userModel.countDocuments({
+      role: UserRole.GLOBALNETWORK,
+    });
+
+    return {
+      success: true,
+      message: 'User statistics calculated successfully',
+      data: { totalMembers, totalStudents, totalDoctors, totalGlobalNetworks },
     };
   }
 

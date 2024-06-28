@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   IsArray,
+  IsDate,
   IsEmpty,
   IsEnum,
   IsNotEmpty,
@@ -42,6 +43,11 @@ export class CreateEventDto {
   @IsNotEmpty()
   @IsString()
   location: string;
+
+  @ApiProperty({ example: '2020-01-01', description: 'Date of the event' })
+  @IsNotEmpty()
+  @IsDate()
+  date: Date;
 
   @ApiProperty({
     example: ['Lagos', 'LASUTH Chapter'],
