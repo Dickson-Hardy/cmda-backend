@@ -7,12 +7,12 @@ export class PaginationQueryDto {
   @IsString()
   keyword?: string;
 
-  @ApiPropertyOptional({ description: 'Number of items per page' })
+  @ApiPropertyOptional({ description: 'Number of users per page, default is 10', type: String })
   @IsOptional()
   @IsString()
   limit?: string;
 
-  @ApiPropertyOptional({ description: 'Current page number' })
+  @ApiPropertyOptional({ description: 'Page number, default is 1', type: String })
   @IsOptional()
   @IsString()
   page?: string;
