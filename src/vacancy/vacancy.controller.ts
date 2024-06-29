@@ -28,6 +28,13 @@ export class VacancyController {
     return this.vacancyService.findAll(query);
   }
 
+  @Get('jobs/stats')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Returns total count for open and closed volunteer jobs' })
+  getStats() {
+    return this.vacancyService.getStats();
+  }
+
   @Get('jobs/:id')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get a volunteer job by id' })

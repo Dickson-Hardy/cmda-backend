@@ -3,11 +3,11 @@ import {
   IsArray,
   IsString,
   IsEmail,
-  IsDate,
   ArrayNotEmpty,
   ArrayMinSize,
   IsOptional,
   IsBoolean,
+  IsDateString,
 } from 'class-validator';
 
 export class UpdateVacancyDto {
@@ -59,7 +59,7 @@ export class UpdateVacancyDto {
 
   @ApiProperty({ example: '2025-06-30' })
   @IsOptional()
-  @IsDate()
+  @IsDateString()
   closingDate?: Date;
 
   @ApiProperty({ example: false })

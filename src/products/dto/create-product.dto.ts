@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsNumber, IsEnum, IsNotEmpty } from 'class-validator';
+import { IsString, IsEnum, IsNotEmpty, IsNumberString } from 'class-validator';
 import { ProductCategory } from '../products.constant';
 
 export class CreateProductDto {
@@ -14,19 +14,18 @@ export class CreateProductDto {
   })
   @IsNotEmpty()
   @IsString()
-  description?: string;
+  description: string;
 
   @ApiProperty({ example: 99.99, description: 'The price of the product' })
   @IsNotEmpty()
-  @IsNumber()
+  @IsNumberString()
   price: number;
 
   @ApiProperty({
     type: 'string',
     format: 'binary',
-    description: 'Featured image URL of the event as a file',
+    description: 'Featured image of the product as a file',
   })
-  @IsNotEmpty()
   featuredImage: any;
 
   @ApiProperty({
@@ -40,7 +39,7 @@ export class CreateProductDto {
 
   @ApiProperty({ example: 100, description: 'The stock quantity of the product' })
   @IsNotEmpty()
-  @IsNumber()
+  @IsNumberString()
   stock: number;
 
   @ApiProperty({ example: 'Example Brand', description: 'The brand of the product' })

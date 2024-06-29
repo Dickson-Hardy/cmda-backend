@@ -4,10 +4,10 @@ import {
   IsArray,
   IsString,
   IsEmail,
-  IsDate,
   ArrayNotEmpty,
   ArrayMinSize,
   IsOptional,
+  IsDateString,
 } from 'class-validator';
 
 export class CreateVacancyDto {
@@ -57,6 +57,6 @@ export class CreateVacancyDto {
 
   @ApiProperty({ example: '2024-12-31' })
   @IsNotEmpty()
-  @IsDate()
-  closingDate: Date;
+  @IsDateString()
+  closingDate: string;
 }

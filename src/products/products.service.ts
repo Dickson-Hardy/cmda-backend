@@ -1,4 +1,9 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 // import { CreateProductDto } from './dto/create-product.dto';
 // import { UpdateProductDto } from './dto/update-product.dto';
 import { ISuccessResponse } from '../_global/interface/success-response';
@@ -8,6 +13,7 @@ import { Model } from 'mongoose';
 import { PaginationQueryDto } from '../_global/dto/pagination-query.dto';
 import { CreateProductDto } from './dto/create-product.dto';
 import { CloudinaryService } from '../cloudinary/cloudinary.service';
+import { ProductCategory } from './products.constant';
 
 @Injectable()
 export class ProductsService {
@@ -29,6 +35,8 @@ export class ProductsService {
           featuredImageUrl = upload.secure_url;
           featuredImageCloudId = upload.public_id;
         }
+      } else {
+        throw new BadRequestException('featuredImage is required');
       }
 
       const product = await this.productModel.create({
@@ -54,7 +62,16 @@ export class ProductsService {
     const { searchBy, limit, page } = query;
     const perPage = Number(limit) || 10;
     const currentPage = Number(page) || 1;
-    const searchCriteria = searchBy ? { name: { $regex: searchBy, $options: 'i' } } : {};
+    const searchCriteria = searchBy
+      ? {
+          $or: [
+            { name: new RegExp(searchBy, 'i') },
+            { price: new RegExp(searchBy, 'i') },
+            { category: new RegExp(searchBy, 'i') },
+            { brand: new RegExp(searchBy, 'i') },
+          ],
+        }
+      : {};
 
     const products = await this.productModel
       .find(searchCriteria)
@@ -71,6 +88,28 @@ export class ProductsService {
         items: products,
         meta: { currentPage, itemsPerPage: perPage, totalItems, totalPages },
       },
+    };
+  }
+
+  async getStats(): Promise<ISuccessResponse> {
+    const totalProducts = await this.productModel.countDocuments();
+    const totalBooks = await this.productModel.countDocuments({
+      category: ProductCategory.BOOK,
+    });
+    const totalCDs = await this.productModel.countDocuments({
+      category: ProductCategory.CD,
+    });
+    const totalFashions = await this.productModel.countDocuments({
+      category: ProductCategory.FASHION,
+    });
+    const totalOthers = await this.productModel.countDocuments({
+      category: ProductCategory.OTHERS,
+    });
+
+    return {
+      success: true,
+      message: 'Product statistics calculated successfully',
+      data: { totalProducts, totalBooks, totalCDs, totalFashions, totalOthers },
     };
   }
 

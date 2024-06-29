@@ -13,7 +13,7 @@ import {
 import { ProductsService } from './products.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
-import { ApiBearerAuth, ApiBody, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiBody, ApiConsumes, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { PaginationQueryDto } from '../_global/dto/pagination-query.dto';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { AllAdminRoles } from '../admin/admin.constant';
@@ -29,6 +29,7 @@ export class ProductsController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Create a product' })
   @ApiBody({ type: CreateProductDto })
+  @ApiConsumes('multipart/form-data')
   @UseInterceptors(FileInterceptor('featuredImage'))
   create(@Body() createProductDto: CreateProductDto, @UploadedFile() file: Express.Multer.File) {
     return this.productsService.create(createProductDto, file);
@@ -39,6 +40,13 @@ export class ProductsController {
   @ApiOperation({ summary: 'Fetch all products' })
   findAll(@Query() query: PaginationQueryDto) {
     return this.productsService.findAll(query);
+  }
+
+  @Get('stats')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Returns total count for each product category' })
+  getStats() {
+    return this.productsService.getStats();
   }
 
   @Get(':slug')
