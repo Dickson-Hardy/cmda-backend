@@ -1,7 +1,6 @@
 import { Injectable, CanActivate, ExecutionContext, ForbiddenException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { Roles } from '../decorators/roles.decorator';
-import { AllAdminRoles } from '../../admin/admin.constant';
 import { IJwtPayload } from '../../_global/interface/jwt-payload';
 
 @Injectable()
@@ -16,10 +15,6 @@ export class RolesGuard implements CanActivate {
     const user: IJwtPayload = request.user;
 
     if (!requiredRoles.includes(user.role)) {
-      if (requiredRoles.every((role: any) => AllAdminRoles.includes(role))) {
-        throw new ForbiddenException('Access restricted to admins only');
-      }
-
       throw new ForbiddenException(`Access not allowed to ${user.role.toLowerCase()}`);
     }
 

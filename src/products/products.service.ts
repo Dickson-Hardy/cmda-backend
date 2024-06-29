@@ -51,10 +51,10 @@ export class ProductsService {
   }
 
   async findAll(query: PaginationQueryDto): Promise<ISuccessResponse> {
-    const { keyword, limit, page } = query;
+    const { searchBy, limit, page } = query;
     const perPage = Number(limit) || 10;
     const currentPage = Number(page) || 1;
-    const searchCriteria = keyword ? { name: { $regex: keyword, $options: 'i' } } : {};
+    const searchCriteria = searchBy ? { name: { $regex: searchBy, $options: 'i' } } : {};
 
     const products = await this.productModel
       .find(searchCriteria)

@@ -2,10 +2,10 @@ import { IsOptional, IsString } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
 export class PaginationQueryDto {
-  @ApiPropertyOptional({ description: 'Search query keyword', type: String })
+  @ApiPropertyOptional({ description: 'Search query searchBy', type: String })
   @IsOptional()
   @IsString()
-  keyword?: string;
+  searchBy?: string;
 
   @ApiPropertyOptional({ description: 'Number of users per page, default is 10', type: String })
   @IsOptional()

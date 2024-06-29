@@ -67,10 +67,10 @@ export class ResourcesService {
   }
 
   async findAll(query: PaginationQueryDto): Promise<ISuccessResponse> {
-    const { keyword, limit, page } = query;
+    const { searchBy, limit, page } = query;
     const perPage = Number(limit) || 10;
     const currentPage = Number(page) || 1;
-    const searchCriteria = keyword ? { title: { $regex: keyword, $options: 'i' } } : {};
+    const searchCriteria = searchBy ? { title: { $regex: searchBy, $options: 'i' } } : {};
 
     const resources = await this.resourceModel
       .find(searchCriteria)

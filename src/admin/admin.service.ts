@@ -104,9 +104,8 @@ export class AdminService {
     };
   }
 
-  async updateRole(id: string, updateAdminDto): Promise<ISuccessResponse> {
-    const { role } = updateAdminDto;
-    const admin = await this.adminModel.findOneAndUpdate({ id }, { role }, { new: true });
+  async updateRole(id: string, role: string): Promise<ISuccessResponse> {
+    const admin = await this.adminModel.findByIdAndUpdate(id, { role }, { new: true });
     if (!admin) throw new NotFoundException('Admin with id does not exist');
     return {
       success: true,

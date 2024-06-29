@@ -5,7 +5,7 @@ import { AdminService } from './admin.service';
 import { LoginAdminDto } from './dto/login-admin.dto';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { Public } from '../auth/decorators/public.decorator';
-import { AllAdminRoles } from './admin.constant';
+import { AdminRole, AllAdminRoles } from './admin.constant';
 
 @ApiTags('Admin')
 @Controller('admin')
@@ -21,7 +21,7 @@ export class AdminController {
   }
 
   @Post()
-  @Roles(AllAdminRoles)
+  @Roles([AdminRole.SUPERADMIN])
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Create or add new admin' })
   @ApiBody({ type: CreateAdminDto })
@@ -53,16 +53,16 @@ export class AdminController {
     return this.adminService.updateProfile(updateAdminDto);
   }
 
-  @Patch('role/:id')
-  @Roles(AllAdminRoles)
+  @Patch('role/:role/:id')
+  @Roles([AdminRole.SUPERADMIN])
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Update the role of an admin' })
-  updateRole(@Param('id') id: string, @Body() updateAdminDto) {
-    return this.adminService.updateRole(id, updateAdminDto);
+  updateRole(@Param('id') id: string, @Param('role') role: string) {
+    return this.adminService.updateRole(id, role);
   }
 
   @Delete(':id')
-  @Roles(AllAdminRoles)
+  @Roles([AdminRole.SUPERADMIN])
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Delete an admin by id' })
   remove(@Param('slug') slug: string) {
