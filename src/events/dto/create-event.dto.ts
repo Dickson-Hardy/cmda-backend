@@ -1,97 +1,73 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import {
-  IsArray,
-  IsDate,
-  IsEmpty,
-  IsEnum,
-  IsNotEmpty,
-  IsNumber,
-  IsOptional,
-  IsString,
-} from 'class-validator';
-import { EventAudience, EventCategory } from '../events.constant';
+import { ApiProperty } from '@nestjs/swagger';
+import { IsString, IsArray, IsOptional, IsDateString, IsEnum } from 'class-validator';
+import { AllEventAudiences, EventAudience, EventTag, EventType } from '../events.constant';
 
 export class CreateEventDto {
-  @ApiProperty({
-    description: 'Name of the event',
-    example: 'Annual Conference',
-  })
-  @IsNotEmpty()
+  @ApiProperty({ example: 'Sample Event', description: 'The name of the event', uniqueItems: true })
   @IsString()
   name: string;
 
-  @ApiProperty({
-    example: 'An event that gathers industry leaders...',
-    description: 'Description of the event',
-  })
-  @IsNotEmpty()
+  @ApiProperty({ example: 'This is a sample event.', description: 'The description of the event' })
   @IsString()
   description: string;
 
   @ApiProperty({
     type: 'string',
     format: 'binary',
-    description: 'Featured image URL of the event as a file',
+    description: 'Featured image of the product as a file',
   })
-  @IsNotEmpty()
   featuredImage: any;
 
   @ApiProperty({
-    example: 'New York, NY',
-    description: 'Location of the event',
+    example: EventType.VIRTUAL,
+    description: 'The type of the event',
+    enum: EventType,
   })
-  @IsNotEmpty()
+  @IsEnum(EventType)
+  eventType: EventType;
+
+  @ApiProperty({
+    example: 'https://example.com/event',
+    description: 'The link or location of the event',
+  })
   @IsString()
-  location: string;
+  linkOrLocation: string;
 
-  @ApiProperty({ example: '2020-01-01', description: 'Date of the event' })
-  @IsNotEmpty()
-  @IsDate()
-  date: Date;
+  @ApiProperty({ example: '12345', description: 'The access code for the event', required: false })
+  @IsOptional()
+  @IsString()
+  accessCode?: string;
 
-  @ApiProperty({
-    example: ['Lagos', 'LASUTH Chapter'],
-    description: 'Regions/Chapter where the event is relevant',
-    type: [String],
-  })
-  @IsNotEmpty()
-  @IsArray()
-  @IsString({ each: true })
-  region: string[];
+  @ApiProperty({ example: '2024-07-29T10:00:00Z', description: 'The date and time of the event' })
+  @IsDateString()
+  eventDateTime: Date;
 
   @ApiProperty({
-    example: 'Webinar or Seminar',
-    description: 'Category of the event',
-    enum: EventCategory,
-  })
-  @IsNotEmpty()
-  @IsEnum(EventCategory, { message: 'category must be either Webinar or Seminar' })
-  category: EventCategory;
-
-  @ApiProperty({
-    example: [EventAudience.ALL, EventAudience.STUDENT],
-    description: 'Audience of the event',
-    enum: EventAudience,
+    example: [EventTag.CONFERENCE, EventTag.SEMINAR],
+    description: 'The tags for the event',
     isArray: true,
-    required: false,
   })
-  @IsOptional()
   @IsArray()
-  @IsEnum(EventAudience, {
-    message: 'audience must be an array of All, Student, Doctor or GlobalNetwork',
-    each: true,
-  })
-  audience: EventAudience[];
+  @IsEnum(EventTag, { each: true })
+  eventTags: EventTag[];
 
-  @ApiPropertyOptional({
-    example: 0,
-    description: 'Price of the event',
+  @ApiProperty({
+    example: [EventAudience.DOCTOR, EventAudience.GLOBALNETWORK],
+    description: 'The audience groups for the event',
+    isArray: true,
+    default: AllEventAudiences,
+  })
+  @IsArray()
+  @IsEnum(EventAudience, { each: true })
+  @IsOptional()
+  membersGroup?: EventAudience[];
+
+  @ApiProperty({
+    example: 'Some additional information',
+    description: 'Any additional information for the event',
     required: false,
   })
   @IsOptional()
-  @IsNumber()
-  price: number;
-
-  @IsEmpty({ message: 'slug cannot be manually set or updated' })
-  readonly slug: string;
+  @IsString()
+  additionalInformation?: string;
 }

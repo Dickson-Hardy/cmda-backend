@@ -1,4 +1,9 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { CreateEventDto } from './dto/create-event.dto';
 // import { UpdateEventDto } from './dto/update-event.dto';
 import { InjectModel } from '@nestjs/mongoose';
@@ -7,6 +12,7 @@ import { ISuccessResponse } from '../_global/interface/success-response';
 import { PaginationQueryDto } from '../_global/dto/pagination-query.dto';
 import { Event } from './events.schema';
 import { CloudinaryService } from '../cloudinary/cloudinary.service';
+import { AllEventAudiences } from './events.constant';
 
 @Injectable()
 export class EventsService {
@@ -28,9 +34,15 @@ export class EventsService {
           featuredImageUrl = upload.secure_url;
           featuredImageCloudId = upload.public_id;
         }
+      } else {
+        throw new BadRequestException('featuredImage is required');
       }
+
       const event = await this.eventModel.create({
         ...createEventDto,
+        membersGroup: !createEventDto.membersGroup.length
+          ? AllEventAudiences
+          : createEventDto.membersGroup,
         featuredImageCloudId,
         featuredImageUrl,
       });
@@ -51,7 +63,16 @@ export class EventsService {
     const { searchBy, limit, page } = query;
     const perPage = Number(limit) || 10;
     const currentPage = Number(page) || 1;
-    const searchCriteria = searchBy ? { name: { $regex: searchBy, $options: 'i' } } : {};
+    const searchCriteria = searchBy
+      ? {
+          $or: [
+            { name: new RegExp(searchBy, 'i') },
+            { eventType: new RegExp(searchBy, 'i') },
+            { linkOrLocation: new RegExp(searchBy, 'i') },
+            { eventDateTime: new RegExp(searchBy, 'i') },
+          ],
+        }
+      : {};
 
     const events = await this.eventModel
       .find(searchCriteria)

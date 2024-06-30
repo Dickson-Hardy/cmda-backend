@@ -1,6 +1,6 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import mongoose, { Document } from 'mongoose';
-import { EventAudience, EventCategory } from './events.constant';
+import { AllEventAudiences, EventAudience, EventTag, EventType } from './events.constant';
 import slugify from 'slugify';
 import { User } from '../users/users.schema';
 
@@ -22,25 +22,28 @@ export class Event extends Document {
   featuredImageCloudId: string;
 
   @Prop()
-  location: string;
+  eventType: EventType;
 
   @Prop()
-  region: string[];
+  linkOrLocation: string;
 
   @Prop()
-  date: Date;
+  accessCode: string;
 
   @Prop()
-  category: EventCategory;
+  eventTags: EventTag[];
 
-  @Prop({ default: ['All'] })
-  audience: EventAudience[];
+  @Prop()
+  eventDateTime: Date;
 
-  @Prop({ default: 0 })
-  price: number;
+  @Prop()
+  additionalInformation: string;
+
+  @Prop({ default: AllEventAudiences })
+  membersGroup: EventAudience[];
 
   @Prop({ type: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }] })
-  participants: User[];
+  registeredUsers: User[];
 }
 
 export const EventSchema = SchemaFactory.createForClass(Event);

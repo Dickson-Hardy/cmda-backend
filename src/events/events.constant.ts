@@ -1,11 +1,23 @@
 export enum EventAudience {
-  ALL = 'All',
   STUDENT = 'Student',
   DOCTOR = 'Doctor',
   GLOBALNETWORK = 'GlobalNetwork',
 }
 
-export enum EventCategory {
+export const AllEventAudiences = [
+  EventAudience.STUDENT,
+  EventAudience.DOCTOR,
+  EventAudience.GLOBALNETWORK,
+];
+
+export enum EventTag {
   WEBINAR = 'Webinar',
   SEMINAR = 'Seminar',
+  CONFERENCE = 'Conference',
+  TRAINING = 'Training',
+}
+
+export enum EventType {
+  PHYSICAL = 'Physical',
+  VIRTUAL = 'Virtual',
 }
