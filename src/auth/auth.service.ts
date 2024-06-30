@@ -274,7 +274,7 @@ export class AuthService {
     if (!user) {
       throw new BadRequestException('Password reset token is invalid');
     }
-    user.updateOne({ password: newPassword, passwordResetToken: '' });
+    await user.updateOne({ password: newPassword, passwordResetToken: '' });
     await this.emailService.sendPasswordResetSuccessEmail({
       name: user.firstName,
       email: user.email,
@@ -299,7 +299,7 @@ export class AuthService {
       throw new BadRequestException('Old password is incorrect');
     }
     const hashedPassword = await bcrypt.hash(newPassword, 10);
-    user.updateOne({ password: hashedPassword });
+    await user.updateOne({ password: hashedPassword });
     return {
       success: true,
       message: 'Password changed successfully',

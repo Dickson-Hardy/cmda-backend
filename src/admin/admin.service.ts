@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
   NotFoundException,
@@ -14,6 +15,9 @@ import * as bcrypt from 'bcryptjs';
 import { JwtService } from '@nestjs/jwt';
 import { EmailService } from '../email/email.service';
 import ShortUniqueId from 'short-unique-id';
+import { AdminRole, AllAdminRoles } from './admin.constant';
+import { UpdateAdminDto } from './dto/update-admin.dto';
+import { ChangeAdminPasswordDto } from './dto/change-admin-password.dto';
 
 @Injectable()
 export class AdminService {
@@ -33,7 +37,7 @@ export class AdminService {
       const pass = randomUUID();
       const password = 'Cmda24@' + pass;
 
-      this.emailService.sendAdminCredentialsEmail({ name: fullName, email, password });
+      await this.emailService.sendAdminCredentialsEmail({ name: fullName, email, password });
 
       const admin = await this.adminModel.create({ fullName, email, role, password });
 
@@ -76,8 +80,8 @@ export class AdminService {
     };
   }
 
-  async findProfile(): Promise<ISuccessResponse> {
-    const admin = await this.adminModel.findOne({ id: 1 });
+  async findProfile(id: string): Promise<ISuccessResponse> {
+    const admin = await this.adminModel.findById(id);
     if (!admin) {
       throw new NotFoundException('Admin with id does not exist');
     }
@@ -88,14 +92,9 @@ export class AdminService {
     };
   }
 
-  async updateProfile(updateAdminDto): Promise<ISuccessResponse> {
-    const NON_EDITABLES = ['role', 'password'];
-    NON_EDITABLES.forEach((key) => {
-      delete updateAdminDto[key];
-    });
-    const admin = await this.adminModel.findOneAndUpdate({ id: 1 }, updateAdminDto, {
-      new: true,
-    });
+  async updateProfile(id: string, updateAdminDto: UpdateAdminDto): Promise<ISuccessResponse> {
+    const { fullName } = updateAdminDto;
+    const admin = await this.adminModel.findByIdAndUpdate(id, { fullName }, { new: true });
     if (!admin) throw new NotFoundException('Admin with id does not exist');
     return {
       success: true,
@@ -104,7 +103,31 @@ export class AdminService {
     };
   }
 
-  async updateRole(id: string, role: string): Promise<ISuccessResponse> {
+  async changePassword(
+    id: string,
+    changePasswordDto: ChangeAdminPasswordDto,
+  ): Promise<ISuccessResponse> {
+    const { oldPassword, newPassword, confirmPassword } = changePasswordDto;
+    if (newPassword !== confirmPassword) {
+      throw new BadRequestException('confirmPassword does not match newPassword');
+    }
+    const admin = await this.adminModel.findById(id);
+    const isPasswordMatched = await bcrypt.compare(oldPassword, admin.password);
+    if (!isPasswordMatched) {
+      throw new BadRequestException('Old password is incorrect');
+    }
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    await admin.updateOne({ password: hashedPassword });
+    return {
+      success: true,
+      message: 'Password changed successfully',
+    };
+  }
+
+  async updateRole(id: string, role: AdminRole): Promise<ISuccessResponse> {
+    if (!AllAdminRoles.includes(role)) {
+      throw new BadRequestException('Role ' + role + ' is not a valid admin role');
+    }
     const admin = await this.adminModel.findByIdAndUpdate(id, { role }, { new: true });
     if (!admin) throw new NotFoundException('Admin with id does not exist');
     return {
@@ -115,7 +138,7 @@ export class AdminService {
   }
 
   async remove(id: string): Promise<ISuccessResponse> {
-    const admin = await this.adminModel.findOneAndDelete({ id });
+    const admin = await this.adminModel.findByIdAndDelete(id);
     if (!admin) throw new NotFoundException('Admin with id does not exist');
     return {
       success: true,

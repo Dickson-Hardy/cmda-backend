@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Req } from '@nestjs/common';
 import { ApiBearerAuth, ApiBody, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { CreateAdminDto } from './dto/create-admin.dto';
 import { AdminService } from './admin.service';
@@ -6,6 +6,9 @@ import { LoginAdminDto } from './dto/login-admin.dto';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { Public } from '../auth/decorators/public.decorator';
 import { AdminRole, AllAdminRoles } from './admin.constant';
+import { UpdateAdminDto } from './dto/update-admin.dto';
+import { IJwtPayload } from '../_global/interface/jwt-payload';
+import { ChangeAdminPasswordDto } from './dto/change-admin-password.dto';
 
 @ApiTags('Admin')
 @Controller('admin')
@@ -41,23 +44,35 @@ export class AdminController {
   @Roles(AllAdminRoles)
   @ApiBearerAuth()
   @ApiOperation({ summary: "Get current admin's profile" })
-  findProfile() {
-    return this.adminService.findProfile();
+  findProfile(@Req() req: { user: IJwtPayload }) {
+    return this.adminService.findProfile(req.user.id);
   }
 
   @Patch('profile')
   @Roles(AllAdminRoles)
   @ApiBearerAuth()
   @ApiOperation({ summary: "Update current admin's profile" })
-  updateProfile(@Body() updateAdminDto) {
-    return this.adminService.updateProfile(updateAdminDto);
+  updateProfile(@Req() req: { user: IJwtPayload }, @Body() updateAdminDto: UpdateAdminDto) {
+    return this.adminService.updateProfile(req.user.id, updateAdminDto);
+  }
+
+  @Post('profile/change-password')
+  @Roles(AllAdminRoles)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Change password of current admin' })
+  @ApiBody({ type: ChangeAdminPasswordDto })
+  changePassword(
+    @Req() req: { user: IJwtPayload },
+    @Body() changePasswordDto: ChangeAdminPasswordDto,
+  ) {
+    return this.adminService.changePassword(req.user.id, changePasswordDto);
   }
 
   @Patch('role/:role/:id')
   @Roles([AdminRole.SUPERADMIN])
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Update the role of an admin' })
-  updateRole(@Param('id') id: string, @Param('role') role: string) {
+  updateRole(@Param('id') id: string, @Param('role') role: AdminRole) {
     return this.adminService.updateRole(id, role);
   }
 
@@ -65,7 +80,7 @@ export class AdminController {
   @Roles([AdminRole.SUPERADMIN])
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Delete an admin by id' })
-  remove(@Param('slug') slug: string) {
-    return this.adminService.remove(slug);
+  remove(@Param('id') id: string) {
+    return this.adminService.remove(id);
   }
 }
