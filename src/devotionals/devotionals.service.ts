@@ -39,7 +39,7 @@ export class DevotionalsService {
   }
 
   async findLatest(): Promise<ISuccessResponse> {
-    const devotionals = await this.devotionalModel.find({}).sort({ createdAt: -1 });
+    const devotionals = await this.devotionalModel.find({}).sort({ createdAt: -1 }).limit(1);
     return {
       success: true,
       message: 'Latest devotional fetched successfully',
