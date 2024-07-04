@@ -28,6 +28,13 @@ export class DevotionalsController {
     return this.devotionalsService.findAll();
   }
 
+  @Get('latest')
+  @ApiOperation({ summary: 'Fetches latest devotional' })
+  @Public()
+  findLatest() {
+    return this.devotionalsService.findLatest();
+  }
+
   @Get(':id')
   @Public()
   @ApiOperation({ summary: 'Fetch a daily devotional by id' })

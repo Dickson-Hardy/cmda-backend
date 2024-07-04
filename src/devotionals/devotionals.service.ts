@@ -38,6 +38,15 @@ export class DevotionalsService {
     };
   }
 
+  async findLatest(): Promise<ISuccessResponse> {
+    const devotionals = await this.devotionalModel.find({}).sort({ createdAt: -1 });
+    return {
+      success: true,
+      message: 'Latest devotional fetched successfully',
+      data: devotionals[0],
+    };
+  }
+
   async findOne(id: string): Promise<ISuccessResponse> {
     const devotional = await this.devotionalModel.findById(id);
     return {
