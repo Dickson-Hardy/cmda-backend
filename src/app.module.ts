@@ -22,6 +22,7 @@ import { CloudinaryModule } from './cloudinary/cloudinary.module';
 import { DonationsModule } from './donations/donations.module';
 import { SubscriptionsModule } from './subscriptions/subscriptions.module';
 import { PaystackModule } from './paystack/paystack.module';
+import { OrdersModule } from './orders/orders.module';
 
 @Module({
   imports: [
@@ -49,6 +50,7 @@ import { PaystackModule } from './paystack/paystack.module';
     DonationsModule,
     SubscriptionsModule,
     PaystackModule,
+    OrdersModule,
   ],
   controllers: [AppController],
   providers: [
