@@ -24,11 +24,11 @@ export class UsersController {
     return this.usersService.getStats();
   }
 
-  @Get(':membershipId')
+  @Get(':id')
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Get a user by membershipId' })
-  findOne(@Param('membershipId') membershipId: string) {
-    return this.usersService.findOne(membershipId);
+  @ApiOperation({ summary: 'Get a user by id or membershipId' })
+  findOne(@Param('id') id: string) {
+    return this.usersService.findOne(id);
   }
 
   @Delete(':membershipId')

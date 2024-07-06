@@ -1,26 +1,41 @@
 import { Injectable } from '@nestjs/common';
-import { CreateChatDto } from './dto/create-chat.dto';
-import { UpdateChatDto } from './dto/update-chat.dto';
+import { InjectModel } from '@nestjs/mongoose';
+import { ChatLog } from './schema/chat-log.schema';
+import { Model } from 'mongoose';
+import { Message } from './schema/message.schema';
+import { ISuccessResponse } from '../_global/interface/success-response';
 
 @Injectable()
 export class ChatsService {
-  create(createChatDto: CreateChatDto) {
-    return 'This action adds a new chat';
+  constructor(
+    @InjectModel(ChatLog.name) private readonly chatLogModel: Model<ChatLog>,
+    @InjectModel(Message.name) private readonly messageModel: Model<Message>,
+  ) {}
+
+  async findAllContacts(id: string): Promise<ISuccessResponse> {
+    const contacts = await this.chatLogModel
+      .find({ user: id })
+      .sort({ createdAt: -1 })
+      .populate('chatWith');
+
+    return {
+      success: true,
+      message: 'Contacts fetched successfully',
+      data: contacts,
+    };
   }
 
-  findAll() {
-    return `This action returns all chats`;
-  }
-
-  findOne(id: number) {
-    return `This action returns a #${id} chat`;
-  }
-
-  update(id: number, updateChatDto: UpdateChatDto) {
-    return `This action updates a #${id} chat`;
-  }
-
-  remove(id: number) {
-    return `This action removes a #${id} chat`;
+  async getChatHistory(userId: string, chatWithId: string): Promise<ISuccessResponse> {
+    const messages = await this.messageModel.find({
+      $or: [
+        { sender: userId, receiver: chatWithId },
+        { sender: chatWithId, receiver: userId },
+      ],
+    });
+    return {
+      success: true,
+      message: 'Chat history fetched successfully',
+      data: messages,
+    };
   }
 }

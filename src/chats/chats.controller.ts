@@ -1,37 +1,28 @@
-import { Controller, Get, Post, Body, Patch, Param } from '@nestjs/common';
+import { Controller, Get, Param, Req } from '@nestjs/common';
 import { ChatsService } from './chats.service';
-import { CreateChatDto } from './dto/create-chat.dto';
-import { UpdateChatDto } from './dto/update-chat.dto';
-import { ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { AllUserRoles } from '../users/user.constant';
+import { IJwtPayload } from '../_global/interface/jwt-payload';
+import { Roles } from '../auth/decorators/roles.decorator';
 
-//  not worked on yet
 @ApiTags('Chats')
 @Controller('chats')
 export class ChatsController {
   constructor(private readonly chatsService: ChatsService) {}
 
-  @Post('room')
-  create(@Body() createChatDto: CreateChatDto) {
-    return this.chatsService.create(createChatDto);
-  }
-
-  @Get('room/:id')
-  findOne(@Param('id') id: string) {
-    return this.chatsService.findOne(+id);
-  }
-
-  @Patch('room/:id')
-  update(@Param('id') id: string, @Body() updateChatDto: UpdateChatDto) {
-    return this.chatsService.update(+id, updateChatDto);
-  }
-
   @Get('contacts')
-  findContacts() {
-    return this.chatsService.findAll();
+  @Roles(AllUserRoles)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: "Fetch current user's chat contacts" })
+  findAllContacts(@Req() req: { user: IJwtPayload }) {
+    return this.chatsService.findAllContacts(req.user.id);
   }
 
-  @Get('contacts/:id')
-  remove(@Param('id') id: string) {
-    return this.chatsService.remove(+id);
+  @Get('history/:id')
+  @Roles(AllUserRoles)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Fetch previouss chats between current user and user with param id' })
+  getChatHistory(@Req() req: { user: IJwtPayload }, @Param('id') chatWith: string) {
+    return this.chatsService.getChatHistory(req.user.id, chatWith);
   }
 }
