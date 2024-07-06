@@ -19,6 +19,9 @@ import { EmailModule } from './email/email.module';
 import { PaymentsModule } from './payments/payments.module';
 import { ChatsModule } from './chats/chats.module';
 import { CloudinaryModule } from './cloudinary/cloudinary.module';
+import { DonationsModule } from './donations/donations.module';
+import { SubscriptionsModule } from './subscriptions/subscriptions.module';
+import { PaystackModule } from './paystack/paystack.module';
 
 @Module({
   imports: [
@@ -43,6 +46,9 @@ import { CloudinaryModule } from './cloudinary/cloudinary.module';
     PaymentsModule,
     ChatsModule,
     CloudinaryModule,
+    DonationsModule,
+    SubscriptionsModule,
+    PaystackModule,
   ],
   controllers: [AppController],
   providers: [

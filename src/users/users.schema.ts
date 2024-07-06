@@ -4,6 +4,7 @@ import { Counter } from '../_global/schema/counter.schema';
 import { UserGender, UserRole } from './user.constant';
 import mongoose from 'mongoose';
 import { Event } from '../events/events.schema';
+import { Vacancy } from '../vacancy/vacancy.schema';
 
 @Schema({
   timestamps: true,
@@ -80,8 +81,8 @@ export class User extends Document {
   @Prop()
   passwordResetToken: string;
 
-  // @Prop({ type: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }] })
-  // volunteershipRegistered: User[];
+  @Prop({ type: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Vacancy' }] })
+  volunteerships: Vacancy[];
 
   @Prop(
     raw({
@@ -92,6 +93,12 @@ export class User extends Document {
     }),
   )
   socials: Record<string, string>;
+
+  @Prop({ default: false })
+  subscribed: boolean;
+
+  @Prop()
+  subscriptionExpiry: Date;
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);
