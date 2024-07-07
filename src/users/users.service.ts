@@ -67,11 +67,14 @@ export class UsersService {
   }
 
   async findOne(id: string): Promise<ISuccessResponse> {
-    const user = await this.userModel.findOne({
-      $or: [{ membershipId: id }, { _id: id }],
-    });
+    let user: User;
+    if (id.startsWith('CM')) {
+      user = await this.userModel.findOne({ membershipId: id });
+    } else {
+      user = await this.userModel.findById(id);
+    }
 
-    if (!user) throw new NotFoundException('User with id does not exist');
+    if (!user) throw new NotFoundException('User with id/membershipId does not exist');
     return {
       success: true,
       message: 'User fetched successfully',
