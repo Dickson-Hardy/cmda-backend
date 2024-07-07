@@ -16,7 +16,6 @@ import { DevotionalsModule } from './devotionals/devotionals.module';
 import { FaithEntryModule } from './faithentry/faithentry.module';
 import { VacancyModule } from './vacancy/vacancy.module';
 import { EmailModule } from './email/email.module';
-import { PaymentsModule } from './payments/payments.module';
 import { ChatsModule } from './chats/chats.module';
 import { CloudinaryModule } from './cloudinary/cloudinary.module';
 import { DonationsModule } from './donations/donations.module';
@@ -42,15 +41,14 @@ import { OrdersModule } from './orders/orders.module';
     DevotionalsModule,
     FaithEntryModule,
     VacancyModule,
-    AdminModule,
     EmailModule,
-    PaymentsModule,
     ChatsModule,
     CloudinaryModule,
     DonationsModule,
     SubscriptionsModule,
     PaystackModule,
     OrdersModule,
+    AdminModule,
   ],
   controllers: [AppController],
   providers: [
