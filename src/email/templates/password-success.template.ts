@@ -20,13 +20,13 @@ export const PASSWORD_RESET_SUCCESS_EMAIL_TEMPLATE = `
         <tr>
           <td align="center" style="background-color: #994279; padding: 40px 0">
             <img
-              src="https://via.placeholder.com/150"
+              src="https://cmdanigeria.net/CMDALogo.svg"
               alt="Logo"
-              width="100"
-              height="100"
+              width="200"
+              height="56"
               style="display: block"
             />
-            <h1 style="color: #ffffff; font-size: 24px; margin: 20px 0">
+            <h1 style="color: #ffffff; font-size: 24px; margin-top: 16px">
               Password Reset Successful
             </h1>
           </td>

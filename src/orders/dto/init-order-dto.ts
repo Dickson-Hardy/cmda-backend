@@ -39,11 +39,6 @@ export class InitOrderDto {
   @IsNumber()
   totalAmount: number;
 
-  @ApiProperty({ example: 20, description: 'The VAT amount of the order' })
-  @IsNotEmpty()
-  @IsNumber()
-  vatAmount: number;
-
   @ApiProperty({ example: 'John Doe', description: 'The name of the shipping contact' })
   @IsNotEmpty()
   @IsString()

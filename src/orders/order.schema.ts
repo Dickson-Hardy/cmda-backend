@@ -32,9 +32,6 @@ export class Order extends Document {
   @Prop({ required: true })
   totalAmount: number;
 
-  @Prop({ required: true })
-  vatAmount: number;
-
   @Prop({ default: OrderStatus.PENDING })
   status?: OrderStatus;
 

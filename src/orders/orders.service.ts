@@ -22,7 +22,6 @@ export class OrdersService {
   async init(initOrderDto: InitOrderDto): Promise<ISuccessResponse> {
     const {
       totalAmount,
-      vatAmount,
       products,
       shippingAddress,
       shippingContactEmail,
@@ -36,7 +35,6 @@ export class OrdersService {
       channels: ['card'],
       callback_url: this.configService.get('ORDER_SUCCESS_URL'),
       metadata: JSON.stringify({
-        vatAmount,
         products,
         shippingAddress,
         shippingContactEmail,
@@ -64,7 +62,6 @@ export class OrdersService {
       amount,
       paidAt,
       metadata: {
-        vatAmount,
         products,
         shippingAddress,
         shippingContactEmail,
@@ -77,7 +74,6 @@ export class OrdersService {
       paymentReference: reference,
       paymentDate: paidAt,
       totalAmount: amount / 100,
-      vatAmount,
       products,
       shippingAddress,
       shippingContactEmail,
@@ -102,7 +98,6 @@ export class OrdersService {
           $or: [
             { paymentReference: new RegExp(searchBy, 'i') },
             { totalAmount: new RegExp(searchBy, 'i') },
-            { vatAmount: new RegExp(searchBy, 'i') },
             { shippingContactEmail: new RegExp(searchBy, 'i') },
             { shippingContactName: new RegExp(searchBy, 'i') },
             { shippingContactPhone: new RegExp(searchBy, 'i') },
@@ -142,7 +137,6 @@ export class OrdersService {
             $or: [
               { paymentReference: new RegExp(searchBy, 'i') },
               { totalAmount: new RegExp(searchBy, 'i') },
-              { vatAmount: new RegExp(searchBy, 'i') },
               { shippingAddress: new RegExp(searchBy, 'i') },
             ],
           }

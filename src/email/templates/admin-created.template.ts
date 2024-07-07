@@ -19,14 +19,14 @@ export const ADMIN_CREDENTIALS_TEMPLATE = `
         <!-- Header -->
         <tr>
             <td align="center" style="background-color: #994279; padding: 40px 0">
-            <img
-                src="https://via.placeholder.com/150"
-                alt="Logo"
-                width="100"
-                height="100"
-                style="display: block"
+             <img
+              src="https://cmdanigeria.net/CMDALogo.svg"
+              alt="Logo"
+              width="200"
+              height="56"
+              style="display: block"
             />
-            <h1 style="color: #ffffff; font-size: 24px; margin: 20px 0">Admin Account Created!</h1>
+            <h1 style="color: #ffffff; font-size: 24px; margin-top: 16px">Admin Account Created!</h1>
             </td>
         </tr>
         <!-- Body -->

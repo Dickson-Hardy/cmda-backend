@@ -46,6 +46,9 @@ export class User extends Document {
   phone?: string;
 
   @Prop()
+  bio?: string;
+
+  @Prop()
   gender: UserGender;
 
   @Prop()
