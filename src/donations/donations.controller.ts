@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Req, Query } from '@nestjs/common';
+import { Controller, Get, Post, Body, Req, Query, Param } from '@nestjs/common';
 import { DonationsService } from './donations.service';
 import { CreateDonationDto } from './dto/create-donation.dto';
 import { ApiBearerAuth, ApiBody, ApiOperation, ApiTags } from '@nestjs/swagger';
@@ -46,5 +46,19 @@ export class DonationsController {
   @ApiBody({ type: CreateDonationDto })
   create(@Req() req: { user: IJwtPayload }, @Body() createDonationDto: CreateDonationDto) {
     return this.donationsService.create(req.user.id, createDonationDto);
+  }
+
+  @Get('stats')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Returns total count for donations' })
+  getStats() {
+    return this.donationsService.getStats();
+  }
+
+  @Get(':id')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get a donation by id' })
+  findOne(@Param('id') id: string) {
+    return this.donationsService.findOne(id);
   }
 }

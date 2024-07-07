@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Req, Query } from '@nestjs/common';
+import { Controller, Get, Post, Body, Req, Query, Param } from '@nestjs/common';
 import { SubscriptionsService } from './subscriptions.service';
 import { CreateSubscriptionDto } from './dto/create-subscription.dto';
 import { ApiBearerAuth, ApiBody, ApiOperation, ApiTags } from '@nestjs/swagger';
@@ -44,5 +44,19 @@ export class SubscriptionsController {
   @ApiBody({ type: CreateSubscriptionDto })
   create(@Req() req: { user: IJwtPayload }, @Body() createSubscriptionDto: CreateSubscriptionDto) {
     return this.subscriptionsService.create(req.user.id, createSubscriptionDto);
+  }
+
+  @Get('stats')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Returns total count for subscriptions' })
+  getStats() {
+    return this.subscriptionsService.getStats();
+  }
+
+  @Get(':id')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get a subscription by id' })
+  findOne(@Param('id') id: string) {
+    return this.subscriptionsService.findOne(id);
   }
 }

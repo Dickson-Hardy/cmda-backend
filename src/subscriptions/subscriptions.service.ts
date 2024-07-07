@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { CreateSubscriptionDto } from './dto/create-subscription.dto';
 import { InjectModel } from '@nestjs/mongoose';
 import { User } from '../users/users.schema';
@@ -84,12 +84,12 @@ export class SubscriptionsService {
         }
       : {};
 
-    const donations = await this.subscriptionModel
+    const subscriptions = await this.subscriptionModel
       .find(searchCriteria)
       .sort({ createdAt: -1 })
       .limit(perPage)
       .skip(perPage * (currentPage - 1))
-      .populate('user', ['_id', 'fullName', 'email']);
+      .populate('user', ['_id', 'fullName', 'email', 'role']);
 
     const totalItems = await this.subscriptionModel.countDocuments(searchCriteria);
     const totalPages = Math.ceil(totalItems / perPage);
@@ -98,7 +98,7 @@ export class SubscriptionsService {
       success: true,
       message: 'Subscription records fetched successfully',
       data: {
-        items: donations,
+        items: subscriptions,
         meta: { currentPage, itemsPerPage: perPage, totalItems, totalPages },
       },
     };
@@ -136,6 +136,44 @@ export class SubscriptionsService {
         items: events,
         meta: { currentPage, itemsPerPage: perPage, totalItems, totalPages },
       },
+    };
+  }
+
+  async getStats(): Promise<ISuccessResponse> {
+    const totalSubscribers = await this.userModel.countDocuments();
+    const activeSubscribers = await this.userModel.countDocuments({ subscribed: true });
+    const inActiveSubscribers = await this.userModel.countDocuments({ subscribed: false });
+
+    const startOfToday = new Date().setHours(0, 0, 0, 0);
+    const endOfToday = new Date().setHours(23, 59, 59, 999);
+    const todaySubscribers = await this.subscriptionModel.countDocuments({
+      createdAt: { $gte: startOfToday, $lte: endOfToday },
+    });
+
+    return {
+      success: true,
+      message: 'Subscription statistics calculated successfully',
+      data: {
+        totalSubscribers,
+        activeSubscribers,
+        inActiveSubscribers,
+        todaySubscribers,
+      },
+    };
+  }
+
+  async findOne(id: string): Promise<ISuccessResponse> {
+    const subscription = await this.subscriptionModel
+      .findById(id)
+      .populate('user', '_id fullName email role');
+
+    if (!subscription) {
+      throw new NotFoundException('Subscription with such id does not exist');
+    }
+    return {
+      success: true,
+      message: 'Subscription fetched successfully',
+      data: subscription,
     };
   }
 }

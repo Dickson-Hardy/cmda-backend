@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
@@ -8,6 +8,8 @@ import { ConfigService } from '@nestjs/config';
 import { InitOrderDto } from './dto/init-order-dto';
 import { ISuccessResponse } from '../_global/interface/success-response';
 import { PaginationQueryDto } from '../_global/dto/pagination-query.dto';
+import { OrderStatus } from './order.constant';
+import { UpdateOrderDto } from './dto/update-order.dto';
 
 @Injectable()
 export class OrdersService {
@@ -162,6 +164,57 @@ export class OrdersService {
         items: orders,
         meta: { currentPage, itemsPerPage: perPage, totalItems, totalPages },
       },
+    };
+  }
+
+  async getStats(): Promise<ISuccessResponse> {
+    const totalOrders = await this.orderModel.countDocuments();
+    const totalAmountResult = await this.orderModel.aggregate([
+      { $group: { _id: null, totalAmount: { $sum: '$totalAmount' } } },
+    ]);
+    const totalAmount = totalAmountResult.length > 0 ? totalAmountResult[0].totalAmount : 0;
+    const totalPending = await this.orderModel.countDocuments({ status: OrderStatus.PENDING });
+    const totalShipped = await this.orderModel.countDocuments({ status: OrderStatus.SHIPPED });
+    const totalDelivered = await this.orderModel.countDocuments({ status: OrderStatus.DELIVERED });
+    const totalCanceled = await this.orderModel.countDocuments({ status: OrderStatus.CANCELED });
+
+    return {
+      success: true,
+      message: 'Order statistics calculated successfully',
+      data: { totalOrders, totalAmount, totalPending, totalShipped, totalDelivered, totalCanceled },
+    };
+  }
+
+  async findOne(id: string): Promise<ISuccessResponse> {
+    const order = await this.orderModel.findById(id).populate('products.product', '_id name price');
+
+    if (!order) {
+      throw new NotFoundException('Order with such id does not exist');
+    }
+    return {
+      success: true,
+      message: 'Order fetched successfully',
+      data: order,
+    };
+  }
+
+  async update(id: string, updateOrderDto: UpdateOrderDto): Promise<ISuccessResponse> {
+    const { status, comment } = updateOrderDto;
+
+    const order = await this.orderModel.findByIdAndUpdate(
+      id,
+      { status, $push: { orderTimeline: { comment, status, date: new Date() } } },
+      { new: true },
+    );
+
+    if (!order) {
+      throw new NotFoundException('Order with id does not exist');
+    }
+
+    return {
+      success: true,
+      message: 'Order updated successfully',
+      data: order,
     };
   }
 }

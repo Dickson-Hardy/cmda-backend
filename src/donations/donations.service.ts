@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { CreateDonationDto } from './dto/create-donation.dto';
 import { InjectModel } from '@nestjs/mongoose';
 import { User } from '../users/users.schema';
@@ -132,6 +132,55 @@ export class DonationsService {
         items: events,
         meta: { currentPage, itemsPerPage: perPage, totalItems, totalPages },
       },
+    };
+  }
+
+  async getStats(): Promise<ISuccessResponse> {
+    const totalDonationCount = await this.donationModel.countDocuments();
+
+    const totalAmountResult = await this.donationModel.aggregate([
+      { $group: { _id: null, totalAmount: { $sum: '$amount' } } },
+    ]);
+    const totalDonationAmount = totalAmountResult.length > 0 ? totalAmountResult[0].totalAmount : 0;
+
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+
+    const endOfToday = new Date();
+    endOfToday.setHours(23, 59, 59, 999);
+
+    const todayDonationCount = await this.donationModel.countDocuments({
+      createdAt: { $gte: startOfToday, $lte: endOfToday },
+    });
+
+    const todayAmountResult = await this.donationModel.aggregate([
+      { $match: { createdAt: { $gte: startOfToday, $lte: endOfToday } } },
+      { $group: { _id: null, totalAmount: { $sum: '$amount' } } },
+    ]);
+    const todayDonationAmount = todayAmountResult.length > 0 ? todayAmountResult[0].totalAmount : 0;
+
+    return {
+      success: true,
+      message: 'Donation statistics calculated successfully',
+      data: {
+        totalDonationCount,
+        totalDonationAmount,
+        todayDonationCount,
+        todayDonationAmount,
+      },
+    };
+  }
+
+  async findOne(id: string): Promise<ISuccessResponse> {
+    const donation = await this.donationModel.findById(id).populate('user', '_id fullName email');
+
+    if (!donation) {
+      throw new NotFoundException('Donation with such id does not exist');
+    }
+    return {
+      success: true,
+      message: 'Donation fetched successfully',
+      data: donation,
     };
   }
 }

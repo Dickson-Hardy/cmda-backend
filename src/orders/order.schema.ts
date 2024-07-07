@@ -5,6 +5,17 @@ import { Product } from '../products/products.schema';
 import { User } from '../users/users.schema';
 import { OrderStatus } from './order.constant';
 
+class OrderTimelineEntry {
+  @Prop({ required: true })
+  comment: string;
+
+  @Prop({ required: true, enum: OrderStatus })
+  status: OrderStatus;
+
+  @Prop({ required: true, type: Date })
+  date: Date;
+}
+
 @Schema({ timestamps: true, versionKey: false })
 export class Order extends Document {
   @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true })
@@ -47,6 +58,9 @@ export class Order extends Document {
 
   @Prop()
   shippingAddress: string;
+
+  @Prop({ type: [OrderTimelineEntry], default: [] })
+  orderTimeline: OrderTimelineEntry[];
 }
 
 export const OrderSchema = SchemaFactory.createForClass(Order);
