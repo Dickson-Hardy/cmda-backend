@@ -13,10 +13,10 @@ import {
 import { EventsService } from './events.service';
 import { CreateEventDto } from './dto/create-event.dto';
 import { ApiBearerAuth, ApiBody, ApiOperation, ApiTags } from '@nestjs/swagger';
-import { PaginationQueryDto } from '../_global/dto/pagination-query.dto';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { AllAdminRoles } from '../admin/admin.constant';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { EventPaginationQueryDto } from './dto/event-pagination.dto';
 
 @ApiTags('Events')
 @Controller('events')
@@ -36,7 +36,7 @@ export class EventsController {
   @Get()
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Fetch all events' })
-  findAll(@Query() query: PaginationQueryDto) {
+  findAll(@Query() query: EventPaginationQueryDto) {
     return this.eventsService.findAll(query);
   }
 

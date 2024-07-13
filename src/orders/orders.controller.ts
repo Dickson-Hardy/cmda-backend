@@ -38,13 +38,6 @@ export class OrdersController {
     return this.ordersService.getStats();
   }
 
-  @Get(':id')
-  @ApiBearerAuth()
-  @ApiOperation({ summary: 'Get an order by id' })
-  findOne(@Param('id') id: string) {
-    return this.ordersService.findOne(id);
-  }
-
   @Patch('update-status/:id')
   @Roles(AllAdminRoles)
   @ApiBearerAuth()
@@ -70,5 +63,12 @@ export class OrdersController {
   @ApiBody({ type: CreateOrderDto })
   create(@Req() req: { user: IJwtPayload }, @Body() createOrderDto: CreateOrderDto) {
     return this.ordersService.create(req.user.id, createOrderDto);
+  }
+
+  @Get(':id')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get an order by id' })
+  findOne(@Param('id') id: string) {
+    return this.ordersService.findOne(id);
   }
 }

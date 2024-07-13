@@ -180,7 +180,9 @@ export class OrdersService {
   }
 
   async findOne(id: string): Promise<ISuccessResponse> {
-    const order = await this.orderModel.findById(id).populate('products.product', '_id name price');
+    const order = await this.orderModel
+      .findById(id)
+      .populate('products.product', '_id name price featuredImageUrl');
 
     if (!order) {
       throw new NotFoundException('Order with such id does not exist');

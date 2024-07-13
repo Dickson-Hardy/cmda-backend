@@ -44,12 +44,11 @@ export class CreateResourceDto {
 
   @ApiProperty({
     description: 'Type of the resource',
-    example: 'video',
+    example: ResourceCategory.WEBINAR,
   })
-  @IsEnum({})
-  @IsString()
   @IsNotEmpty()
-  category: ResourceCategory; // or enum ResourceType if you have it defined
+  @IsEnum(ResourceCategory)
+  category: ResourceCategory;
 
   @ApiPropertyOptional({
     description: 'Tags associated with the resource',

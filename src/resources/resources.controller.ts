@@ -1,10 +1,10 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiBody, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { ResourcesService } from './resources.service';
-import { PaginationQueryDto } from '../_global/dto/pagination-query.dto';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { AllAdminRoles } from '../admin/admin.constant';
 import { CreateResourceFromUrlDto } from './dto/create-resource-from-url.dto';
+import { ResourcePaginationQueryDto } from './dto/resource-pagination-query-dto';
 
 @ApiTags('Resources')
 @Controller('resources')
@@ -14,7 +14,7 @@ export class ResourcesController {
   @Get()
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Fetch all resources' })
-  findAll(@Query() query: PaginationQueryDto) {
+  findAll(@Query() query: ResourcePaginationQueryDto) {
     return this.resourcesService.findAll(query);
   }
 

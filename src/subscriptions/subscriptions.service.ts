@@ -8,6 +8,7 @@ import { PaystackService } from '../paystack/paystack.service';
 import { ConfigService } from '@nestjs/config';
 import { ISuccessResponse } from '../_global/interface/success-response';
 import { PaginationQueryDto } from '../_global/dto/pagination-query.dto';
+import { SUBSCRIPTION_PRICES } from './subscription.constant';
 
 @Injectable()
 export class SubscriptionsService {
@@ -23,7 +24,7 @@ export class SubscriptionsService {
   async init(id: string): Promise<ISuccessResponse> {
     const user = await this.userModel.findById(id);
     const transaction = await this.paystackService.initializeTransaction({
-      amount: 2500 * 100,
+      amount: SUBSCRIPTION_PRICES[user.role] * 100,
       email: user.email,
       channels: ['card'],
       callback_url: this.configService.get('PAYMENT_SUCCESS_URL') + '?type=subscription',
@@ -144,8 +145,9 @@ export class SubscriptionsService {
     const activeSubscribers = await this.userModel.countDocuments({ subscribed: true });
     const inActiveSubscribers = await this.userModel.countDocuments({ subscribed: false });
 
-    const startOfToday = new Date().setHours(0, 0, 0, 0);
-    const endOfToday = new Date().setHours(23, 59, 59, 999);
+    const today = new Date().toISOString().split('T')[0];
+    const startOfToday = new Date(`${today}T00:00:00+01:00`);
+    const endOfToday = new Date(`${today}T23:59:59+01:00`);
     const todaySubscribers = await this.subscriptionModel.countDocuments({
       createdAt: { $gte: startOfToday, $lte: endOfToday },
     });

@@ -22,14 +22,14 @@ export class DonationsService {
   ) {}
 
   async init(id: string, createDonationDto: InitDonationDto): Promise<ISuccessResponse> {
-    const { amount, recurring, frequency } = createDonationDto;
+    const { amount, recurring, frequency, comment } = createDonationDto;
     const user = await this.userModel.findById(id);
     const transaction = await this.paystackService.initializeTransaction({
       amount: amount * 100,
       email: user.email,
       channels: ['card'],
       callback_url: this.configService.get('PAYMENT_SUCCESS_URL') + '?type=donation',
-      metadata: JSON.stringify({ recurring, frequency, name: user.fullName }),
+      metadata: JSON.stringify({ recurring, frequency, name: user.fullName, comment }),
     });
     if (!transaction.status) {
       throw new Error(transaction.message);
@@ -49,7 +49,7 @@ export class DonationsService {
     }
     const {
       amount,
-      metadata: { recurring, frequency },
+      metadata: { recurring, frequency, comment },
     } = transaction.data;
 
     const donation = await this.donationModel.create({
@@ -57,6 +57,7 @@ export class DonationsService {
       amount: amount / 100,
       recurring: recurring && frequency,
       ...(frequency ? { frequency } : {}),
+      comment,
       user: id,
     });
     return {
@@ -143,12 +144,9 @@ export class DonationsService {
     ]);
     const totalDonationAmount = totalAmountResult.length > 0 ? totalAmountResult[0].totalAmount : 0;
 
-    const startOfToday = new Date();
-    startOfToday.setHours(0, 0, 0, 0);
-
-    const endOfToday = new Date();
-    endOfToday.setHours(23, 59, 59, 999);
-
+    const today = new Date().toISOString().split('T')[0];
+    const startOfToday = new Date(`${today}T00:00:00+01:00`);
+    const endOfToday = new Date(`${today}T23:59:59+01:00`);
     const todayDonationCount = await this.donationModel.countDocuments({
       createdAt: { $gte: startOfToday, $lte: endOfToday },
     });

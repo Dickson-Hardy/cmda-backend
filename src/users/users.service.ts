@@ -15,23 +15,24 @@ export class UsersService {
   ) {}
 
   async findAll(query: UserPaginationQueryDto): Promise<ISuccessResponse> {
-    const { searchBy, limit, page } = query;
+    const { searchBy, limit, page, role, region } = query;
     const perPage = Number(limit) || 10;
     const currentPage = Number(page) || 1;
-    const searchCriteria = searchBy
-      ? {
-          $or: [
-            { firstName: new RegExp(searchBy, 'i') },
-            { middleName: new RegExp(searchBy, 'i') },
-            { lastName: new RegExp(searchBy, 'i') },
-            { email: new RegExp(searchBy, 'i') },
-            { region: new RegExp(searchBy, 'i') },
-            { specialty: new RegExp(searchBy, 'i') },
-            { role: new RegExp(searchBy, 'i') },
-            { licenseNumber: new RegExp(searchBy, 'i') },
-          ],
-        }
-      : {};
+    const searchCriteria: any = {};
+    if (searchBy) {
+      searchCriteria.$or = [
+        { firstName: new RegExp(searchBy, 'i') },
+        { middleName: new RegExp(searchBy, 'i') },
+        { lastName: new RegExp(searchBy, 'i') },
+        { email: new RegExp(searchBy, 'i') },
+        { region: new RegExp(searchBy, 'i') },
+        { specialty: new RegExp(searchBy, 'i') },
+        { role: new RegExp(searchBy, 'i') },
+        { licenseNumber: new RegExp(searchBy, 'i') },
+      ];
+    }
+    if (role) searchCriteria.role = role;
+    if (region) searchCriteria.region = region;
 
     const users = await this.userModel
       .find(searchCriteria)

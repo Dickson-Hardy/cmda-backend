@@ -9,11 +9,11 @@ import { CreateResourceDto } from './dto/create-resource.dto';
 import { InjectModel } from '@nestjs/mongoose';
 import { Resource } from './resources.schema';
 import { Model } from 'mongoose';
-import { PaginationQueryDto } from '../_global/dto/pagination-query.dto';
 import { CreateResourceFromUrlDto } from './dto/create-resource-from-url.dto';
 import { ResourceCategory, WordPressCategories, YoutubeCategories } from './resources.constant';
 import axios from 'axios';
 import { ConfigService } from '@nestjs/config';
+import { ResourcePaginationQueryDto } from './dto/resource-pagination-query-dto';
 
 @Injectable()
 export class ResourcesService {
@@ -66,11 +66,14 @@ export class ResourcesService {
     return response;
   }
 
-  async findAll(query: PaginationQueryDto): Promise<ISuccessResponse> {
-    const { searchBy, limit, page } = query;
+  async findAll(query: ResourcePaginationQueryDto): Promise<ISuccessResponse> {
+    const { searchBy, limit, page, category } = query;
     const perPage = Number(limit) || 10;
     const currentPage = Number(page) || 1;
-    const searchCriteria = searchBy ? { title: { $regex: searchBy, $options: 'i' } } : {};
+    // Build the search criteria
+    const searchCriteria: any = {};
+    if (searchBy) searchCriteria.title = { $regex: searchBy, $options: 'i' };
+    if (category) searchCriteria.category = category;
 
     const resources = await this.resourceModel
       .find(searchCriteria)

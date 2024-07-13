@@ -17,6 +17,9 @@ export class Donation extends Document {
   @Prop()
   frequency?: DonationFrequency;
 
+  @Prop({ default: '' })
+  comment: string;
+
   @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'User' })
   user: User;
 }

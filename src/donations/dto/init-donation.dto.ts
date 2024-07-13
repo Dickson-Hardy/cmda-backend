@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsBoolean, IsEnum, IsNotEmpty, IsNumber, IsOptional } from 'class-validator';
+import { IsBoolean, IsEnum, IsNotEmpty, IsNumber, IsOptional, IsString } from 'class-validator';
 import { DonationFrequency } from '../donation.constant';
 
 export class InitDonationDto {
@@ -17,4 +17,9 @@ export class InitDonationDto {
   @IsEnum(DonationFrequency)
   @IsOptional()
   frequency?: DonationFrequency;
+
+  @ApiPropertyOptional({ example: 'Donating for the good work' })
+  @IsOptional()
+  @IsString()
+  comment: string;
 }

@@ -5,14 +5,13 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { CreateEventDto } from './dto/create-event.dto';
-// import { UpdateEventDto } from './dto/update-event.dto';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { ISuccessResponse } from '../_global/interface/success-response';
-import { PaginationQueryDto } from '../_global/dto/pagination-query.dto';
 import { Event } from './events.schema';
 import { CloudinaryService } from '../cloudinary/cloudinary.service';
 import { AllEventAudiences } from './events.constant';
+import { EventPaginationQueryDto } from './dto/event-pagination.dto';
 
 @Injectable()
 export class EventsService {
@@ -59,20 +58,27 @@ export class EventsService {
     }
   }
 
-  async findAll(query: PaginationQueryDto): Promise<ISuccessResponse> {
-    const { searchBy, limit, page } = query;
+  async findAll(query: EventPaginationQueryDto): Promise<ISuccessResponse> {
+    const { searchBy, limit, page, eventType, membersGroup, eventDate } = query;
     const perPage = Number(limit) || 10;
     const currentPage = Number(page) || 1;
-    const searchCriteria = searchBy
-      ? {
-          $or: [
-            { name: new RegExp(searchBy, 'i') },
-            { eventType: new RegExp(searchBy, 'i') },
-            { linkOrLocation: new RegExp(searchBy, 'i') },
-            { eventDateTime: new RegExp(searchBy, 'i') },
-          ],
-        }
-      : {};
+
+    const searchCriteria: any = {};
+    if (searchBy) {
+      searchCriteria.$or = [
+        { name: new RegExp(searchBy, 'i') },
+        { eventType: new RegExp(searchBy, 'i') },
+        { linkOrLocation: new RegExp(searchBy, 'i') },
+        { eventDateTime: new RegExp(searchBy, 'i') },
+      ];
+    }
+    if (eventType) searchCriteria.eventType = eventType;
+    if (membersGroup) searchCriteria.membersGroup = membersGroup;
+    if (eventDate) {
+      const startOfDay = new Date(`${eventDate}T00:00:00+01:00`);
+      const endOfDay = new Date(`${eventDate}T23:59:59+01:00`);
+      searchCriteria.eventDateTime = { $gte: startOfDay, $lte: endOfDay };
+    }
 
     const events = await this.eventModel
       .find(searchCriteria)
