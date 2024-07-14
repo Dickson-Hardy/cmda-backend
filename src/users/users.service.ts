@@ -6,6 +6,8 @@ import { User } from './users.schema';
 import { UserPaginationQueryDto } from './dto/user-pagination.dto';
 import { CloudinaryService } from '../cloudinary/cloudinary.service';
 import { UserRole } from './user.constant';
+import { json2csv } from 'json-2-csv';
+import { ExportUsersDto } from './dto/export-user.dto';
 
 @Injectable()
 export class UsersService {
@@ -50,6 +52,34 @@ export class UsersService {
         meta: { currentPage, itemsPerPage: perPage, totalItems, totalPages },
       },
     };
+  }
+
+  async exportAll(query: ExportUsersDto): Promise<any> {
+    const { role, region } = query;
+    const searchCriteria: any = {};
+    if (role) searchCriteria.role = role;
+    if (region) searchCriteria.region = region;
+
+    const users = await this.userModel
+      .find(searchCriteria)
+      .sort({ createdAt: -1 })
+      .select('membershipId firstName middleName lastName email role region createdAt')
+      .lean();
+
+    const usersJson = users.map((user: any) => ({
+      membershipId: user.membershipId,
+      firstName: user.firstName,
+      middleName: user.middleName,
+      lastName: user.lastName,
+      email: user.email,
+      role: user.role,
+      region: user.region,
+      createdAt: new Date(user.createdAt).toLocaleString('en-US', { dateStyle: 'medium' }),
+    }));
+
+    const csv = await json2csv(usersJson);
+
+    return csv;
   }
 
   async getStats(): Promise<ISuccessResponse> {

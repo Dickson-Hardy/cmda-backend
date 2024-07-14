@@ -8,6 +8,7 @@ import { PaginationQueryDto } from '../_global/dto/pagination-query.dto';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { AllAdminRoles } from '../admin/admin.constant';
 import { AllUserRoles } from '../users/user.constant';
+import { ExportDonationsDto } from './dto/export-donations.dto';
 
 @ApiTags('Donations')
 @Controller('donations')
@@ -20,6 +21,13 @@ export class DonationsController {
   @ApiOperation({ summary: 'Fetch all donations -- Admin' })
   findAll(@Query() query: PaginationQueryDto) {
     return this.donationsService.findAll(query);
+  }
+
+  @Get('export')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Exports all donation records' })
+  exportAll(@Query() query: ExportDonationsDto) {
+    return this.donationsService.exportAll(query.userId);
   }
 
   @Get('user')

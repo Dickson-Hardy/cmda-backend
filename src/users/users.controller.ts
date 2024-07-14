@@ -4,6 +4,7 @@ import { UsersService } from './users.service';
 import { UserPaginationQueryDto } from './dto/user-pagination.dto';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { AllAdminRoles } from '../admin/admin.constant';
+import { ExportUsersDto } from './dto/export-user.dto';
 
 @ApiTags('Users')
 @Controller('users')
@@ -15,6 +16,13 @@ export class UsersController {
   @ApiOperation({ summary: 'Fetches all members' })
   findAll(@Query() query: UserPaginationQueryDto) {
     return this.usersService.findAll(query);
+  }
+
+  @Get('export')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Downloads all members data as csv' })
+  exportAll(@Query() query: ExportUsersDto) {
+    return this.usersService.exportAll(query);
   }
 
   @Get('stats')

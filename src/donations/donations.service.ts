@@ -9,6 +9,7 @@ import { ConfigService } from '@nestjs/config';
 import { InitDonationDto } from './dto/init-donation.dto';
 import { Donation } from './donation.schema';
 import { PaginationQueryDto } from '../_global/dto/pagination-query.dto';
+import { json2csv } from 'json-2-csv';
 
 @Injectable()
 export class DonationsService {
@@ -99,6 +100,28 @@ export class DonationsService {
         meta: { currentPage, itemsPerPage: perPage, totalItems, totalPages },
       },
     };
+  }
+
+  async exportAll(userId: string): Promise<any> {
+    const donations = await this.donationModel
+      .find(userId ? { user: userId } : {})
+      .sort({ createdAt: -1 })
+      .populate('user', ['_id', 'fullName', 'email', 'role'])
+      .lean();
+
+    const donationsJson = donations.map((donation: any) => ({
+      reference: donation.reference,
+      amount: donation.amount,
+      name: donation.user.fullName,
+      email: donation.user.email,
+      recurring: donation.recurring && donation.frequency,
+      frequency: donation.frequency || '-',
+      date: new Date(donation.createdAt).toLocaleString('en-US', { dateStyle: 'medium' }),
+    }));
+
+    const csv = await json2csv(donationsJson);
+
+    return csv;
   }
 
   async findUserDonations(id: string, query: PaginationQueryDto): Promise<ISuccessResponse> {

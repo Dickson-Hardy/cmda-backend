@@ -9,6 +9,7 @@ import { ConfigService } from '@nestjs/config';
 import { ISuccessResponse } from '../_global/interface/success-response';
 import { PaginationQueryDto } from '../_global/dto/pagination-query.dto';
 import { SUBSCRIPTION_PRICES } from './subscription.constant';
+import { json2csv } from 'json-2-csv';
 
 @Injectable()
 export class SubscriptionsService {
@@ -103,6 +104,28 @@ export class SubscriptionsService {
         meta: { currentPage, itemsPerPage: perPage, totalItems, totalPages },
       },
     };
+  }
+
+  async exportAll(userId: string): Promise<any> {
+    const subscriptions = await this.subscriptionModel
+      .find(userId ? { user: userId } : {})
+      .sort({ createdAt: -1 })
+      .populate('user', ['_id', 'fullName', 'email', 'role'])
+      .lean();
+
+    const subscriptionsJson = subscriptions.map((sub: any) => ({
+      reference: sub.reference,
+      amount: sub.amount,
+      name: sub.user.fullName,
+      email: sub.user.email,
+      role: sub.user.role,
+      paidOn: new Date(sub.createdAt).toLocaleString('en-US', { dateStyle: 'medium' }),
+      expiresOn: new Date(sub.expiryDate).toLocaleString('en-US', { dateStyle: 'medium' }),
+    }));
+
+    const csv = await json2csv(subscriptionsJson);
+
+    return csv;
   }
 
   async findUserSubs(id: string, query: PaginationQueryDto): Promise<ISuccessResponse> {

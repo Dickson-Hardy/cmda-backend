@@ -7,6 +7,7 @@ import { AllUserRoles } from '../users/user.constant';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { AllAdminRoles } from '../admin/admin.constant';
 import { PaginationQueryDto } from '../_global/dto/pagination-query.dto';
+import { ExportSubscriptionsDto } from './dto/export-subscription.dto';
 
 @ApiTags('Subscriptions')
 @Controller('subscriptions')
@@ -19,6 +20,13 @@ export class SubscriptionsController {
   @ApiOperation({ summary: 'Fetch all subscription records -- Admin' })
   findAll(@Query() query: PaginationQueryDto) {
     return this.subscriptionsService.findAll(query);
+  }
+
+  @Get('export')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Exports all subscription records' })
+  exportAll(@Query() query: ExportSubscriptionsDto) {
+    return this.subscriptionsService.exportAll(query.userId);
   }
 
   @Get('history')
