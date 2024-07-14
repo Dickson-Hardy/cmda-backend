@@ -1,14 +1,13 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document, Types } from 'mongoose';
-import { User } from '../../users/users.schema';
+import { Document } from 'mongoose';
 
 @Schema({ timestamps: true, versionKey: false })
 export class ChatLog extends Document {
-  @Prop({ type: Types.ObjectId, ref: 'User' })
-  user: User;
+  @Prop()
+  user: string;
 
-  @Prop({ type: Types.ObjectId, ref: 'User' })
-  chatWith: User;
+  @Prop()
+  chatWith: string;
 
   @Prop()
   lastMessage: string;

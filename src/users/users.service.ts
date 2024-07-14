@@ -27,10 +27,9 @@ export class UsersService {
         { middleName: new RegExp(searchBy, 'i') },
         { lastName: new RegExp(searchBy, 'i') },
         { email: new RegExp(searchBy, 'i') },
-        { region: new RegExp(searchBy, 'i') },
         { specialty: new RegExp(searchBy, 'i') },
-        { role: new RegExp(searchBy, 'i') },
         { licenseNumber: new RegExp(searchBy, 'i') },
+        { membershipId: new RegExp(searchBy, 'i') },
       ];
     }
     if (role) searchCriteria.role = role;
