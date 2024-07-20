@@ -3,7 +3,7 @@ import { DonationsService } from './donations.service';
 import { DonationsController } from './donations.controller';
 import { MongooseModule } from '@nestjs/mongoose';
 import { Donation, DonationShema } from './donation.schema';
-import { User, UserSchema } from '../users/users.schema';
+import { User, UserSchema } from '../users/schema/users.schema';
 import { PaystackModule } from '../paystack/paystack.module';
 
 @Module({

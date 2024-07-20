@@ -5,7 +5,7 @@ import { ChatGateway } from './chat.gateway';
 import { MongooseModule } from '@nestjs/mongoose';
 import { Message, MessageShema } from './schema/message.schema';
 import { ChatLog, ChatLogSchema } from './schema/chat-log.schema';
-import { User, UserSchema } from '../users/users.schema';
+import { User, UserSchema } from '../users/schema/users.schema';
 
 @Module({
   imports: [

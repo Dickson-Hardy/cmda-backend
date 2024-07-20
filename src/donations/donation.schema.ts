@@ -1,6 +1,6 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import mongoose, { Document } from 'mongoose';
-import { User } from '../users/users.schema';
+import { User } from '../users/schema/users.schema';
 import { DonationFrequency } from './donation.constant';
 
 @Schema({ timestamps: true, versionKey: false })

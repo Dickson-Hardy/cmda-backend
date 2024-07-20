@@ -12,7 +12,7 @@ import * as bcrypt from 'bcryptjs';
 import { JwtService } from '@nestjs/jwt';
 import { CreateUserDto } from './dto/create-user.dto';
 import { LoginDto } from './dto/login.dto';
-import { User } from '../users/users.schema';
+import { User } from '../users/schema/users.schema';
 import { ISuccessResponse } from '../_global/interface/success-response';
 import { ConfigService } from '@nestjs/config';
 import { UserRole } from '../users/user.constant';
@@ -43,7 +43,7 @@ export class AuthService {
       });
       return payload;
     } catch {
-      throw new UnauthorizedException();
+      throw new UnauthorizedException('Invalid or expired token provided');
     }
   }
 

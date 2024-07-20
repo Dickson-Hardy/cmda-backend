@@ -2,7 +2,7 @@ import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document } from 'mongoose';
 import * as mongoose from 'mongoose';
 import { Product } from '../products/products.schema';
-import { User } from '../users/users.schema';
+import { User } from '../users/schema/users.schema';
 import { OrderStatus } from './order.constant';
 
 class OrderTimelineEntry {

@@ -9,7 +9,7 @@ import { Server } from 'socket.io';
 import { Message } from './schema/message.schema';
 import { Model } from 'mongoose';
 import { ChatLog } from './schema/chat-log.schema';
-import { User } from '../users/users.schema';
+import { User } from '../users/schema/users.schema';
 
 @WebSocketGateway({ cors: { origin: '*' } })
 export class ChatGateway {

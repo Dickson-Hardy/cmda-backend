@@ -4,7 +4,7 @@ import { ChatLog } from './schema/chat-log.schema';
 import { Model } from 'mongoose';
 import { Message } from './schema/message.schema';
 import { ISuccessResponse } from '../_global/interface/success-response';
-import { User } from '../users/users.schema';
+import { User } from '../users/schema/users.schema';
 import { IJwtPayload } from '../_global/interface/jwt-payload';
 import { AdminRole, AllAdminRoles } from '../admin/admin.constant';
 

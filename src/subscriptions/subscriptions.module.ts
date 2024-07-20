@@ -5,7 +5,7 @@ import { PaystackModule } from '../paystack/paystack.module';
 import { MongooseModule } from '@nestjs/mongoose';
 import { Subscription } from 'rxjs';
 import { SubscriptionShema } from './subscription.schema';
-import { User, UserSchema } from '../users/users.schema';
+import { User, UserSchema } from '../users/schema/users.schema';
 
 @Module({
   imports: [

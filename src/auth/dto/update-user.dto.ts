@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsOptional, IsString, IsEnum, IsNumberString } from 'class-validator';
+import { IsOptional, IsString, IsEnum, IsNumberString, IsDateString } from 'class-validator';
 import { UserGender } from '../../users/user.constant';
 
 export class UpdateUserDto {
@@ -40,6 +40,11 @@ export class UpdateUserDto {
   @IsOptional()
   @IsString()
   region?: string;
+
+  @ApiPropertyOptional({ example: '2000-01-01', description: 'Date of birth' })
+  @IsOptional()
+  @IsDateString()
+  dateOfBirth?: string;
 
   @ApiPropertyOptional({ example: 2021, description: 'Year of admission for a student' })
   @IsOptional()

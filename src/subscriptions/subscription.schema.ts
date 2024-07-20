@@ -1,6 +1,6 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import mongoose, { Document } from 'mongoose';
-import { User } from '../users/users.schema';
+import { User } from '../users/schema/users.schema';
 
 @Schema({ timestamps: true, versionKey: false })
 export class Subscription extends Document {

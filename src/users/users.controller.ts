@@ -1,10 +1,13 @@
-import { Controller, Delete, Get, Param, Query } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Body, Controller, Delete, Get, Param, Patch, Query, Req } from '@nestjs/common';
+import { ApiBearerAuth, ApiBody, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { UsersService } from './users.service';
 import { UserPaginationQueryDto } from './dto/user-pagination.dto';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { AllAdminRoles } from '../admin/admin.constant';
 import { ExportUsersDto } from './dto/export-user.dto';
+import { AllUserRoles } from './user.constant';
+import { IJwtPayload } from '../_global/interface/jwt-payload';
+import { UpdateUserSettingsDto } from './dto/user-settings.dto';
 
 @ApiTags('Users')
 @Controller('users')
@@ -30,6 +33,26 @@ export class UsersController {
   @ApiOperation({ summary: 'Returns total members for each role - student, doctor, global' })
   getStats() {
     return this.usersService.getStats();
+  }
+
+  @Get('settings')
+  @ApiBearerAuth()
+  @Roles(AllUserRoles)
+  @ApiOperation({ summary: 'Returns user settings' })
+  getSettings(@Req() req: { user: IJwtPayload }) {
+    return this.usersService.getSettings(req.user.id);
+  }
+
+  @Patch('settings')
+  @ApiBearerAuth()
+  @Roles(AllUserRoles)
+  @ApiOperation({ summary: 'Updates user settings' })
+  @ApiBody({ type: UpdateUserSettingsDto })
+  updateSettings(
+    @Req() req: { user: IJwtPayload },
+    @Body() updateUserSettingsDto: UpdateUserSettingsDto,
+  ) {
+    return this.usersService.updateSettings(req.user.id, updateUserSettingsDto);
   }
 
   @Get(':id')

@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { CreateSubscriptionDto } from './dto/create-subscription.dto';
 import { InjectModel } from '@nestjs/mongoose';
-import { User } from '../users/users.schema';
+import { User } from '../users/schema/users.schema';
 import { Model } from 'mongoose';
 import { Subscription } from './subscription.schema';
 import { PaystackService } from '../paystack/paystack.service';

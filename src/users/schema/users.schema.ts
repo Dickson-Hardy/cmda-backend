@@ -1,10 +1,10 @@
 import { Prop, Schema, SchemaFactory, raw } from '@nestjs/mongoose';
 import { Document } from 'mongoose';
-import { Counter } from '../_global/schema/counter.schema';
-import { UserGender, UserRole } from './user.constant';
+import { Counter } from '../../_global/schema/counter.schema';
+import { UserGender, UserRole } from '../user.constant';
 import mongoose from 'mongoose';
-import { Event } from '../events/events.schema';
-import { Vacancy } from '../vacancy/vacancy.schema';
+import { Event } from '../../events/events.schema';
+import { Vacancy } from '../../vacancy/vacancy.schema';
 
 @Schema({
   timestamps: true,
@@ -52,6 +52,9 @@ export class User extends Document {
   gender: UserGender;
 
   @Prop()
+  dateOfBirth: Date;
+
+  @Prop()
   role: UserRole;
 
   @Prop()
@@ -62,6 +65,9 @@ export class User extends Document {
 
   @Prop()
   region: string;
+
+  @Prop()
+  leadershipPosition: string;
 
   @Prop()
   admissionYear: number; // student

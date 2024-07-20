@@ -2,17 +2,20 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { ISuccessResponse } from '../_global/interface/success-response';
-import { User } from './users.schema';
+import { User } from './schema/users.schema';
 import { UserPaginationQueryDto } from './dto/user-pagination.dto';
 import { CloudinaryService } from '../cloudinary/cloudinary.service';
 import { UserRole } from './user.constant';
 import { json2csv } from 'json-2-csv';
 import { ExportUsersDto } from './dto/export-user.dto';
+import { UserSettings } from './schema/user-settings.schema';
+import { UpdateUserSettingsDto } from './dto/user-settings.dto';
 
 @Injectable()
 export class UsersService {
   constructor(
     @InjectModel(User.name) private userModel: Model<User>,
+    @InjectModel(UserSettings.name) private userSettingsModel: Model<UserSettings>,
     private cloudinaryService: CloudinaryService,
   ) {}
 
@@ -109,6 +112,31 @@ export class UsersService {
       success: true,
       message: 'User fetched successfully',
       data: user,
+    };
+  }
+
+  async getSettings(user: string): Promise<ISuccessResponse> {
+    const settings = await this.userSettingsModel.findOne({ user });
+    return {
+      success: true,
+      message: 'User settings fetched successfully',
+      data: settings,
+    };
+  }
+
+  async updateSettings(
+    user: string,
+    updateUserSettingsDto: UpdateUserSettingsDto,
+  ): Promise<ISuccessResponse> {
+    const settings = await this.userSettingsModel.findOneAndUpdate(
+      { user },
+      updateUserSettingsDto,
+      { new: true, upsert: true },
+    );
+    return {
+      success: true,
+      message: 'User settings updated successfully',
+      data: settings,
     };
   }
 
