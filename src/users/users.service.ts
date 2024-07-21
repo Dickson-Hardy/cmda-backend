@@ -106,8 +106,9 @@ export class UsersService {
     } else {
       user = await this.userModel.findById(id);
     }
-
-    if (!user) throw new NotFoundException('User with id/membershipId does not exist');
+    if (!user) {
+      throw new NotFoundException('User with id/membershipId does not exist');
+    }
     return {
       success: true,
       message: 'User fetched successfully',
