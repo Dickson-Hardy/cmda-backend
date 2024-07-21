@@ -59,7 +59,7 @@ export class EventsService {
   }
 
   async findAll(query: EventPaginationQueryDto): Promise<ISuccessResponse> {
-    const { searchBy, limit, page, eventType, membersGroup, eventDate } = query;
+    const { searchBy, limit, page, eventType, membersGroup, eventDate, fromToday } = query;
     const perPage = Number(limit) || 10;
     const currentPage = Number(page) || 1;
 
@@ -74,10 +74,19 @@ export class EventsService {
     }
     if (eventType) searchCriteria.eventType = eventType;
     if (membersGroup) searchCriteria.membersGroup = membersGroup;
+
+    if (eventDate && String(fromToday) === 'true') {
+      throw new BadRequestException('Please use only one of eventDate or fromToday');
+    }
+
     if (eventDate) {
       const startOfDay = new Date(`${eventDate}T00:00:00+01:00`);
       const endOfDay = new Date(`${eventDate}T23:59:59+01:00`);
       searchCriteria.eventDateTime = { $gte: startOfDay, $lte: endOfDay };
+    } else if (String(fromToday) === 'true') {
+      const today = new Date().toISOString().split('T')[0];
+      const startOfToday = new Date(`${today}T00:00:00+01:00`);
+      searchCriteria.eventDateTime = { $gte: startOfToday };
     }
 
     const events = await this.eventModel
