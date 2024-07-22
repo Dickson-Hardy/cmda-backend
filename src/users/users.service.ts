@@ -5,17 +5,20 @@ import { ISuccessResponse } from '../_global/interface/success-response';
 import { User } from './schema/users.schema';
 import { UserPaginationQueryDto } from './dto/user-pagination.dto';
 import { CloudinaryService } from '../cloudinary/cloudinary.service';
-import { UserRole } from './user.constant';
+import { TransitionStatus, UserRole } from './user.constant';
 import { json2csv } from 'json-2-csv';
 import { ExportUsersDto } from './dto/export-user.dto';
 import { UserSettings } from './schema/user-settings.schema';
 import { UpdateUserSettingsDto } from './dto/user-settings.dto';
+import { UserTransition } from './schema/user-transition.schema';
+import { CreateUserTransitionDto } from './dto/create-transition.dto';
 
 @Injectable()
 export class UsersService {
   constructor(
     @InjectModel(User.name) private userModel: Model<User>,
     @InjectModel(UserSettings.name) private userSettingsModel: Model<UserSettings>,
+    @InjectModel(UserTransition.name) private transitionModel: Model<UserTransition>,
     private cloudinaryService: CloudinaryService,
   ) {}
 
@@ -138,6 +141,66 @@ export class UsersService {
       success: true,
       message: 'User settings updated successfully',
       data: settings,
+    };
+  }
+
+  async getTransition(user: string): Promise<ISuccessResponse> {
+    const transition = await this.transitionModel.findOne({ user });
+    return {
+      success: true,
+      message: 'User transition info fetched successfully',
+      data: transition,
+    };
+  }
+  async getAllTransitions(): Promise<ISuccessResponse> {
+    const transitions = await this.transitionModel.find().populate('user', '_id fullName role');
+    return {
+      success: true,
+      message: 'All transition requests fetched successfully',
+      data: transitions,
+    };
+  }
+
+  async createTransition(
+    user: string,
+    createUserTransitionDto: CreateUserTransitionDto,
+  ): Promise<ISuccessResponse> {
+    const transition = await this.transitionModel.findOneAndUpdate(
+      { user },
+      createUserTransitionDto,
+      { new: true, upsert: true },
+    );
+    return {
+      success: true,
+      message: 'User transition info updated successfully',
+      data: transition,
+    };
+  }
+
+  async updateTransitionStatus(id: string, status: TransitionStatus): Promise<ISuccessResponse> {
+    const transition = await this.transitionModel
+      .findByIdAndUpdate(id, { status }, { new: true })
+      .populate('user', '_id role');
+
+    const { user, region, specialty, licenseNumber }: any = transition;
+
+    if (status === TransitionStatus.COMPLETED) {
+      await this.userModel.findByIdAndUpdate(user._id, {
+        region,
+        specialty,
+        licenseNumber,
+        role: user.role === UserRole.STUDENT ? UserRole.DOCTOR : UserRole.GLOBALNETWORK,
+        admissionYear: null,
+        yearOfStudy: null,
+      });
+
+      await this.transitionModel.findByIdAndDelete(transition._id);
+    }
+
+    return {
+      success: true,
+      message: 'User transition changed to ' + status,
+      data: transition,
     };
   }
 

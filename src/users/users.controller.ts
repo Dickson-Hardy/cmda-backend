@@ -1,13 +1,14 @@
-import { Body, Controller, Delete, Get, Param, Patch, Query, Req } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Req } from '@nestjs/common';
 import { ApiBearerAuth, ApiBody, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { UsersService } from './users.service';
 import { UserPaginationQueryDto } from './dto/user-pagination.dto';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { AllAdminRoles } from '../admin/admin.constant';
 import { ExportUsersDto } from './dto/export-user.dto';
-import { AllUserRoles } from './user.constant';
+import { AllUserRoles, TransitionStatus } from './user.constant';
 import { IJwtPayload } from '../_global/interface/jwt-payload';
 import { UpdateUserSettingsDto } from './dto/user-settings.dto';
+import { CreateUserTransitionDto } from './dto/create-transition.dto';
 
 @ApiTags('Users')
 @Controller('users')
@@ -33,6 +34,42 @@ export class UsersController {
   @ApiOperation({ summary: 'Returns total members for each role - student, doctor, global' })
   getStats() {
     return this.usersService.getStats();
+  }
+
+  @Get('transition')
+  @ApiBearerAuth()
+  @Roles(AllUserRoles)
+  @ApiOperation({ summary: 'Returns user transition information' })
+  getTransition(@Req() req: { user: IJwtPayload }) {
+    return this.usersService.getTransition(req.user.id);
+  }
+
+  @Post('transition')
+  @ApiBearerAuth()
+  @Roles(AllUserRoles)
+  @ApiOperation({ summary: 'Updates or creates a user transition' })
+  @ApiBody({ type: CreateUserTransitionDto })
+  createTransition(
+    @Req() req: { user: IJwtPayload },
+    @Body() createUserTransitionDto: CreateUserTransitionDto,
+  ) {
+    return this.usersService.createTransition(req.user.id, createUserTransitionDto);
+  }
+
+  @Get('transition/all')
+  @ApiBearerAuth()
+  @Roles(AllAdminRoles)
+  @ApiOperation({ summary: 'Returns all users transitions' })
+  getAllTransitions() {
+    return this.usersService.getAllTransitions();
+  }
+
+  @Post('transition/:id/:status')
+  @ApiBearerAuth()
+  @Roles(AllAdminRoles)
+  @ApiOperation({ summary: 'Updates status of a transition --- Admin' })
+  updateTransitionStatus(@Param('id') id: string, @Param('status') status: TransitionStatus) {
+    return this.usersService.updateTransitionStatus(id, status);
   }
 
   @Get('settings')
