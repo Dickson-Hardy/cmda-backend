@@ -22,6 +22,7 @@ import { DonationsModule } from './donations/donations.module';
 import { SubscriptionsModule } from './subscriptions/subscriptions.module';
 import { PaystackModule } from './paystack/paystack.module';
 import { OrdersModule } from './orders/orders.module';
+import { TrainingModule } from './training/training.module';
 
 @Module({
   imports: [
@@ -49,6 +50,7 @@ import { OrdersModule } from './orders/orders.module';
     PaystackModule,
     OrdersModule,
     AdminModule,
+    TrainingModule,
   ],
   controllers: [AppController],
   providers: [
