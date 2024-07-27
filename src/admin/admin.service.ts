@@ -22,8 +22,7 @@ import { ChangeAdminPasswordDto } from './dto/change-admin-password.dto';
 @Injectable()
 export class AdminService {
   constructor(
-    @InjectModel(Admin.name)
-    private adminModel: Model<Admin>,
+    @InjectModel(Admin.name) private adminModel: Model<Admin>,
     private jwtService: JwtService,
     private emailService: EmailService,
   ) {}

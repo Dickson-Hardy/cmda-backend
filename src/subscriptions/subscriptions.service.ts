@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
 import { CreateSubscriptionDto } from './dto/create-subscription.dto';
 import { InjectModel } from '@nestjs/mongoose';
 import { User } from '../users/schema/users.schema';
@@ -10,16 +10,17 @@ import { ISuccessResponse } from '../_global/interface/success-response';
 import { PaginationQueryDto } from '../_global/dto/pagination-query.dto';
 import { SUBSCRIPTION_PRICES } from './subscription.constant';
 import { json2csv } from 'json-2-csv';
+import { SubscriptionPaginationQueryDto } from './dto/subscription-pagination.dto';
+import { EmailService } from '../email/email.service';
 
 @Injectable()
 export class SubscriptionsService {
   constructor(
-    @InjectModel(User.name)
-    private userModel: Model<User>,
-    @InjectModel(Subscription.name)
-    private subscriptionModel: Model<Subscription>,
+    @InjectModel(User.name) private userModel: Model<User>,
+    @InjectModel(Subscription.name) private subscriptionModel: Model<Subscription>,
     private paystackService: PaystackService,
     private configService: ConfigService,
+    private emailService: EmailService,
   ) {}
 
   async init(id: string): Promise<ISuccessResponse> {
@@ -65,6 +66,17 @@ export class SubscriptionsService {
       { new: true },
     );
 
+    const res = await this.emailService.sendSubscriptionConfirmedEmail({
+      name: user.fullName,
+      email: user.email,
+    });
+
+    if (!res.success) {
+      throw new InternalServerErrorException(
+        'Subscription confirmed. Error occured while sending email',
+      );
+    }
+
     return {
       success: true,
       message: 'Subscription saved successfully',
@@ -72,35 +84,42 @@ export class SubscriptionsService {
     };
   }
 
-  async findAll(query: PaginationQueryDto): Promise<ISuccessResponse> {
-    const { searchBy, limit, page } = query;
+  async findAll(query: SubscriptionPaginationQueryDto): Promise<ISuccessResponse> {
+    const { searchBy, limit, page, role, region } = query;
     const perPage = Number(limit) || 10;
     const currentPage = Number(page) || 1;
-    const searchCriteria = searchBy
-      ? {
-          $or: [
-            { reference: new RegExp(searchBy, 'i') },
-            { amount: new RegExp(searchBy, 'i') },
-            { frequency: new RegExp(searchBy, 'i') },
-          ],
-        }
-      : {};
+
+    const searchCriteria: any = {};
+
+    if (searchBy) {
+      searchCriteria.$or = [
+        { reference: new RegExp(searchBy, 'i') },
+        { amount: new RegExp(searchBy, 'i') },
+        { frequency: new RegExp(searchBy, 'i') },
+      ];
+    }
 
     const subscriptions = await this.subscriptionModel
       .find(searchCriteria)
       .sort({ createdAt: -1 })
       .limit(perPage)
       .skip(perPage * (currentPage - 1))
-      .populate('user', ['_id', 'fullName', 'email', 'role']);
+      .populate('user', ['_id', 'fullName', 'email', 'role', 'region']);
 
-    const totalItems = await this.subscriptionModel.countDocuments(searchCriteria);
+    // Filter the populated users by role and region
+    const filteredSubscriptions = subscriptions.filter((subscription) => {
+      const user = subscription.user as User;
+      return (!role || user.role === role) && (!region || user.region === region);
+    });
+
+    const totalItems = filteredSubscriptions.length;
     const totalPages = Math.ceil(totalItems / perPage);
 
     return {
       success: true,
       message: 'Subscription records fetched successfully',
       data: {
-        items: subscriptions,
+        items: filteredSubscriptions,
         meta: { currentPage, itemsPerPage: perPage, totalItems, totalPages },
       },
     };
@@ -110,7 +129,7 @@ export class SubscriptionsService {
     const subscriptions = await this.subscriptionModel
       .find(userId ? { user: userId } : {})
       .sort({ createdAt: -1 })
-      .populate('user', ['_id', 'fullName', 'email', 'role'])
+      .populate('user', ['_id', 'fullName', 'email', 'role', 'region'])
       .lean();
 
     const subscriptionsJson = subscriptions.map((sub: any) => ({
@@ -119,6 +138,7 @@ export class SubscriptionsService {
       name: sub.user.fullName,
       email: sub.user.email,
       role: sub.user.role,
+      region: sub.user.region,
       paidOn: new Date(sub.createdAt).toLocaleString('en-US', { dateStyle: 'medium' }),
       expiresOn: new Date(sub.expiryDate).toLocaleString('en-US', { dateStyle: 'medium' }),
     }));

@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
 import { CreateDonationDto } from './dto/create-donation.dto';
 import { InjectModel } from '@nestjs/mongoose';
 import { User } from '../users/schema/users.schema';
@@ -10,16 +10,17 @@ import { InitDonationDto } from './dto/init-donation.dto';
 import { Donation } from './donation.schema';
 import { PaginationQueryDto } from '../_global/dto/pagination-query.dto';
 import { json2csv } from 'json-2-csv';
+import { DonationPaginationQueryDto } from './dto/donation-pagination.dto';
+import { EmailService } from '../email/email.service';
 
 @Injectable()
 export class DonationsService {
   constructor(
-    @InjectModel(User.name)
-    private userModel: Model<User>,
-    @InjectModel(Donation.name)
-    private donationModel: Model<Donation>,
+    @InjectModel(User.name) private userModel: Model<User>,
+    @InjectModel(Donation.name) private donationModel: Model<Donation>,
     private paystackService: PaystackService,
     private configService: ConfigService,
+    private emailService: EmailService,
   ) {}
 
   async init(id: string, createDonationDto: InitDonationDto): Promise<ISuccessResponse> {
@@ -61,6 +62,20 @@ export class DonationsService {
       comment,
       user: id,
     });
+
+    const user = await this.userModel.findById(id);
+
+    const res = await this.emailService.sendDonationConfirmedEmail({
+      name: user.fullName,
+      email: user.email,
+    });
+
+    if (!res.success) {
+      throw new InternalServerErrorException(
+        'Donation confirmed. Error occured while sending email',
+      );
+    }
+
     return {
       success: true,
       message: 'Donation saved successfully',
@@ -68,35 +83,42 @@ export class DonationsService {
     };
   }
 
-  async findAll(query: PaginationQueryDto): Promise<ISuccessResponse> {
-    const { searchBy, limit, page } = query;
+  async findAll(query: DonationPaginationQueryDto): Promise<ISuccessResponse> {
+    const { searchBy, limit, page, role, region } = query;
     const perPage = Number(limit) || 10;
     const currentPage = Number(page) || 1;
-    const searchCriteria = searchBy
-      ? {
-          $or: [
-            { reference: new RegExp(searchBy, 'i') },
-            { amount: new RegExp(searchBy, 'i') },
-            { frequency: new RegExp(searchBy, 'i') },
-          ],
-        }
-      : {};
+
+    const searchCriteria: any = {};
+
+    if (searchBy) {
+      searchCriteria.$or = [
+        { reference: new RegExp(searchBy, 'i') },
+        { amount: new RegExp(searchBy, 'i') },
+        { frequency: new RegExp(searchBy, 'i') },
+      ];
+    }
 
     const donations = await this.donationModel
       .find(searchCriteria)
       .sort({ createdAt: -1 })
       .limit(perPage)
       .skip(perPage * (currentPage - 1))
-      .populate('user', ['_id', 'fullName', 'email']);
+      .populate('user', ['_id', 'fullName', 'email', 'role', 'region']);
 
-    const totalItems = await this.donationModel.countDocuments(searchCriteria);
+    // Filter the populated users by role and region
+    const filteredDonations = donations.filter((donation) => {
+      const user = donation.user as User;
+      return (!role || user.role === role) && (!region || user.region === region);
+    });
+
+    const totalItems = filteredDonations.length;
     const totalPages = Math.ceil(totalItems / perPage);
 
     return {
       success: true,
-      message: 'Donations fetched successfully',
+      message: 'Donation records fetched successfully',
       data: {
-        items: donations,
+        items: filteredDonations,
         meta: { currentPage, itemsPerPage: perPage, totalItems, totalPages },
       },
     };
