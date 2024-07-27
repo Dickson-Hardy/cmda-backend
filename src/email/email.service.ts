@@ -5,6 +5,9 @@ import { PASSWORD_RESET_REQUEST_EMAIL_TEMPLATE } from './templates/password-rese
 import { PASSWORD_RESET_SUCCESS_EMAIL_TEMPLATE } from './templates/password-success.template';
 import { VERIFICATION_CODE_EMAIL_TEMPLATE } from './templates/verification-code.template';
 import { ADMIN_CREDENTIALS_TEMPLATE } from './templates/admin-created.template';
+import { DONATION_CONFIRMATION_EMAIL_TEMPLATE } from './templates/donation-confirmation.template';
+import { SUBSCRIPTION_CONFIRMATION_EMAIL_TEMPLATE } from './templates/subscription-confirm.template';
+import { TRANSITION_SUCCESS_EMAIL_TEMPLATE } from './templates/transition-success.template';
 
 @Injectable()
 export class EmailService {
@@ -83,6 +86,61 @@ export class EmailService {
       await this.mailerService.sendMail({
         to: email,
         subject: 'Admin Login Credentials',
+        html,
+      });
+      return { success: true };
+    } catch (error) {
+      return { success: false };
+    }
+  }
+
+  async sendDonationConfirmedEmail({ name, email }): Promise<{ success: boolean }> {
+    try {
+      const html = DONATION_CONFIRMATION_EMAIL_TEMPLATE.replace('[Name]', name);
+      await this.mailerService.sendMail({
+        to: email,
+        subject: 'Thank You for your Generous Donation',
+        html,
+      });
+      return { success: true };
+    } catch (error) {
+      return { success: false };
+    }
+  }
+
+  async sendSubscriptionConfirmedEmail({ name, email }): Promise<{ success: boolean }> {
+    try {
+      const html = SUBSCRIPTION_CONFIRMATION_EMAIL_TEMPLATE.replace('[Name]', name);
+      await this.mailerService.sendMail({
+        to: email,
+        subject: 'Thank You for Subscribing',
+        html,
+      });
+      return { success: true };
+    } catch (error) {
+      return { success: false };
+    }
+  }
+
+  async sendTransitionSuccessEmal({
+    name,
+    email,
+    oldRole,
+    newRole,
+    licenseNumber,
+    newRegion,
+    specialty,
+  }): Promise<{ success: boolean }> {
+    try {
+      const html = TRANSITION_SUCCESS_EMAIL_TEMPLATE.replace('[Name]', name)
+        .replace('[TransitionFrom]', oldRole)
+        .replace('[TransitionTo]', newRole)
+        .replace('[Specialty]', specialty)
+        .replace('[LicenseNumber]', licenseNumber)
+        .replace('[Region]', newRegion);
+      await this.mailerService.sendMail({
+        to: email,
+        subject: 'Transition Successful',
         html,
       });
       return { success: true };

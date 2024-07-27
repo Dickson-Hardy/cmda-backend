@@ -6,6 +6,7 @@ import { User, UserSchema } from './schema/users.schema';
 import { CloudinaryModule } from '../cloudinary/cloudinary.module';
 import { UserSettings, UserSettingsSchema } from './schema/user-settings.schema';
 import { UserTransition, UserTransitionSchema } from './schema/user-transition.schema';
+import { EmailModule } from '../email/email.module';
 
 @Module({
   imports: [
@@ -15,6 +16,7 @@ import { UserTransition, UserTransitionSchema } from './schema/user-transition.s
       { name: UserTransition.name, schema: UserTransitionSchema },
     ]),
     CloudinaryModule,
+    EmailModule,
   ],
   controllers: [UsersController],
   providers: [UsersService],

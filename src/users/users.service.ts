@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { ISuccessResponse } from '../_global/interface/success-response';
@@ -12,6 +12,7 @@ import { UserSettings } from './schema/user-settings.schema';
 import { UpdateUserSettingsDto } from './dto/user-settings.dto';
 import { UserTransition } from './schema/user-transition.schema';
 import { CreateUserTransitionDto } from './dto/create-transition.dto';
+import { EmailService } from '../email/email.service';
 
 @Injectable()
 export class UsersService {
@@ -20,6 +21,7 @@ export class UsersService {
     @InjectModel(UserSettings.name) private userSettingsModel: Model<UserSettings>,
     @InjectModel(UserTransition.name) private transitionModel: Model<UserTransition>,
     private cloudinaryService: CloudinaryService,
+    private emailService: EmailService,
   ) {}
 
   async findAll(query: UserPaginationQueryDto): Promise<ISuccessResponse> {
@@ -180,7 +182,7 @@ export class UsersService {
   async updateTransitionStatus(id: string, status: TransitionStatus): Promise<ISuccessResponse> {
     const transition = await this.transitionModel
       .findByIdAndUpdate(id, { status }, { new: true })
-      .populate('user', '_id role');
+      .populate('user', '_id role fullName email');
 
     const { user, region, specialty, licenseNumber }: any = transition;
 
@@ -195,6 +197,22 @@ export class UsersService {
       });
 
       await this.transitionModel.findByIdAndDelete(transition._id);
+
+      const res = await this.emailService.sendTransitionSuccessEmal({
+        name: user.fullName,
+        email: user.email,
+        oldRole: user.role,
+        newRole: user.role === UserRole.STUDENT ? UserRole.DOCTOR : UserRole.GLOBALNETWORK,
+        specialty,
+        licenseNumber,
+        newRegion: region,
+      });
+
+      if (!res.success) {
+        throw new InternalServerErrorException(
+          'Transition confirmed. Error occured while sending email',
+        );
+      }
     }
 
     return {

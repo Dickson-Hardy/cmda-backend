@@ -6,6 +6,7 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { Subscription } from 'rxjs';
 import { SubscriptionShema } from './subscription.schema';
 import { User, UserSchema } from '../users/schema/users.schema';
+import { EmailModule } from '../email/email.module';
 
 @Module({
   imports: [
@@ -14,6 +15,7 @@ import { User, UserSchema } from '../users/schema/users.schema';
       { name: User.name, schema: UserSchema },
     ]),
     PaystackModule,
+    EmailModule,
   ],
   controllers: [SubscriptionsController],
   providers: [SubscriptionsService],

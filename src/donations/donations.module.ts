@@ -5,6 +5,7 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { Donation, DonationShema } from './donation.schema';
 import { User, UserSchema } from '../users/schema/users.schema';
 import { PaystackModule } from '../paystack/paystack.module';
+import { EmailModule } from '../email/email.module';
 
 @Module({
   imports: [
@@ -13,6 +14,7 @@ import { PaystackModule } from '../paystack/paystack.module';
       { name: User.name, schema: UserSchema },
     ]),
     PaystackModule,
+    EmailModule,
   ],
   controllers: [DonationsController],
   providers: [DonationsService],
