@@ -20,6 +20,9 @@ export class Donation extends Document {
   @Prop({ default: '' })
   comment: string;
 
+  @Prop()
+  areasOfNeed: string;
+
   @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'User' })
   user: User;
 }

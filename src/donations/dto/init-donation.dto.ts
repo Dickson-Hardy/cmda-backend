@@ -21,5 +21,5 @@ export class InitDonationDto {
   @ApiPropertyOptional({ example: 'Donating for the good work' })
   @IsOptional()
   @IsString()
-  comment: string;
+  areasOfNeed: string;
 }

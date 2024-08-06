@@ -24,14 +24,14 @@ export class DonationsService {
   ) {}
 
   async init(id: string, createDonationDto: InitDonationDto): Promise<ISuccessResponse> {
-    const { amount, recurring, frequency, comment } = createDonationDto;
+    const { amount, recurring, frequency, areasOfNeed } = createDonationDto;
     const user = await this.userModel.findById(id);
     const transaction = await this.paystackService.initializeTransaction({
       amount: amount * 100,
       email: user.email,
       channels: ['card'],
       callback_url: this.configService.get('PAYMENT_SUCCESS_URL') + '?type=donation',
-      metadata: JSON.stringify({ recurring, frequency, name: user.fullName, comment }),
+      metadata: JSON.stringify({ recurring, frequency, name: user.fullName, areasOfNeed }),
     });
     if (!transaction.status) {
       throw new Error(transaction.message);
@@ -51,7 +51,7 @@ export class DonationsService {
     }
     const {
       amount,
-      metadata: { recurring, frequency, comment },
+      metadata: { recurring, frequency, areasOfNeed },
     } = transaction.data;
 
     const donation = await this.donationModel.create({
@@ -59,7 +59,7 @@ export class DonationsService {
       amount: amount / 100,
       recurring: recurring && frequency,
       ...(frequency ? { frequency } : {}),
-      comment,
+      areasOfNeed,
       user: id,
     });
 
@@ -84,7 +84,7 @@ export class DonationsService {
   }
 
   async findAll(query: DonationPaginationQueryDto): Promise<ISuccessResponse> {
-    const { searchBy, limit, page, role, region } = query;
+    const { searchBy, limit, page, role, region, areasOfNeed } = query;
     const perPage = Number(limit) || 10;
     const currentPage = Number(page) || 1;
 
@@ -95,7 +95,12 @@ export class DonationsService {
         { reference: new RegExp(searchBy, 'i') },
         { amount: new RegExp(searchBy, 'i') },
         { frequency: new RegExp(searchBy, 'i') },
+        { areasOfNeed: new RegExp(searchBy, 'i') },
       ];
+    }
+
+    if (areasOfNeed) {
+      searchCriteria.areasOfNeed = areasOfNeed;
     }
 
     const donations = await this.donationModel
@@ -158,6 +163,7 @@ export class DonationsService {
               { reference: new RegExp(searchBy, 'i') },
               { amount: new RegExp(searchBy, 'i') },
               { frequency: new RegExp(searchBy, 'i') },
+              { areasOfNeed: new RegExp(searchBy, 'i') },
             ],
           }
         : {}),

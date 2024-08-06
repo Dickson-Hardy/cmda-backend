@@ -30,4 +30,9 @@ export class DonationPaginationQueryDto {
   @IsOptional()
   @IsString()
   region?: string;
+
+  @ApiPropertyOptional({ description: 'Filter by areas of need', type: String })
+  @IsOptional()
+  @IsString()
+  areasOfNeed?: string;
 }

@@ -9,6 +9,7 @@ import { Roles } from '../auth/decorators/roles.decorator';
 import { AllAdminRoles } from '../admin/admin.constant';
 import { AllUserRoles } from '../users/user.constant';
 import { ExportDonationsDto } from './dto/export-donations.dto';
+import { DonationPaginationQueryDto } from './dto/donation-pagination.dto';
 
 @ApiTags('Donations')
 @Controller('donations')
@@ -19,7 +20,7 @@ export class DonationsController {
   @Roles(AllAdminRoles)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Fetch all donations -- Admin' })
-  findAll(@Query() query: PaginationQueryDto) {
+  findAll(@Query() query: DonationPaginationQueryDto) {
     return this.donationsService.findAll(query);
   }
 
