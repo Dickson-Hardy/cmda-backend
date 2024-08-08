@@ -21,7 +21,7 @@ export const PASSWORD_RESET_SUCCESS_EMAIL_TEMPLATE = `
           <td align="center" style="background-color: #994279; padding: 40px 0">
             <img
               src="https://cmdanigeria.net/CMDALogo.svg"
-              alt="Logo"
+              alt="CMDA Nigeria"
               width="200"
               height="56"
               style="display: block"
@@ -41,12 +41,12 @@ export const PASSWORD_RESET_SUCCESS_EMAIL_TEMPLATE = `
             </p>
             <p style="color: #666666; font-size: 16px; line-height: 1.5; margin: 20px 0">
               If you did not request this change, please contact our support team immediately by
-              <a href="mailto:support@cmdanigeria.com" style="color: #994279">clicking here</a>.
+              <a href="mailto:office@cmdanigeria.org" style="color: #994279">clicking here</a>.
             </p>
             <p style="color: #666666; font-size: 16px; line-height: 1.5; margin: 20px 0">
               For your security, please do not share your password with anyone. If you have any
               questions or need further assistance, feel free to
-              <a href="mailto:support@cmdanigeria.com" style="color: #994279">contact us</a>.
+              <a href="mailto:office@cmdanigeria.org" style="color: #994279">contact us</a>.
             </p>
             <p style="color: #666666; font-size: 16px; line-height: 1.5; margin: 40px 0 0 0">
               Best regards,<br />

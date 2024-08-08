@@ -21,7 +21,7 @@ export const ADMIN_CREDENTIALS_TEMPLATE = `
             <td align="center" style="background-color: #994279; padding: 40px 0">
              <img
               src="https://cmdanigeria.net/CMDALogo.svg"
-              alt="Logo"
+              alt="CMDA Nigeria"
               width="200"
               height="56"
               style="display: block"

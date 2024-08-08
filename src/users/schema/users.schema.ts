@@ -133,3 +133,19 @@ UserSchema.pre<User>('save', async function (next) {
   }
   next();
 });
+
+// Generic function to handle update operations
+function updateFullNameHook(next) {
+  const update = this.getUpdate();
+  // Check if the firstName, middleName, or lastName fields are being updated
+  if (update.firstName || update.middleName || update.lastName) {
+    const fullName =
+      `${update.firstName || ''} ${update.middleName || ''} ${update.lastName || ''}`.trim();
+    this.setUpdate({ ...update, fullName });
+  }
+  next();
+}
+
+// Apply the generic update hook to all relevant methods
+UserSchema.pre('findOneAndUpdate', updateFullNameHook);
+UserSchema.pre('updateOne', updateFullNameHook);

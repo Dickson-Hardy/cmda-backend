@@ -21,7 +21,7 @@ export const DONATION_CONFIRMATION_EMAIL_TEMPLATE = `
             <td align="center" style="background-color: #994279; padding: 40px 0">
                 <img
                 src="https://cmdanigeria.net/CMDALogo.svg"
-                alt="Logo"
+                alt="CMDA Nigeria"
                 width="200"
                 height="56"
                 style="display: block"
@@ -54,7 +54,7 @@ export const DONATION_CONFIRMATION_EMAIL_TEMPLATE = `
                 <p style="color: #666666; font-size: 16px; line-height: 1.5; margin: 20px 0">
                 If you have any questions or need a receipt for your donation, feel free to
                 <a
-                    href="mailto:support@cmdanigeria.com"
+                    href="mailto:office@cmdanigeria.org"
                     style="color: #994279; text-decoration: none"
                     >contact us</a
                 >.
