@@ -17,8 +17,8 @@ export class Donation extends Document {
   @Prop()
   frequency?: DonationFrequency;
 
-  @Prop({ default: '' })
-  comment: string;
+  // @Prop({ default: '' })
+  // comment: string;
 
   @Prop()
   areasOfNeed: string;

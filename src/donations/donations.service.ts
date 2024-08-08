@@ -57,7 +57,7 @@ export class DonationsService {
     const donation = await this.donationModel.create({
       reference,
       amount: amount / 100,
-      recurring: recurring && frequency,
+      recurring: recurring && frequency ? true : false,
       ...(frequency ? { frequency } : {}),
       areasOfNeed,
       user: id,
