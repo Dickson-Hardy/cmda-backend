@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsString } from 'class-validator';
+import { IsBoolean, IsString } from 'class-validator';
 import { FaithEntryCategory } from '../faithentry.constant';
 
 export class CreateFaithEntryDto {
@@ -7,11 +7,11 @@ export class CreateFaithEntryDto {
   @IsString()
   content: string;
 
-  @ApiProperty({ example: 'Testimony | Prayer' })
+  @ApiProperty({ example: Object.values(FaithEntryCategory).join('|') })
   @IsString()
   category: FaithEntryCategory;
 
   @ApiProperty({ example: false })
-  @IsString()
-  isAnonymous: string;
+  @IsBoolean()
+  isAnonymous: boolean;
 }

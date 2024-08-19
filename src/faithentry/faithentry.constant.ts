@@ -1,4 +1,5 @@
 export enum FaithEntryCategory {
   TESTIMONY = 'Testimony',
-  PRAYER = 'Prayer',
+  PRAYER = 'Prayer Request',
+  COMMENT = 'Comment',
 }
