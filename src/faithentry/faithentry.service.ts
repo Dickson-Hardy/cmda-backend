@@ -47,7 +47,8 @@ export class FaithEntryService {
       .find(searchCriteria)
       .sort({ createdAt: -1 })
       .limit(perPage)
-      .skip(perPage * (currentPage - 1));
+      .skip(perPage * (currentPage - 1))
+      .populate('user', '_id fullName email');
     const totalItems = await this.faithEntryModel.countDocuments(searchCriteria);
     const totalPages = Math.ceil(totalItems / perPage);
 
