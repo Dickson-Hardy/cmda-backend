@@ -9,6 +9,7 @@ import {
   Query,
   UseInterceptors,
   UploadedFile,
+  Req,
 } from '@nestjs/common';
 import { EventsService } from './events.service';
 import { CreateEventDto } from './dto/create-event.dto';
@@ -17,6 +18,8 @@ import { Roles } from '../auth/decorators/roles.decorator';
 import { AllAdminRoles } from '../admin/admin.constant';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { EventPaginationQueryDto } from './dto/event-pagination.dto';
+import { AllUserRoles } from '../users/user.constant';
+import { IJwtPayload } from '../_global/interface/jwt-payload';
 
 @ApiTags('Events')
 @Controller('events')
@@ -40,11 +43,33 @@ export class EventsController {
     return this.eventsService.findAll(query);
   }
 
+  @Post('/register/:slug')
+  @Roles(AllUserRoles)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Register for an event' })
+  registerForEvent(@Param('slug') slug: string, @Req() req: { user: IJwtPayload }) {
+    return this.eventsService.registerForEvent(req.user.id, slug);
+  }
+
+  @Get('registered')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Fetch all events a user has registered for' })
+  findRegistered(@Query() query: EventPaginationQueryDto, @Req() req: { user: IJwtPayload }) {
+    return this.eventsService.findRegistered(req.user.id, query);
+  }
+
   @Get(':slug')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get an event by its slug' })
   findOne(@Param('slug') slug: string) {
     return this.eventsService.findOne(slug);
+  }
+
+  @Get(':slug/stats')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get the statistics of an event by its slug' })
+  findOneStat(@Param('slug') slug: string) {
+    return this.eventsService.findOneStat(slug);
   }
 
   @Patch(':slug')

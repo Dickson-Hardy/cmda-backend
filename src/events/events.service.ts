@@ -119,6 +119,18 @@ export class EventsService {
     };
   }
 
+  async findOneStat(slug: string): Promise<ISuccessResponse> {
+    const event = await this.eventModel.findOne({ slug });
+    if (!event) {
+      throw new NotFoundException('No event with such slug');
+    }
+    return {
+      success: true,
+      message: 'Event statistics fetched successfully',
+      data: event,
+    };
+  }
+
   async updateOne(
     slug: string,
     updateEventDto,
@@ -174,6 +186,70 @@ export class EventsService {
       success: true,
       message: 'Event deleted successfully',
       data: event,
+    };
+  }
+
+  async registerForEvent(userId: any, slug: string): Promise<ISuccessResponse> {
+    const event = await this.eventModel.findOne({ slug });
+
+    if (!event) {
+      throw new NotFoundException('No event with such slug');
+    }
+
+    // Check if user is already registered
+    const isRegistered = event.registeredUsers.some((user) => user.toString() === userId);
+    if (isRegistered) {
+      throw new ConflictException('User is already registered for this event');
+    }
+
+    // Register user for the event
+    event.registeredUsers.push(userId);
+    await event.save();
+
+    return {
+      success: true,
+      message: 'Successfully registered for the event',
+      data: event,
+    };
+  }
+
+  async findRegistered(userId: string, query: EventPaginationQueryDto): Promise<ISuccessResponse> {
+    const { limit, page, searchBy } = query;
+    const perPage = Number(limit) || 10;
+    const currentPage = Number(page) || 1;
+
+    // Build the search criteria
+    const searchCriteria: any = {
+      registeredUsers: { $in: [userId] }, // Ensure the user is registered for the event
+    };
+
+    // If searchBy is provided, add the search conditions to the criteria
+    if (searchBy) {
+      searchCriteria.$or = [
+        { name: new RegExp(searchBy, 'i') },
+        { eventType: new RegExp(searchBy, 'i') },
+        { linkOrLocation: new RegExp(searchBy, 'i') },
+        { eventDateTime: new RegExp(searchBy, 'i') },
+      ];
+    }
+
+    // Fetch events that match the search criteria and pagination
+    const events = await this.eventModel
+      .find(searchCriteria)
+      .sort({ eventDateTime: -1 })
+      .limit(perPage)
+      .skip(perPage * (currentPage - 1));
+
+    const totalItems = await this.eventModel.countDocuments({ registeredUsers: userId });
+    const totalPages = Math.ceil(totalItems / perPage);
+
+    return {
+      success: true,
+      message: 'Registered events fetched successfully',
+      data: {
+        items: events,
+        meta: { currentPage, itemsPerPage: perPage, totalItems, totalPages },
+      },
     };
   }
 }
