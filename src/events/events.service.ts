@@ -12,6 +12,8 @@ import { Event } from './events.schema';
 import { CloudinaryService } from '../cloudinary/cloudinary.service';
 import { AllEventAudiences } from './events.constant';
 import { EventPaginationQueryDto } from './dto/event-pagination.dto';
+import { User } from '../users/schema/users.schema';
+import { UserRole } from '../users/user.constant';
 
 @Injectable()
 export class EventsService {
@@ -120,14 +122,36 @@ export class EventsService {
   }
 
   async findOneStat(slug: string): Promise<ISuccessResponse> {
-    const event = await this.eventModel.findOne({ slug });
+    const event = await this.eventModel
+      .findOne({ slug })
+      .populate('registeredUsers', '_id fullName email role region');
+
     if (!event) {
       throw new NotFoundException('No event with such slug');
     }
+
+    // Calculate the number of users in each audience group
+    const totalRegistered = event.registeredUsers.length;
+    const studentsRegistered = event.registeredUsers.filter(
+      (user: User) => user.role === UserRole.STUDENT,
+    ).length;
+    const doctorsRegistered = event.registeredUsers.filter(
+      (user: User) => user.role === UserRole.DOCTOR,
+    ).length;
+    const globalNetworkRegistered = event.registeredUsers.filter(
+      (user: User) => user.role === UserRole.GLOBALNETWORK,
+    ).length;
+
     return {
       success: true,
       message: 'Event statistics fetched successfully',
-      data: event,
+      data: {
+        totalRegistered,
+        studentsRegistered,
+        doctorsRegistered,
+        globalNetworkRegistered,
+        registeredUsers: event.registeredUsers,
+      },
     };
   }
 
