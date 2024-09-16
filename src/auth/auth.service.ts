@@ -245,6 +245,9 @@ export class AuthService {
   async forgotPassword(forgotPasswordDto: ForgotPasswordDto): Promise<ISuccessResponse> {
     const { email } = forgotPasswordDto;
     const user = await this.userModel.findOne({ email });
+    if (!user) {
+      throw new NotFoundException('Email does not exist');
+    }
     if (user) {
       const { randomUUID } = new ShortUniqueId({ length: 6, dictionary: 'alphanum_upper' });
       const code = randomUUID();
@@ -274,7 +277,8 @@ export class AuthService {
     if (!user) {
       throw new BadRequestException('Password reset token is invalid');
     }
-    await user.updateOne({ password: newPassword, passwordResetToken: '' });
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    await user.updateOne({ password: hashedPassword, passwordResetToken: '' });
     await this.emailService.sendPasswordResetSuccessEmail({
       name: user.firstName,
       email: user.email,
