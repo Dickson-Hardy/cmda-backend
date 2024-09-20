@@ -28,7 +28,7 @@ export class SubscriptionsService {
     const transaction = await this.paystackService.initializeTransaction({
       amount: SUBSCRIPTION_PRICES[user.role] * 100,
       email: user.email,
-      channels: ['card'],
+      // channels: ['card'],
       callback_url: this.configService.get('PAYMENT_SUCCESS_URL') + '?type=subscription',
       metadata: JSON.stringify({ name: user.fullName }),
     });

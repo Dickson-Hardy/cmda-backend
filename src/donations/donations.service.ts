@@ -29,7 +29,7 @@ export class DonationsService {
     const transaction = await this.paystackService.initializeTransaction({
       amount: amount * 100,
       email: user.email,
-      channels: ['card'],
+      // channels: ['card'], show all options
       callback_url: this.configService.get('PAYMENT_SUCCESS_URL') + '?type=donation',
       metadata: JSON.stringify({ recurring, frequency, name: user.fullName, areasOfNeed }),
     });

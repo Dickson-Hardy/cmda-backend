@@ -32,7 +32,7 @@ export class OrdersService {
     const transaction = await this.paystackService.initializeTransaction({
       amount: totalAmount * 100,
       email: shippingContactEmail,
-      channels: ['card'],
+      // channels: ['card'],
       callback_url: this.configService.get('ORDER_SUCCESS_URL'),
       metadata: JSON.stringify({
         products,
