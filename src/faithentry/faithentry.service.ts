@@ -5,7 +5,7 @@ import { ISuccessResponse } from '../_global/interface/success-response';
 import { FaithEntry } from './faithentry.schema';
 import { Model } from 'mongoose';
 import { InjectModel } from '@nestjs/mongoose';
-import { PaginationQueryDto } from '../_global/dto/pagination-query.dto';
+import { FaithPaginationQueryDto } from './dto/faith-pagination-query.dto';
 
 @Injectable()
 export class FaithEntryService {
@@ -37,11 +37,11 @@ export class FaithEntryService {
     }
   }
 
-  async findAll(query: PaginationQueryDto): Promise<ISuccessResponse> {
-    const { searchBy, limit, page } = query;
+  async findAll(query: FaithPaginationQueryDto): Promise<ISuccessResponse> {
+    const { category, limit, page } = query;
     const perPage = Number(limit) || 10;
     const currentPage = Number(page) || 1;
-    const searchCriteria = searchBy ? { name: { $regex: searchBy, $options: 'i' } } : {};
+    const searchCriteria = category ? { category } : {};
 
     const faithEntries = await this.faithEntryModel
       .find(searchCriteria)

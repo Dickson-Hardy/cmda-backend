@@ -3,11 +3,11 @@ import { FaithEntryService } from './faithentry.service';
 import { CreateFaithEntryDto } from './dto/create-faithentry.dto';
 import { UpdateFaithEntryDto } from './dto/update-faithentry.dto';
 import { ApiBearerAuth, ApiBody, ApiOperation, ApiTags } from '@nestjs/swagger';
-import { PaginationQueryDto } from '../_global/dto/pagination-query.dto';
 import { AllUserRoles } from '../users/user.constant';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { AllAdminRoles } from '../admin/admin.constant';
 import { IJwtPayload } from '../_global/interface/jwt-payload';
+import { FaithPaginationQueryDto } from './dto/faith-pagination-query.dto';
 
 @ApiTags('FaithEntry')
 @Controller('faith-entry')
@@ -26,7 +26,7 @@ export class FaithEntryController {
   @Get()
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Returns all testimonies and prayer requests' })
-  findAll(@Query() query: PaginationQueryDto) {
+  findAll(@Query() query: FaithPaginationQueryDto) {
     return this.faithEntryService.findAll(query);
   }
 
