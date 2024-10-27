@@ -1,5 +1,12 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsArray, IsOptional, IsDateString, IsEnum } from 'class-validator';
+import {
+  IsString,
+  IsArray,
+  IsOptional,
+  IsDateString,
+  IsEnum,
+  IsBooleanString,
+} from 'class-validator';
 import { AllEventAudiences, EventAudience, EventTag, EventType } from '../events.constant';
 
 export class CreateEventDto {
@@ -33,10 +40,16 @@ export class CreateEventDto {
   @IsString()
   linkOrLocation: string;
 
-  @ApiProperty({ example: '12345', description: 'The access code for the event', required: false })
-  @IsOptional()
+  @ApiProperty({ example: false, description: 'paid of free event' })
+  @IsBooleanString()
+  isPaid: boolean;
+
+  @ApiProperty({
+    description: 'The payment plans for the event',
+  })
   @IsString()
-  accessCode?: string;
+  @IsOptional()
+  paymentPlans?: string;
 
   @ApiProperty({ example: '2024-07-29T10:00:00Z', description: 'The date and time of the event' })
   @IsDateString()

@@ -43,6 +43,22 @@ export class EventsController {
     return this.eventsService.findAll(query);
   }
 
+  @Post('/pay/:slug')
+  @Roles(AllUserRoles)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Pay for an event' })
+  payForEvent(@Param('slug') slug: string, @Req() req: { user: IJwtPayload }) {
+    return this.eventsService.payForEvent(req.user.id, slug);
+  }
+
+  @Post('/confirm-payment/:reference')
+  @Roles(AllUserRoles)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Confirm payment for an event' })
+  confirmEventPayment(@Param('reference') reference: string) {
+    return this.eventsService.confirmEventPayment(reference);
+  }
+
   @Post('/register/:slug')
   @Roles(AllUserRoles)
   @ApiBearerAuth()

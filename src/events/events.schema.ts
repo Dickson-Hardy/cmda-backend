@@ -4,6 +4,14 @@ import { AllEventAudiences, EventAudience, EventTag, EventType } from './events.
 import slugify from 'slugify';
 import { User } from '../users/schema/users.schema';
 
+class PaymentPlan {
+  @Prop({ required: true })
+  role: EventAudience;
+
+  @Prop({ required: true })
+  price: number;
+}
+
 @Schema({ timestamps: true, versionKey: false })
 export class Event extends Document {
   @Prop({ unique: true })
@@ -27,8 +35,11 @@ export class Event extends Document {
   @Prop()
   linkOrLocation: string;
 
-  @Prop()
-  accessCode: string;
+  @Prop({ default: false })
+  isPaid: boolean;
+
+  @Prop({ type: [PaymentPlan], default: [] })
+  paymentPlans: PaymentPlan[];
 
   @Prop()
   eventTags: EventTag[];
@@ -42,7 +53,10 @@ export class Event extends Document {
   @Prop({ default: AllEventAudiences })
   membersGroup: EventAudience[];
 
-  @Prop({ type: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }] })
+  @Prop({
+    type: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+    index: { unique: true, sparse: true },
+  })
   registeredUsers: User[];
 }
 

@@ -36,5 +36,5 @@ export class EventPaginationQueryDto {
   @ApiPropertyOptional({ description: 'Filter by event date', type: String, example: '2024-07-13' })
   @IsOptional()
   @IsBooleanString()
-  fromToday?: false;
+  fromToday?: boolean;
 }

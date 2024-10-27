@@ -14,13 +14,17 @@ import { AllEventAudiences } from './events.constant';
 import { EventPaginationQueryDto } from './dto/event-pagination.dto';
 import { User } from '../users/schema/users.schema';
 import { UserRole } from '../users/user.constant';
+import { PaystackService } from '../paystack/paystack.service';
+import { ConfigService } from '@nestjs/config';
 
 @Injectable()
 export class EventsService {
   constructor(
-    @InjectModel(Event.name)
-    private eventModel: Model<Event>,
+    @InjectModel(Event.name) private eventModel: Model<Event>,
+    @InjectModel(User.name) private userModel: Model<User>,
     private cloudinaryService: CloudinaryService,
+    private paystackService: PaystackService,
+    private configService: ConfigService,
   ) {}
 
   async create(
@@ -41,6 +45,7 @@ export class EventsService {
 
       const event = await this.eventModel.create({
         ...createEventDto,
+        paymentPlans: JSON.parse(createEventDto.paymentPlans),
         membersGroup: !createEventDto.membersGroup.length
           ? AllEventAudiences
           : createEventDto.membersGroup,
@@ -124,7 +129,7 @@ export class EventsService {
   async findOneStat(slug: string): Promise<ISuccessResponse> {
     const event = await this.eventModel
       .findOne({ slug })
-      .populate('registeredUsers', '_id fullName email role region');
+      .populate('registeredUsers', '_id fullName membershipId gender email role region');
 
     if (!event) {
       throw new NotFoundException('No event with such slug');
@@ -186,7 +191,12 @@ export class EventsService {
     }
     const newEvent = await this.eventModel.findOneAndUpdate(
       { slug },
-      { ...updateEventDto, featuredImageCloudId, featuredImageUrl },
+      {
+        ...updateEventDto,
+        paymentPlans: JSON.parse(updateEventDto.paymentPlans),
+        featuredImageCloudId,
+        featuredImageUrl,
+      },
       { new: true },
     );
 
@@ -214,7 +224,25 @@ export class EventsService {
   }
 
   async registerForEvent(userId: any, slug: string): Promise<ISuccessResponse> {
-    const event = await this.eventModel.findOne({ slug });
+    const event = await this.eventModel.findOneAndUpdate(
+      { slug },
+      { $addToSet: { registeredUsers: userId } },
+      { new: true },
+    );
+
+    if (!event) {
+      throw new NotFoundException('No event with such slug');
+    }
+
+    return {
+      success: true,
+      message: 'Successfully registered for the event',
+      data: event,
+    };
+  }
+
+  async payForEvent(userId: any, slug: string): Promise<ISuccessResponse> {
+    const event = await this.eventModel.findOne({ slug }).lean();
 
     if (!event) {
       throw new NotFoundException('No event with such slug');
@@ -226,15 +254,36 @@ export class EventsService {
       throw new ConflictException('User is already registered for this event');
     }
 
-    // Register user for the event
-    event.registeredUsers.push(userId);
-    await event.save();
+    const user = await this.userModel.findById(userId);
 
+    const transaction = await this.paystackService.initializeTransaction({
+      amount: event.paymentPlans.find((p: any) => p.role == user.role).price * 100,
+      email: user.email,
+      callback_url: this.configService.get('EVENT_PAYMENT_SUCCESS_URL').replace('[slug]', slug),
+      metadata: JSON.stringify({ slug, userId, name: user.fullName }),
+    });
+    if (!transaction.status) {
+      throw new Error(transaction.message);
+    }
     return {
       success: true,
-      message: 'Successfully registered for the event',
-      data: event,
+      message: 'Event payment session initiated',
+      data: { checkout_url: transaction.data.authorization_url },
     };
+  }
+
+  async confirmEventPayment(reference: string): Promise<ISuccessResponse> {
+    const transaction = await this.paystackService.verifyTransaction(reference);
+    if (!transaction.status) {
+      throw new Error(transaction.message);
+    }
+    const {
+      metadata: { slug, userId },
+    } = transaction.data;
+
+    const response = await this.registerForEvent(userId, slug);
+
+    return response;
   }
 
   async findRegistered(userId: string, query: EventPaginationQueryDto): Promise<ISuccessResponse> {
@@ -243,9 +292,7 @@ export class EventsService {
     const currentPage = Number(page) || 1;
 
     // Build the search criteria
-    const searchCriteria: any = {
-      registeredUsers: { $in: [userId] }, // Ensure the user is registered for the event
-    };
+    const searchCriteria: any = { registeredUsers: { $in: [userId] } };
 
     // If searchBy is provided, add the search conditions to the criteria
     if (searchBy) {
