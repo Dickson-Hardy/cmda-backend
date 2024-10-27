@@ -35,7 +35,7 @@ export class Vacancy extends Document {
   isActive: boolean;
 
   @Prop({ type: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }] })
-  applicants: User;
+  applicants: User[];
 }
 
 export const VacancySchema = SchemaFactory.createForClass(Vacancy);

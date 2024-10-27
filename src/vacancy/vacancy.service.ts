@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { ISuccessResponse } from '../_global/interface/success-response';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
@@ -76,6 +76,30 @@ export class VacancyService {
       success: true,
       message: 'Volunteer job fetched successfully',
       data: vacancy,
+    };
+  }
+
+  async registerForJob(userId: any, id: string): Promise<ISuccessResponse> {
+    const vacancy = await this.vacancyModel.findById(id).lean();
+
+    if (!vacancy) throw new NotFoundException('No volunteer job with such id');
+
+    // Check if user is already registered
+    const applicants = vacancy.applicants.some((user) => user.toString() === userId);
+    if (applicants) {
+      throw new ConflictException('User is already registered for this volunteer job');
+    }
+
+    const newVacany = await this.vacancyModel.findByIdAndUpdate(
+      id,
+      { $addToSet: { applicants: userId } },
+      { new: true },
+    );
+
+    return {
+      success: true,
+      message: 'Successfully registered for this volunteer job',
+      data: newVacany,
     };
   }
 

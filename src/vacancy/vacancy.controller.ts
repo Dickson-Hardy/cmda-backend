@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, Query } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, Query, Req } from '@nestjs/common';
 import { ApiBearerAuth, ApiBody, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { AllAdminRoles } from '../admin/admin.constant';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -6,6 +6,8 @@ import { CreateVacancyDto } from './dto/create-vacancy.dto';
 import { PaginationQueryDto } from '../_global/dto/pagination-query.dto';
 import { UpdateVacancyDto } from './dto/update-vacancy.dto';
 import { VacancyService } from './vacancy.service';
+import { IJwtPayload } from '../_global/interface/jwt-payload';
+import { AllUserRoles } from '../users/user.constant';
 
 @ApiTags('Volunteer')
 @Controller('volunteer')
@@ -40,6 +42,14 @@ export class VacancyController {
   @ApiOperation({ summary: 'Get a volunteer job by id' })
   findOne(@Param('id') id: string) {
     return this.vacancyService.findOne(id);
+  }
+
+  @Post('jobs/:id/register')
+  @Roles(AllUserRoles)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Apply for a volunteer job' })
+  registerForJob(@Param('id') id: string, @Req() req: { user: IJwtPayload }) {
+    return this.vacancyService.registerForJob(req.user.id, id);
   }
 
   @Get('jobs/:id/applicants')
