@@ -54,6 +54,15 @@ export class SubscriptionsController {
     return this.subscriptionsService.create(req.user.id, createSubscriptionDto);
   }
 
+  @Post('activate/:userId/:subDate')
+  @Roles(AllAdminRoles)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'saves a successful subscription payment details' })
+  @ApiBody({ type: CreateSubscriptionDto })
+  activate(@Param('userId') userId: string, @Param('subDate') subDate: string) {
+    return this.subscriptionsService.activate(userId, subDate);
+  }
+
   @Get('stats')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Returns total count for subscriptions' })

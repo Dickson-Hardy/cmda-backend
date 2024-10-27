@@ -12,6 +12,7 @@ import { SUBSCRIPTION_PRICES } from './subscription.constant';
 import { json2csv } from 'json-2-csv';
 import { SubscriptionPaginationQueryDto } from './dto/subscription-pagination.dto';
 import { EmailService } from '../email/email.service';
+import { UserRole } from '../users/user.constant';
 
 @Injectable()
 export class SubscriptionsService {
@@ -25,8 +26,12 @@ export class SubscriptionsService {
 
   async init(id: string): Promise<ISuccessResponse> {
     const user = await this.userModel.findById(id);
+    const amount =
+      user.role === UserRole.DOCTOR && user.yearsOfExperience?.toLowerCase()?.includes('above')
+        ? SUBSCRIPTION_PRICES[UserRole.GLOBALNETWORK]
+        : SUBSCRIPTION_PRICES[user.role];
     const transaction = await this.paystackService.initializeTransaction({
-      amount: SUBSCRIPTION_PRICES[user.role] * 100,
+      amount: amount * 100,
       email: user.email,
       // channels: ['card'],
       callback_url: this.configService.get('PAYMENT_SUCCESS_URL') + '?type=subscription',
@@ -62,6 +67,47 @@ export class SubscriptionsService {
 
     const user = await this.userModel.findByIdAndUpdate(
       id,
+      { subscribed: true, subscriptionExpiry: oneYearFromNow },
+      { new: true },
+    );
+
+    const res = await this.emailService.sendSubscriptionConfirmedEmail({
+      name: user.fullName,
+      email: user.email,
+    });
+
+    if (!res.success) {
+      throw new InternalServerErrorException(
+        'Subscription confirmed. Error occured while sending email',
+      );
+    }
+
+    return {
+      success: true,
+      message: 'Subscription saved successfully',
+      data: { subscription, user },
+    };
+  }
+
+  async activate(userId: string, subDate: string): Promise<ISuccessResponse> {
+    const user = await this.userModel.findById(userId);
+    const amount =
+      user.role === UserRole.DOCTOR && user.yearsOfExperience?.toLowerCase()?.includes('above')
+        ? SUBSCRIPTION_PRICES[UserRole.GLOBALNETWORK]
+        : SUBSCRIPTION_PRICES[user.role];
+
+    const oneYearFromNow = new Date(
+      new Date(subDate).setFullYear(new Date(subDate).getFullYear() + 1),
+    ); // 1 year - annually
+    const subscription = await this.subscriptionModel.create({
+      reference: 'ADMIN',
+      amount: amount,
+      expiryDate: oneYearFromNow,
+      user: userId,
+    });
+
+    await this.userModel.findByIdAndUpdate(
+      userId,
       { subscribed: true, subscriptionExpiry: oneYearFromNow },
       { new: true },
     );
