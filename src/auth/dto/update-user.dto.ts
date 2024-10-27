@@ -73,6 +73,16 @@ export class UpdateUserDto {
   specialty?: string;
 
   @ApiPropertyOptional({
+    example: 'string - required for doctor or globalnetwork',
+    description:
+      'years of experience for the doctor or global network. Required if role is Doctor or GlobalNetwork',
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  yearsOfExperience?: string; // doctor || globalnetwork
+
+  @ApiPropertyOptional({
     example: {
       facebook: 'https://facebook.com/user',
       twitter: 'https://twitter.com/user',

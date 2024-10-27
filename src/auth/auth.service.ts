@@ -57,6 +57,7 @@ export class AuthService {
         yearOfStudy, // student
         licenseNumber, // doctor || globalnetwork
         specialty, // doctor || globalnetwork
+        yearsOfExperience, // doctor || globalnetwork
         ...createUserDto
       } = signUpDto;
 
@@ -65,9 +66,9 @@ export class AuthService {
         if (!admissionYear || !yearOfStudy)
           throw new BadRequestException('admissionYear, yearOfStudy are compulsory for students');
       } else {
-        if (!licenseNumber || !specialty) {
+        if (!licenseNumber || !specialty || !yearsOfExperience) {
           throw new BadRequestException(
-            'licenseNumber, specialty are compulsory for doctors / globalnetwork members',
+            'licenseNumber, specialty, yearsOfExperience are compulsory for doctors / globalnetwork members',
           );
         }
       }
@@ -81,7 +82,7 @@ export class AuthService {
         role,
         ...(role === UserRole.STUDENT
           ? { admissionYear, yearOfStudy }
-          : { licenseNumber, specialty }),
+          : { licenseNumber, specialty, yearsOfExperience }),
       });
       // accessToken using id and email
       const accessToken = this.jwtService.sign({ id: user._id, email, role: user.role });
@@ -157,12 +158,19 @@ export class AuthService {
       delete updateProfileDto[key];
     });
     const user = await this.userModel.findById(id);
-    const { admissionYear, yearOfStudy, licenseNumber, specialty, ...otherUpdateData } =
-      updateProfileDto;
+    const {
+      admissionYear,
+      yearOfStudy,
+      licenseNumber,
+      specialty,
+      yearsOfExperience,
+      ...otherUpdateData
+    } = updateProfileDto;
     // remove unpermitted role fields
     if (user.role === UserRole.STUDENT) {
       delete updateProfileDto.licenseNumber;
       delete updateProfileDto.specialty;
+      delete updateProfileDto.yearsOfExperience;
     } else {
       delete updateProfileDto.admissionYear;
       delete updateProfileDto.yearOfStudy;
@@ -187,7 +195,7 @@ export class AuthService {
         ...otherUpdateData,
         ...(user.role === UserRole.STUDENT
           ? { admissionYear, yearOfStudy }
-          : { licenseNumber, specialty }),
+          : { licenseNumber, specialty, yearsOfExperience }),
         avatarUrl,
         avatarCloudId,
       },

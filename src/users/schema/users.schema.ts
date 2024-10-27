@@ -81,6 +81,9 @@ export class User extends Document {
   @Prop()
   specialty: string; // doctor || globalnetwork
 
+  @Prop()
+  yearsOfExperience: string; // doctor || globalnetwork
+
   @Prop({ type: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Event' }] })
   eventsRegistered: Event[];
 

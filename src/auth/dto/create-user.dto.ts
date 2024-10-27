@@ -127,4 +127,14 @@ export class CreateUserDto {
   @IsOptional()
   @IsString()
   readonly specialty?: string; // doctor || globalnetwork
+
+  @ApiProperty({
+    example: 'string - required for doctor or globalnetwork',
+    description:
+      'years of experience for the doctor or global network. Required if role is Doctor or GlobalNetwork',
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  readonly yearsOfExperience?: string; // doctor || globalnetwork
 }
