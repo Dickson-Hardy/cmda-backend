@@ -10,6 +10,8 @@ import { Message } from './schema/message.schema';
 import { Model } from 'mongoose';
 import { ChatLog } from './schema/chat-log.schema';
 import { User } from '../users/schema/users.schema';
+import { NotificationsGateway } from '../notifications/notifications.gateway';
+import { NotificationType } from '../notifications/notification.constant';
 
 @WebSocketGateway({ cors: { origin: '*' } })
 export class ChatGateway {
@@ -20,6 +22,7 @@ export class ChatGateway {
     @InjectModel(Message.name) private readonly messageModel: Model<Message>,
     @InjectModel(ChatLog.name) private readonly chatLogModel: Model<ChatLog>,
     @InjectModel(User.name) private readonly userModel: Model<User>,
+    private readonly notificationsGateway: NotificationsGateway,
   ) {}
 
   @SubscribeMessage('newMessage')
@@ -41,6 +44,15 @@ export class ChatGateway {
     );
 
     this.server.emit(`newMessage_${[sender, receiver].sort().join('_')}`, newMessage);
+
+    const senderUser = await this.userModel.findById(sender);
+
+    await this.notificationsGateway.broadcastNewMessageNotification({
+      userId: receiver,
+      type: NotificationType.MESSAGE,
+      typeId: newMessage._id,
+      content: `You have a new message from ${senderUser.fullName} with body: "${newMessage.content}"`,
+    });
   }
 
   //  admin sending broadcast message to selected users
@@ -91,6 +103,13 @@ export class ChatGateway {
         );
 
         this.server.emit(`newMessage_${['admin', receiver].sort().join('_')}`, newMessage);
+
+        await this.notificationsGateway.broadcastNewMessageNotification({
+          userId: receiver,
+          type: NotificationType.MESSAGE,
+          typeId: newMessage._id,
+          content: `You have a new message from Admin with body: "${newMessage.content}"`,
+        });
       });
   }
 }
