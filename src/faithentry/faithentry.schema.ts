@@ -4,11 +4,14 @@ import { FaithEntryCategory } from './faithentry.constant';
 
 @Schema({ timestamps: true, versionKey: false })
 export class FaithEntry extends Document {
-  @Prop({ unique: true })
+  @Prop()
   content: string;
 
   @Prop()
   category: FaithEntryCategory;
+
+  @Prop({ default: false })
+  isAnonymous: boolean;
 
   @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'User' })
   user: string;

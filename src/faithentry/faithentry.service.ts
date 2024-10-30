@@ -19,7 +19,8 @@ export class FaithEntryService {
       const { category, isAnonymous, content } = createFaithEntryDto;
 
       const faithEntry = await this.faithEntryModel.create({
-        user: isAnonymous ? null : id,
+        isAnonymous,
+        user: id,
         content,
         category,
       });
@@ -31,7 +32,7 @@ export class FaithEntryService {
       };
     } catch (error) {
       if (error.code === 11000) {
-        throw new ConflictException('Testimony or Prayer request with same content already exists');
+        throw new ConflictException('Faith entry with exact content already exists');
       }
       throw error;
     }
@@ -48,7 +49,7 @@ export class FaithEntryService {
       .sort({ createdAt: -1 })
       .limit(perPage)
       .skip(perPage * (currentPage - 1))
-      .populate('user', '_id fullName email');
+      .populate('user', '_id fullName email membershipId');
     const totalItems = await this.faithEntryModel.countDocuments(searchCriteria);
     const totalPages = Math.ceil(totalItems / perPage);
 
