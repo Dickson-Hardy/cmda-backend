@@ -19,7 +19,7 @@ export class NotificationsController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get all notifications counts' })
   async getNotificationStats(@Req() req: { user: IJwtPayload }) {
-    return this.notificationService.getNotificationsStats(req.user.id);
+    return this.notificationService.getNotificationsStats(req.user);
   }
 
   @Patch(':id/read')

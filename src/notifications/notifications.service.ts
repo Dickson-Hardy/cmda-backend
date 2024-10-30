@@ -54,7 +54,9 @@ export class NotificationsService {
     };
   }
 
-  async getNotificationsStats(userId: string): Promise<ISuccessResponse> {
+  async getNotificationsStats(user: IJwtPayload): Promise<ISuccessResponse> {
+    const userId = AllAdminRoles.includes(user.role as AdminRole) ? 'admin' : user.id;
+
     const unreadNotificationCount = await this.notificationModel.countDocuments({
       userId,
       read: false,
