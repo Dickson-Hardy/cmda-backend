@@ -71,7 +71,11 @@ export class VacancyService {
   }
 
   async findOne(id: string): Promise<ISuccessResponse> {
-    const vacancy = await this.vacancyModel.findById(id);
+    let vacancy = await this.vacancyModel.findById(id);
+    // update isActive status if closing date is already passed
+    if (Date.now() > new Date(vacancy.closingDate).getTime() && vacancy.isActive) {
+      vacancy = await this.vacancyModel.findByIdAndUpdate(id, { isActive: false }, { new: true });
+    }
     return {
       success: true,
       message: 'Volunteer job fetched successfully',
