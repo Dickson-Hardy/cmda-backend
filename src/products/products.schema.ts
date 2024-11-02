@@ -32,11 +32,11 @@ export class Product extends Document {
   @Prop()
   featuredImageCloudId: string;
 
-  // @Prop([String])
-  // images: string[];
+  @Prop()
+  sizes: string[];
 
-  @Prop({ default: 0 })
-  rating: number;
+  @Prop()
+  additionalImages: { name?: string; color?: string; imageUrl: string; imageCloudId: string }[];
 }
 
 export const ProductSchema = SchemaFactory.createForClass(Product);

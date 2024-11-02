@@ -4,7 +4,6 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-// import { CreateProductDto } from './dto/create-product.dto';
 // import { UpdateProductDto } from './dto/update-product.dto';
 import { ISuccessResponse } from '../_global/interface/success-response';
 import { InjectModel } from '@nestjs/mongoose';
@@ -25,12 +24,13 @@ export class ProductsService {
 
   async create(
     createProductDto: CreateProductDto,
-    file: Express.Multer.File,
+    files: { featuredImage: Express.Multer.File; additionalImageFiles?: Express.Multer.File[] },
   ): Promise<ISuccessResponse> {
     try {
+      // Handle featured image
       let [featuredImageUrl, featuredImageCloudId] = ['', ''];
-      if (file) {
-        const upload = await this.cloudinaryService.uploadFile(file, 'products');
+      if (files.featuredImage) {
+        const upload = await this.cloudinaryService.uploadFile(files.featuredImage, 'products');
         if (upload.url) {
           featuredImageUrl = upload.secure_url;
           featuredImageCloudId = upload.public_id;
@@ -39,10 +39,38 @@ export class ProductsService {
         throw new BadRequestException('featuredImage is required');
       }
 
+      // Handle additional images
+      const additionalImages = [];
+      const parsedAdditionalImages = JSON.parse(createProductDto.additionalImages);
+
+      if (
+        files.additionalImageFiles &&
+        files.additionalImageFiles.length &&
+        parsedAdditionalImages.length
+      ) {
+        for (let i = 0; i < files.additionalImageFiles.length; i++) {
+          const file = files.additionalImageFiles[i];
+          const imageDetails = parsedAdditionalImages[i];
+
+          if (file) {
+            const upload = await this.cloudinaryService.uploadFile(file, 'products');
+            additionalImages.push({
+              name: imageDetails.name || null,
+              color: imageDetails.color || null,
+              imageUrl: upload.secure_url,
+              imageCloudId: upload.public_id,
+            });
+          }
+        }
+      }
+
+      // Create the product
       const product = await this.productModel.create({
         ...createProductDto,
         featuredImageUrl,
         featuredImageCloudId,
+        additionalImages,
+        sizes: createProductDto.sizes ? createProductDto.sizes.split(',').map((x) => x.trim()) : [],
       });
 
       return {
@@ -176,6 +204,14 @@ export class ProductsService {
     }
     if (product.featuredImageCloudId) {
       await this.cloudinaryService.deleteFile(product.featuredImageCloudId);
+    }
+    if (product.additionalImages.length) {
+      for (let i = 0; i < product.additionalImages.length; i++) {
+        const imageDetails = product.additionalImages[i];
+        if (imageDetails.imageCloudId) {
+          await this.cloudinaryService.deleteFile(imageDetails.imageCloudId);
+        }
+      }
     }
 
     return {

@@ -25,9 +25,11 @@ export class Order extends Document {
     {
       product: { type: mongoose.Schema.Types.ObjectId, ref: 'Product', required: true },
       quantity: { type: Number, required: true },
+      color: String,
+      size: String,
     },
   ])
-  products: { product: Product; quantity: number }[];
+  products: { product: Product; quantity: number; color?: string; size?: string }[];
 
   @Prop({ required: true })
   totalAmount: number;

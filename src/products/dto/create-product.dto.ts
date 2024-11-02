@@ -1,5 +1,6 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsEnum, IsNotEmpty, IsNumberString } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsString, IsEnum, IsNotEmpty, IsNumber, IsArray, IsOptional } from 'class-validator';
+import { Type } from 'class-transformer';
 import { ProductCategory } from '../products.constant';
 
 export class CreateProductDto {
@@ -18,7 +19,8 @@ export class CreateProductDto {
 
   @ApiProperty({ example: 99.99, description: 'The price of the product' })
   @IsNotEmpty()
-  @IsNumberString()
+  @Type(() => Number)
+  @IsNumber()
   price: number;
 
   @ApiProperty({
@@ -39,16 +41,35 @@ export class CreateProductDto {
 
   @ApiProperty({ example: 100, description: 'The stock quantity of the product' })
   @IsNotEmpty()
-  @IsNumberString()
+  @Type(() => Number)
+  @IsNumber()
   stock: number;
 
-  @ApiProperty({ example: 'Example Brand', description: 'The brand of the product' })
-  @IsNotEmpty()
+  @ApiPropertyOptional({ example: 'Example Brand', description: 'The brand of the product' })
+  @IsOptional()
   @IsString()
-  brand: string;
+  brand?: string;
 
-  // Uncomment if you want to handle multiple images
-  // @ApiProperty({ type: [String], description: 'Array of image URLs for the product' })
-  // @IsString({ each: true })
-  // images?: string[];
+  @ApiPropertyOptional({
+    description: 'Different sizes of the product, comma separated',
+  })
+  @IsOptional()
+  @IsString()
+  sizes?: string;
+
+  @ApiPropertyOptional({
+    description: 'color, name, etc of the additionalImages of the product - JSON stringified',
+  })
+  @IsOptional()
+  @IsString()
+  additionalImages?: string; // JSON stringify array of object
+
+  @ApiPropertyOptional({
+    type: 'array',
+    items: { type: 'string', format: 'binary' },
+    description: 'Array of additional image files for the product',
+  })
+  @IsOptional()
+  @IsArray()
+  additionalImageFiles?: any[];
 }

@@ -1,4 +1,4 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   IsNotEmpty,
   IsString,
@@ -7,6 +7,7 @@ import {
   ValidateNested,
   IsEmail,
   IsPhoneNumber,
+  IsOptional,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import * as mongoose from 'mongoose';
@@ -21,6 +22,16 @@ class ProductQuantityDto {
   @IsNotEmpty()
   @IsNumber()
   quantity: number;
+
+  @ApiPropertyOptional({ example: 'Red', description: 'The color of the product' })
+  @IsOptional()
+  @IsString()
+  color?: string;
+
+  @ApiPropertyOptional({ example: 'M', description: 'The size of the product' })
+  @IsOptional()
+  @IsString()
+  size?: string;
 }
 
 export class InitOrderDto {

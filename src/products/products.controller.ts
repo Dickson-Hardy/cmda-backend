@@ -9,6 +9,7 @@ import {
   Query,
   UseInterceptors,
   UploadedFile,
+  UploadedFiles,
 } from '@nestjs/common';
 import { ProductsService } from './products.service';
 import { CreateProductDto } from './dto/create-product.dto';
@@ -17,7 +18,7 @@ import { ApiBearerAuth, ApiBody, ApiConsumes, ApiOperation, ApiTags } from '@nes
 import { PaginationQueryDto } from '../_global/dto/pagination-query.dto';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { AllAdminRoles } from '../admin/admin.constant';
-import { FileInterceptor } from '@nestjs/platform-express';
+import { FileFieldsInterceptor, FileInterceptor } from '@nestjs/platform-express';
 
 @ApiTags('Products')
 @Controller('products')
@@ -30,9 +31,21 @@ export class ProductsController {
   @ApiOperation({ summary: 'Create a product' })
   @ApiBody({ type: CreateProductDto })
   @ApiConsumes('multipart/form-data')
-  @UseInterceptors(FileInterceptor('featuredImage'))
-  create(@Body() createProductDto: CreateProductDto, @UploadedFile() file: Express.Multer.File) {
-    return this.productsService.create(createProductDto, file);
+  @UseInterceptors(
+    FileFieldsInterceptor([
+      { name: 'featuredImage', maxCount: 1 },
+      { name: 'additionalImageFiles', maxCount: 4 },
+    ]),
+  )
+  create(
+    @Body() createProductDto: CreateProductDto,
+    @UploadedFiles()
+    files: { featuredImage?: Express.Multer.File[]; additionalImageFiles?: Express.Multer.File[] },
+  ) {
+    return this.productsService.create(createProductDto, {
+      featuredImage: files.featuredImage[0],
+      additionalImageFiles: files.additionalImageFiles || [],
+    });
   }
 
   @Get()
