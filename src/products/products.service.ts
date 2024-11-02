@@ -121,14 +121,14 @@ export class ProductsService {
 
   async getStats(): Promise<ISuccessResponse> {
     const totalProducts = await this.productModel.countDocuments();
-    const totalBooks = await this.productModel.countDocuments({
-      category: ProductCategory.BOOK,
+    const totalJournals = await this.productModel.countDocuments({
+      category: ProductCategory.JOURNALS,
     });
-    const totalCDs = await this.productModel.countDocuments({
-      category: ProductCategory.CD,
+    const totalWears = await this.productModel.countDocuments({
+      category: ProductCategory.WEARS,
     });
-    const totalFashions = await this.productModel.countDocuments({
-      category: ProductCategory.FASHION,
+    const totalPublicationS = await this.productModel.countDocuments({
+      category: ProductCategory.PUBLICATIONS,
     });
     const totalOthers = await this.productModel.countDocuments({
       category: ProductCategory.OTHERS,
@@ -137,7 +137,7 @@ export class ProductsService {
     return {
       success: true,
       message: 'Product statistics calculated successfully',
-      data: { totalProducts, totalBooks, totalCDs, totalFashions, totalOthers },
+      data: { totalProducts, totalJournals, totalWears, totalPublicationS, totalOthers },
     };
   }
 

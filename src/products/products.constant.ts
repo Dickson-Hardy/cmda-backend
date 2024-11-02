@@ -1,6 +1,6 @@
 export enum ProductCategory {
-  BOOK = 'Book',
-  CD = 'CD',
-  FASHION = 'Fashion',
+  JOURNALS = 'Journals & Magazines',
+  WEARS = 'Customized wears',
+  PUBLICATIONS = 'Publications (Books)',
   OTHERS = 'Others',
 }
