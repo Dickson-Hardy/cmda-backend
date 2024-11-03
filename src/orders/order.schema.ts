@@ -37,7 +37,7 @@ export class Order extends Document {
   @Prop({ default: OrderStatus.PENDING })
   status?: OrderStatus;
 
-  @Prop()
+  @Prop({ unique: true })
   paymentReference: string;
 
   @Prop({ type: Date })

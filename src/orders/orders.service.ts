@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
@@ -53,40 +53,47 @@ export class OrdersService {
   }
 
   async create(id: string, createOrderDto: CreateOrderDto): Promise<ISuccessResponse> {
-    const { reference } = createOrderDto;
-    const transaction = await this.paystackService.verifyTransaction(reference);
-    if (!transaction.status) {
-      throw new Error(transaction.message);
-    }
-    const {
-      amount,
-      paidAt,
-      metadata: {
+    try {
+      const { reference } = createOrderDto;
+      const transaction = await this.paystackService.verifyTransaction(reference);
+      if (!transaction.status) {
+        throw new Error(transaction.message);
+      }
+      const {
+        amount,
+        paidAt,
+        metadata: {
+          products,
+          shippingAddress,
+          shippingContactEmail,
+          shippingContactName,
+          shippingContactPhone,
+        },
+      } = transaction.data;
+
+      const order = await this.orderModel.create({
+        paymentReference: reference,
+        paymentDate: paidAt,
+        totalAmount: amount / 100,
         products,
         shippingAddress,
         shippingContactEmail,
         shippingContactName,
         shippingContactPhone,
-      },
-    } = transaction.data;
+        user: id,
+      });
 
-    const order = await this.orderModel.create({
-      paymentReference: reference,
-      paymentDate: paidAt,
-      totalAmount: amount / 100,
-      products,
-      shippingAddress,
-      shippingContactEmail,
-      shippingContactName,
-      shippingContactPhone,
-      user: id,
-    });
-
-    return {
-      success: true,
-      message: 'Order created successfully',
-      data: order,
-    };
+      return {
+        success: true,
+        message: 'Order created successfully',
+        data: order,
+      };
+    } catch (error) {
+      if (error.code === 11000) {
+        throw new ConflictException('An order with this payment reference already exist');
+      }
+      throw error;
+    }
   }
 
   async findAll(query: PaginationQueryDto): Promise<ISuccessResponse> {
