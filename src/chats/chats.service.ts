@@ -63,7 +63,7 @@ export class ChatsService {
           ],
         })
         .sort({ createdAt: -1 });
-      adminLastMessage = lastMessage.content;
+      adminLastMessage = lastMessage?.content;
 
       // Aggregate unread counts for each contact in one query
       const unreadCounts = await this.messageModel.aggregate([
