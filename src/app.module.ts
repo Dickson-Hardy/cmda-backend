@@ -24,6 +24,7 @@ import { PaystackModule } from './paystack/paystack.module';
 import { OrdersModule } from './orders/orders.module';
 import { TrainingModule } from './training/training.module';
 import { NotificationsModule } from './notifications/notifications.module';
+import { PaypalModule } from './paypal/paypal.module';
 
 @Module({
   imports: [
@@ -53,6 +54,7 @@ import { NotificationsModule } from './notifications/notifications.module';
     AdminModule,
     TrainingModule,
     NotificationsModule,
+    PaypalModule,
   ],
   controllers: [AppController],
   providers: [
