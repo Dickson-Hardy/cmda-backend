@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
+import { IPaypalCreateOrder } from './paypal.interface';
 
 @Injectable()
 export class PaypalService {
@@ -16,7 +17,6 @@ export class PaypalService {
 
   // Method to get PayPal OAuth token
   private async getAccessToken() {
-    console.log('ACCE');
     const response = await axios.post(
       `${this.baseUrl}/v1/oauth2/token`,
       'grant_type=client_credentials',
@@ -29,18 +29,34 @@ export class PaypalService {
   }
 
   // Method to create an order
-  async createOrder(amount: string) {
+  async createOrder({ amount, currency, description, metadata, items }: IPaypalCreateOrder) {
     const accessToken = await this.getAccessToken();
     const orderData = {
       intent: 'CAPTURE',
       purchase_units: [
         {
           amount: {
-            currency_code: 'USD',
+            currency_code: currency,
             value: amount,
+            breakdown: {
+              item_total: { currency_code: currency, value: amount },
+            },
           },
+          custom_id: Buffer.from(metadata).toString('base64'), // convert JSON stringified metadata to base64
+          description: description,
+          items: items.map((item) => ({
+            name: item.name,
+            unit_amount: { currency_code: currency, value: item.amount },
+            quantity: item.quantity,
+            description: metadata,
+          })),
         },
       ],
+      application_context: {
+        brand_name: 'CMDA Nigeria',
+        user_action: 'PAY_NOW',
+        shipping_preference: 'NO_SHIPPING',
+      },
     };
 
     const response = await axios.post(`${this.baseUrl}/v2/checkout/orders`, orderData, {

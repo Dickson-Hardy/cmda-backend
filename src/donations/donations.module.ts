@@ -6,6 +6,7 @@ import { Donation, DonationShema } from './donation.schema';
 import { User, UserSchema } from '../users/schema/users.schema';
 import { PaystackModule } from '../paystack/paystack.module';
 import { EmailModule } from '../email/email.module';
+import { PaypalModule } from '../paypal/paypal.module';
 
 @Module({
   imports: [
@@ -15,6 +16,7 @@ import { EmailModule } from '../email/email.module';
     ]),
     PaystackModule,
     EmailModule,
+    PaypalModule,
   ],
   controllers: [DonationsController],
   providers: [DonationsService],

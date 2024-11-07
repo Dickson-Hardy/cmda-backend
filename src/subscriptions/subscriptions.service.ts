@@ -1,4 +1,9 @@
-import { Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  InternalServerErrorException,
+  NotFoundException,
+} from '@nestjs/common';
 import { CreateSubscriptionDto } from './dto/create-subscription.dto';
 import { InjectModel } from '@nestjs/mongoose';
 import { User } from '../users/schema/users.schema';
@@ -52,6 +57,12 @@ export class SubscriptionsService {
     createSubscriptionDto: CreateSubscriptionDto,
   ): Promise<ISuccessResponse> {
     const { reference } = createSubscriptionDto;
+
+    const alreadyExist = await this.subscriptionModel.findOne({ reference });
+    if (alreadyExist) {
+      throw new ConflictException('Subscription with this reference has already been confirmed');
+    }
+
     const transaction = await this.paystackService.verifyTransaction(reference);
     if (!transaction.status) {
       throw new Error(transaction.message);

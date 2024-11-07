@@ -1,4 +1,9 @@
-import { Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  InternalServerErrorException,
+  NotFoundException,
+} from '@nestjs/common';
 import { CreateDonationDto } from './dto/create-donation.dto';
 import { InjectModel } from '@nestjs/mongoose';
 import { User } from '../users/schema/users.schema';
@@ -12,6 +17,8 @@ import { PaginationQueryDto } from '../_global/dto/pagination-query.dto';
 import { json2csv } from 'json-2-csv';
 import { DonationPaginationQueryDto } from './dto/donation-pagination.dto';
 import { EmailService } from '../email/email.service';
+import { PaypalService } from '../paypal/paypal.service';
+import { UserRole } from '../users/user.constant';
 
 @Injectable()
 export class DonationsService {
@@ -21,49 +28,112 @@ export class DonationsService {
     private paystackService: PaystackService,
     private configService: ConfigService,
     private emailService: EmailService,
+    private paypalService: PaypalService,
   ) {}
 
   async init(id: string, createDonationDto: InitDonationDto): Promise<ISuccessResponse> {
-    const { amount, recurring, frequency, areasOfNeed } = createDonationDto;
+    const { amount, recurring, frequency, areasOfNeed, currency } = createDonationDto;
     const user = await this.userModel.findById(id);
-    const transaction = await this.paystackService.initializeTransaction({
-      amount: amount * 100,
-      email: user.email,
-      // channels: ['card'], show all options
-      callback_url: this.configService.get('PAYMENT_SUCCESS_URL') + '?type=donation',
-      metadata: JSON.stringify({ recurring, frequency, name: user.fullName, areasOfNeed }),
-    });
-    if (!transaction.status) {
-      throw new Error(transaction.message);
+    let transaction: any;
+    // GLOBAL NETWORK DOCTORS
+    if (user.role === UserRole.GLOBALNETWORK) {
+      transaction = await this.paypalService.createOrder({
+        amount,
+        currency,
+        description: 'DONATION',
+        metadata: JSON.stringify({ recurring, frequency, memId: user.membershipId, areasOfNeed }),
+        items: [{ name: 'Donation for ' + areasOfNeed, quantity: 1, amount }],
+      });
+    } else {
+      // STUDENT AND DOCTORS
+      transaction = await this.paystackService.initializeTransaction({
+        amount: amount * 100,
+        email: user.email,
+        // channels: ['card'], show all options
+        callback_url: this.configService.get('PAYMENT_SUCCESS_URL') + '?type=donation',
+        metadata: JSON.stringify({
+          recurring,
+          frequency,
+          currency,
+          memId: user.membershipId,
+          areasOfNeed,
+        }),
+      });
+      if (!transaction.status) {
+        throw new Error(transaction.message);
+      }
     }
+
     return {
       success: true,
       message: 'Donation session initiated',
-      data: { checkout_url: transaction.data.authorization_url },
+      data:
+        user.role === UserRole.GLOBALNETWORK
+          ? transaction
+          : { checkout_url: transaction.data.authorization_url },
     };
   }
 
-  async create(id: string, createDonationDto: CreateDonationDto): Promise<ISuccessResponse> {
-    const { reference } = createDonationDto;
-    const transaction = await this.paystackService.verifyTransaction(reference);
-    if (!transaction.status) {
-      throw new Error(transaction.message);
+  async create(createDonationDto: CreateDonationDto): Promise<ISuccessResponse> {
+    const { reference, source } = createDonationDto;
+    let donation: Donation;
+    let user: User;
+
+    const alreadyExist = await this.donationModel.findOne({ reference });
+    if (alreadyExist) {
+      throw new ConflictException('Donation with this reference has already been confirmed');
     }
-    const {
-      amount,
-      metadata: { recurring, frequency, areasOfNeed },
-    } = transaction.data;
 
-    const donation = await this.donationModel.create({
-      reference,
-      amount: amount / 100,
-      recurring: recurring && frequency ? true : false,
-      ...(frequency ? { frequency } : {}),
-      areasOfNeed,
-      user: id,
-    });
+    if (source && source?.toLowerCase() === 'paypal') {
+      const transaction = await this.paypalService.captureOrder(reference);
 
-    const user = await this.userModel.findById(id);
+      if (transaction?.status !== 'COMPLETED') {
+        throw new Error(transaction.message || 'Payment with Paypal was NOT successful');
+      }
+      const details = transaction.purchase_units[0].payments.captures[0];
+
+      const { amount, custom_id } = details; // { currency_code, value },
+
+      let metadata: any = await Buffer.from(custom_id, 'base64').toString('utf-8');
+      metadata = JSON.parse(metadata);
+      const { recurring, frequency, memId, areasOfNeed } = metadata;
+
+      user = await this.userModel.findOne({ membershipId: memId });
+
+      donation = await this.donationModel.create({
+        reference,
+        amount: +amount.value,
+        currency: amount.currency_code,
+        recurring: recurring && frequency ? true : false,
+        ...(frequency ? { frequency } : {}),
+        areasOfNeed,
+        user: user._id,
+        source: 'PAYPAL',
+      });
+    } else {
+      const transaction = await this.paystackService.verifyTransaction(reference);
+
+      if (!transaction.status) {
+        throw new Error(transaction.message);
+      }
+      const {
+        amount,
+        metadata: { recurring, frequency, currency, areasOfNeed, memId },
+      } = transaction.data;
+
+      user = await this.userModel.findOne({ membershipId: memId });
+
+      donation = await this.donationModel.create({
+        reference,
+        amount: amount / 100,
+        currency,
+        recurring: recurring && frequency ? true : false,
+        ...(frequency ? { frequency } : {}),
+        areasOfNeed,
+        user: user._id,
+        source: 'PAYSTACK',
+      });
+    }
 
     const res = await this.emailService.sendDonationConfirmedEmail({
       name: user.fullName,
@@ -169,7 +239,7 @@ export class DonationsService {
         : {}),
     };
 
-    const events = await this.donationModel
+    const donations = await this.donationModel
       .find(searchCriteria)
       .sort({ createdAt: -1 })
       .limit(perPage)
@@ -181,7 +251,7 @@ export class DonationsService {
       success: true,
       message: 'User donations fetched successfully',
       data: {
-        items: events,
+        items: donations,
         meta: { currentPage, itemsPerPage: perPage, totalItems, totalPages },
       },
     };

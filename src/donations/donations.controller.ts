@@ -53,8 +53,8 @@ export class DonationsController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'saves a donation after successful payment session' })
   @ApiBody({ type: CreateDonationDto })
-  create(@Req() req: { user: IJwtPayload }, @Body() createDonationDto: CreateDonationDto) {
-    return this.donationsService.create(req.user.id, createDonationDto);
+  create(@Body() createDonationDto: CreateDonationDto) {
+    return this.donationsService.create(createDonationDto);
   }
 
   @Get('stats')

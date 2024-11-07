@@ -22,4 +22,9 @@ export class InitDonationDto {
   @IsOptional()
   @IsString()
   areasOfNeed: string;
+
+  @ApiProperty({ description: 'user selected currency' })
+  @IsNotEmpty()
+  @IsString()
+  currency: string;
 }

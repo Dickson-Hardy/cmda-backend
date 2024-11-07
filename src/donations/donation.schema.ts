@@ -8,7 +8,7 @@ export class Donation extends Document {
   @Prop()
   amount: number;
 
-  @Prop()
+  @Prop({ unique: true })
   reference: string;
 
   @Prop({ default: false })
@@ -17,11 +17,14 @@ export class Donation extends Document {
   @Prop()
   frequency?: DonationFrequency;
 
-  // @Prop({ default: '' })
-  // comment: string;
+  @Prop({ default: 'NGN' })
+  currency: string;
 
   @Prop()
   areasOfNeed: string;
+
+  @Prop()
+  source: string;
 
   @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'User' })
   user: User;
