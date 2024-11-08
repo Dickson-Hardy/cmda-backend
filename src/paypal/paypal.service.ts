@@ -48,7 +48,6 @@ export class PaypalService {
             name: item.name,
             unit_amount: { currency_code: currency, value: item.amount },
             quantity: item.quantity,
-            description: metadata,
           })),
         },
       ],

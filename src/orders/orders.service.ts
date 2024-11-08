@@ -10,16 +10,21 @@ import { ISuccessResponse } from '../_global/interface/success-response';
 import { PaginationQueryDto } from '../_global/dto/pagination-query.dto';
 import { OrderStatus } from './order.constant';
 import { UpdateOrderDto } from './dto/update-order.dto';
+import { PaypalService } from '../paypal/paypal.service';
+import { Product } from '../products/products.schema';
+import ShortUniqueId from 'short-unique-id';
 
 @Injectable()
 export class OrdersService {
   constructor(
     @InjectModel(Order.name) private orderModel: Model<Order>,
+    @InjectModel(Product.name) private productModel: Model<Product>,
     private paystackService: PaystackService,
+    private paypalService: PaypalService,
     private configService: ConfigService,
   ) {}
 
-  async init(initOrderDto: InitOrderDto): Promise<ISuccessResponse> {
+  async init(id: string, initOrderDto: InitOrderDto): Promise<ISuccessResponse> {
     const {
       totalAmount,
       products,
@@ -27,54 +32,30 @@ export class OrdersService {
       shippingContactEmail,
       shippingContactName,
       shippingContactPhone,
+      source,
     } = initOrderDto;
 
-    const transaction = await this.paystackService.initializeTransaction({
-      amount: totalAmount * 100,
-      email: shippingContactEmail,
-      // channels: ['card'],
-      callback_url: this.configService.get('ORDER_SUCCESS_URL'),
-      metadata: JSON.stringify({
-        products,
-        shippingAddress,
-        shippingContactEmail,
-        shippingContactName,
-        shippingContactPhone,
-      }),
-    });
-    if (!transaction.status) {
-      throw new Error(transaction.message);
-    }
-    return {
-      success: true,
-      message: 'Order payment session initiated',
-      data: { checkout_url: transaction.data.authorization_url },
-    };
-  }
+    let transaction: any;
 
-  async create(id: string, createOrderDto: CreateOrderDto): Promise<ISuccessResponse> {
-    try {
-      const { reference } = createOrderDto;
-      const transaction = await this.paystackService.verifyTransaction(reference);
-      if (!transaction.status) {
-        throw new Error(transaction.message);
+    if (source && source.toLowerCase() === 'paypal') {
+      const productsData = [];
+      for (const prod of products) {
+        const productDetails = await this.productModel.findById(prod.product);
+        productsData.push({ ...prod, product: productDetails });
       }
-      const {
-        amount,
-        paidAt,
-        metadata: {
-          products,
-          shippingAddress,
-          shippingContactEmail,
-          shippingContactName,
-          shippingContactPhone,
-        },
-      } = transaction.data;
+      const items = productsData.map((item) => ({
+        name: `${item.product.name} ${item.size ? ' - ' + item.size : ''} ${item.color ? ' - ' + item.color : ''}`.trim(),
+        quantity: item.quantity,
+        amount: item.product.priceUSD,
+      }));
 
+      const { randomUUID } = new ShortUniqueId({ length: 6, dictionary: 'alphanum_upper' });
       const order = await this.orderModel.create({
-        paymentReference: reference,
-        paymentDate: paidAt,
-        totalAmount: amount / 100,
+        paymentReference: 'UNPAID-' + randomUUID(),
+        isPaid: false,
+        totalAmount,
+        source: 'PAYPAL',
+        currency: 'USD',
         products,
         shippingAddress,
         shippingContactEmail,
@@ -82,6 +63,102 @@ export class OrdersService {
         shippingContactPhone,
         user: id,
       });
+
+      transaction = await this.paypalService.createOrder({
+        amount: totalAmount,
+        currency: 'USD',
+        description: 'ORDER',
+        metadata: JSON.stringify({ orderId: order._id }),
+        items,
+      });
+    } else {
+      transaction = await this.paystackService.initializeTransaction({
+        amount: totalAmount * 100,
+        email: shippingContactEmail,
+        callback_url: this.configService.get('ORDER_SUCCESS_URL'),
+        metadata: JSON.stringify({
+          products,
+          shippingAddress,
+          shippingContactEmail,
+          shippingContactName,
+          shippingContactPhone,
+        }),
+      });
+      if (!transaction.status) {
+        throw new Error(transaction.message);
+      }
+
+      transaction = { checkout_url: transaction.data.authorization_url };
+    }
+
+    return {
+      success: true,
+      message: 'Subscription session initiated',
+      data: transaction,
+    };
+  }
+
+  async create(id: string, createOrderDto: CreateOrderDto): Promise<ISuccessResponse> {
+    try {
+      const { reference, source } = createOrderDto;
+      let order: Order | any;
+
+      if (source && source.toLowerCase() === 'paypal') {
+        const transaction = await this.paypalService.captureOrder(reference);
+
+        if (transaction?.status !== 'COMPLETED') {
+          throw new Error(transaction.message || 'Payment with Paypal was NOT successful');
+        }
+
+        const details = transaction.purchase_units[0].payments.captures[0];
+
+        const { amount, custom_id, update_time } = details; // { currency_code, value },
+
+        let metadata: any = Buffer.from(custom_id, 'base64').toString('utf-8');
+        metadata = JSON.parse(metadata);
+        const { orderId } = metadata;
+
+        order = await this.orderModel.findByIdAndUpdate(
+          orderId,
+          {
+            isPaid: true,
+            paymentReference: reference,
+            paidAt: update_time || new Date().toISOString(),
+            totalAmount: amount.value,
+            currency: amount.currency_code,
+          },
+          { new: true },
+        );
+      } else {
+        const transaction = await this.paystackService.verifyTransaction(reference);
+        if (!transaction.status) {
+          throw new Error(transaction.message);
+        }
+        const {
+          amount,
+          paidAt,
+          metadata: {
+            products,
+            shippingAddress,
+            shippingContactEmail,
+            shippingContactName,
+            shippingContactPhone,
+          },
+        } = transaction.data;
+
+        order = await this.orderModel.create({
+          paymentReference: reference,
+          paymentDate: paidAt,
+          isPaid: true,
+          totalAmount: amount / 100,
+          products,
+          shippingAddress,
+          shippingContactEmail,
+          shippingContactName,
+          shippingContactPhone,
+          user: id,
+        });
+      }
 
       return {
         success: true,
@@ -114,7 +191,7 @@ export class OrdersService {
       : {};
 
     const orders = await this.orderModel
-      .find(searchCriteria)
+      .find({ ...searchCriteria, isPaid: true })
       .sort({ createdAt: -1 })
       .limit(perPage)
       .skip(perPage * (currentPage - 1))
@@ -151,7 +228,7 @@ export class OrdersService {
     };
 
     const orders = await this.orderModel
-      .find(searchCriteria)
+      .find({ ...searchCriteria, isPaid: true })
       .sort({ createdAt: -1 })
       .limit(perPage)
       .skip(perPage * (currentPage - 1));
@@ -169,15 +246,28 @@ export class OrdersService {
   }
 
   async getStats(): Promise<ISuccessResponse> {
-    const totalOrders = await this.orderModel.countDocuments();
+    const totalOrders = await this.orderModel.countDocuments({ isPaid: true });
     const totalAmountResult = await this.orderModel.aggregate([
+      { $match: { isPaid: true } },
       { $group: { _id: null, totalAmount: { $sum: '$totalAmount' } } },
     ]);
     const totalAmount = totalAmountResult.length > 0 ? totalAmountResult[0].totalAmount : 0;
-    const totalPending = await this.orderModel.countDocuments({ status: OrderStatus.PENDING });
-    const totalShipped = await this.orderModel.countDocuments({ status: OrderStatus.SHIPPED });
-    const totalDelivered = await this.orderModel.countDocuments({ status: OrderStatus.DELIVERED });
-    const totalCanceled = await this.orderModel.countDocuments({ status: OrderStatus.CANCELED });
+    const totalPending = await this.orderModel.countDocuments({
+      status: OrderStatus.PENDING,
+      isPaid: true,
+    });
+    const totalShipped = await this.orderModel.countDocuments({
+      status: OrderStatus.SHIPPED,
+      isPaid: true,
+    });
+    const totalDelivered = await this.orderModel.countDocuments({
+      status: OrderStatus.DELIVERED,
+      isPaid: true,
+    });
+    const totalCanceled = await this.orderModel.countDocuments({
+      status: OrderStatus.CANCELED,
+      isPaid: true,
+    });
 
     return {
       success: true,

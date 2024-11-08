@@ -12,7 +12,7 @@ import {
 import { Type } from 'class-transformer';
 import * as mongoose from 'mongoose';
 
-class ProductQuantityDto {
+export class ProductQuantityDto {
   @ApiProperty({ example: '60d0fe4f5311236168a109ca', description: 'The ID of the product' })
   @IsNotEmpty()
   @IsString()
@@ -65,11 +65,18 @@ export class InitOrderDto {
 
   @ApiProperty({ example: '+1234567890', description: 'The phone number of the shipping contact' })
   @IsNotEmpty()
-  @IsPhoneNumber('NG')
+  @IsPhoneNumber('NG', {
+    message: 'Invalid phone number. Must be a valid Nigerian phone number',
+  })
   shippingContactPhone: string;
 
   @ApiProperty({ example: '123 Main St, Springfield, IL', description: 'The shipping address' })
   @IsNotEmpty()
   @IsString()
   shippingAddress: string;
+
+  @ApiProperty({ example: 'PAYPAL | PAYSTACK' })
+  @IsNotEmpty()
+  @IsString()
+  source: string;
 }

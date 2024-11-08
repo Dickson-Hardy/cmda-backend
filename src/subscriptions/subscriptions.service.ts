@@ -18,6 +18,8 @@ import { json2csv } from 'json-2-csv';
 import { SubscriptionPaginationQueryDto } from './dto/subscription-pagination.dto';
 import { EmailService } from '../email/email.service';
 import { UserRole } from '../users/user.constant';
+import { PaypalService } from '../paypal/paypal.service';
+import { PipelineStage } from 'mongoose';
 
 @Injectable()
 export class SubscriptionsService {
@@ -25,6 +27,7 @@ export class SubscriptionsService {
     @InjectModel(User.name) private userModel: Model<User>,
     @InjectModel(Subscription.name) private subscriptionModel: Model<Subscription>,
     private paystackService: PaystackService,
+    private paypalService: PaypalService,
     private configService: ConfigService,
     private emailService: EmailService,
   ) {}
@@ -33,22 +36,40 @@ export class SubscriptionsService {
     const user = await this.userModel.findById(id);
     const amount =
       user.role === UserRole.DOCTOR && user.yearsOfExperience?.toLowerCase()?.includes('above')
-        ? SUBSCRIPTION_PRICES[UserRole.GLOBALNETWORK]
+        ? SUBSCRIPTION_PRICES['DoctorSenior']
         : SUBSCRIPTION_PRICES[user.role];
-    const transaction = await this.paystackService.initializeTransaction({
-      amount: amount * 100,
-      email: user.email,
-      // channels: ['card'],
-      callback_url: this.configService.get('PAYMENT_SUCCESS_URL') + '?type=subscription',
-      metadata: JSON.stringify({ name: user.fullName }),
-    });
-    if (!transaction.status) {
-      throw new Error(transaction.message);
+
+    let transaction: any;
+    if ((user.role = UserRole.GLOBALNETWORK)) {
+      transaction = await this.paypalService.createOrder({
+        amount,
+        currency: 'USD',
+        description: 'SUBSCRIPTION',
+        metadata: JSON.stringify({ memId: user.membershipId, name: user.fullName }),
+        items: [{ name: 'Annual Subscription CMDA Nigeria', quantity: 1, amount }],
+      });
+    } else {
+      transaction = await this.paystackService.initializeTransaction({
+        amount: amount * 100,
+        email: user.email,
+        callback_url: this.configService.get('PAYMENT_SUCCESS_URL') + '?type=subscription',
+        metadata: JSON.stringify({
+          name: user.fullName,
+          memId: user.membershipId,
+          currency: 'NGN',
+        }),
+      });
+      if (!transaction.status) {
+        throw new Error(transaction.message);
+      }
     }
     return {
       success: true,
       message: 'Subscription session initiated',
-      data: { checkout_url: transaction.data.authorization_url },
+      data:
+        user.role === UserRole.GLOBALNETWORK
+          ? transaction
+          : { checkout_url: transaction.data.authorization_url },
     };
   }
 
@@ -56,27 +77,64 @@ export class SubscriptionsService {
     id: string,
     createSubscriptionDto: CreateSubscriptionDto,
   ): Promise<ISuccessResponse> {
-    const { reference } = createSubscriptionDto;
+    const { reference, source } = createSubscriptionDto;
 
     const alreadyExist = await this.subscriptionModel.findOne({ reference });
     if (alreadyExist) {
       throw new ConflictException('Subscription with this reference has already been confirmed');
     }
 
-    const transaction = await this.paystackService.verifyTransaction(reference);
-    if (!transaction.status) {
-      throw new Error(transaction.message);
-    }
-    const { amount } = transaction.data;
+    let user: User;
+    let subscription: Subscription;
     const oneYearFromNow = new Date(new Date().setFullYear(new Date().getFullYear() + 1)); // 1 year - annually
-    const subscription = await this.subscriptionModel.create({
-      reference,
-      amount: amount / 100,
-      expiryDate: oneYearFromNow,
-      user: id,
-    });
 
-    const user = await this.userModel.findByIdAndUpdate(
+    if (source && source?.toLowerCase() === 'paypal') {
+      const transaction = await this.paypalService.captureOrder(reference);
+
+      if (transaction?.status !== 'COMPLETED') {
+        throw new Error(transaction.message || 'Payment with Paypal was NOT successful');
+      }
+      const details = transaction.purchase_units[0].payments.captures[0];
+
+      const { amount, custom_id } = details; // { currency_code, value },
+
+      let metadata: any = await Buffer.from(custom_id, 'base64').toString('utf-8');
+      metadata = JSON.parse(metadata);
+      const { memId } = metadata;
+
+      user = await this.userModel.findOne({ membershipId: memId });
+
+      subscription = await this.subscriptionModel.create({
+        reference,
+        amount: +amount.value,
+        expiryDate: oneYearFromNow,
+        user: user._id,
+        currency: amount.currency_code,
+        source: 'PAYPAL',
+      });
+    } else {
+      const transaction = await this.paystackService.verifyTransaction(reference);
+
+      if (!transaction.status) throw new Error(transaction.message);
+
+      const {
+        amount,
+        metadata: { memId, currency },
+      } = transaction.data;
+
+      user = await this.userModel.findOne({ membershipId: memId });
+
+      subscription = await this.subscriptionModel.create({
+        reference,
+        amount: amount / 100,
+        expiryDate: oneYearFromNow,
+        user: user._id,
+        currency,
+        source: 'PAYSTACK',
+      });
+    }
+
+    user = await this.userModel.findByIdAndUpdate(
       id,
       { subscribed: true, subscriptionExpiry: oneYearFromNow },
       { new: true },
@@ -104,7 +162,7 @@ export class SubscriptionsService {
     const user = await this.userModel.findById(userId);
     const amount =
       user.role === UserRole.DOCTOR && user.yearsOfExperience?.toLowerCase()?.includes('above')
-        ? SUBSCRIPTION_PRICES[UserRole.GLOBALNETWORK]
+        ? SUBSCRIPTION_PRICES['DoctorSenior']
         : SUBSCRIPTION_PRICES[user.role];
 
     const oneYearFromNow = new Date(
@@ -115,6 +173,7 @@ export class SubscriptionsService {
       amount: amount,
       expiryDate: oneYearFromNow,
       user: userId,
+      currency: user.role === UserRole.GLOBALNETWORK ? 'USD' : 'NGN',
     });
 
     await this.userModel.findByIdAndUpdate(
@@ -150,33 +209,42 @@ export class SubscriptionsService {
 
     if (searchBy) {
       searchCriteria.$or = [
-        { reference: new RegExp(searchBy, 'i') },
-        { amount: new RegExp(searchBy, 'i') },
-        { frequency: new RegExp(searchBy, 'i') },
+        { reference: { $regex: searchBy, $options: 'i' } },
+        { amount: { $regex: searchBy, $options: 'i' } },
+        { frequency: { $regex: searchBy, $options: 'i' } },
       ];
     }
 
-    const subscriptions = await this.subscriptionModel
-      .find(searchCriteria)
-      .sort({ createdAt: -1 })
-      .limit(perPage)
-      .skip(perPage * (currentPage - 1))
-      .populate('user', ['_id', 'fullName', 'email', 'role', 'region']);
+    const pipeline: PipelineStage[] = [
+      { $match: searchCriteria },
+      { $lookup: { from: 'users', localField: 'user', foreignField: '_id', as: 'user' } },
+      { $unwind: '$user' },
+      {
+        $match: {
+          $and: [role ? { 'user.role': role } : {}, region ? { 'user.region': region } : {}],
+        },
+      },
+    ];
 
-    // Filter the populated users by role and region
-    const filteredSubscriptions = subscriptions.filter((subscription) => {
-      const user = subscription.user as User;
-      return (!role || user.role === role) && (!region || user.region === region);
-    });
+    const paginationCriteria: any = [
+      { $sort: { createdAt: -1 } },
+      { $skip: (currentPage - 1) * perPage },
+      { $limit: perPage },
+    ];
 
-    const totalItems = filteredSubscriptions.length;
+    const aggregatedSubscriptions = await this.subscriptionModel.aggregate(
+      pipeline.concat(paginationCriteria),
+    );
+
+    let totalItems: any = await this.subscriptionModel.aggregate(pipeline);
+    totalItems = totalItems.length;
     const totalPages = Math.ceil(totalItems / perPage);
 
     return {
       success: true,
       message: 'Subscription records fetched successfully',
       data: {
-        items: filteredSubscriptions,
+        items: aggregatedSubscriptions,
         meta: { currentPage, itemsPerPage: perPage, totalItems, totalPages },
       },
     };

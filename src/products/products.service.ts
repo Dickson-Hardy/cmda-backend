@@ -186,7 +186,12 @@ export class ProductsService {
 
     const newProduct = await this.productModel.findOneAndUpdate(
       { slug },
-      { ...updateProductDto, featuredImageCloudId, featuredImageUrl },
+      {
+        ...updateProductDto,
+        featuredImageCloudId,
+        featuredImageUrl,
+        sizes: updateProductDto.sizes ? updateProductDto.sizes.split(',').map((x) => x.trim()) : [],
+      },
       { new: true },
     );
 

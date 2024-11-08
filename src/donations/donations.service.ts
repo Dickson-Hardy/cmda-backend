@@ -260,10 +260,17 @@ export class DonationsService {
   async getStats(): Promise<ISuccessResponse> {
     const totalDonationCount = await this.donationModel.countDocuments();
 
-    const totalAmountResult = await this.donationModel.aggregate([
-      { $group: { _id: null, totalAmount: { $sum: '$amount' } } },
-    ]);
-    const totalDonationAmount = totalAmountResult.length > 0 ? totalAmountResult[0].totalAmount : 0;
+    const totalDonationAmount = {};
+    const currencies = await this.donationModel.distinct('currency');
+
+    for (const currency of currencies) {
+      const aggregatedTotal = await this.donationModel.aggregate([
+        { $match: { currency } },
+        { $group: { _id: null, totalAmount: { $sum: '$amount' } } },
+      ]);
+      totalDonationAmount[currency] =
+        aggregatedTotal.length > 0 ? aggregatedTotal[0].totalAmount : 0;
+    }
 
     const today = new Date().toISOString().split('T')[0];
     const startOfToday = new Date(`${today}T00:00:00+01:00`);
@@ -272,12 +279,6 @@ export class DonationsService {
       createdAt: { $gte: startOfToday, $lte: endOfToday },
     });
 
-    const todayAmountResult = await this.donationModel.aggregate([
-      { $match: { createdAt: { $gte: startOfToday, $lte: endOfToday } } },
-      { $group: { _id: null, totalAmount: { $sum: '$amount' } } },
-    ]);
-    const todayDonationAmount = todayAmountResult.length > 0 ? todayAmountResult[0].totalAmount : 0;
-
     return {
       success: true,
       message: 'Donation statistics calculated successfully',
@@ -285,7 +286,6 @@ export class DonationsService {
         totalDonationCount,
         totalDonationAmount,
         todayDonationCount,
-        todayDonationAmount,
       },
     };
   }

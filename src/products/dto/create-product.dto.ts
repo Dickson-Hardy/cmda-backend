@@ -24,6 +24,15 @@ export class CreateProductDto {
   price: number;
 
   @ApiProperty({
+    example: 99.99,
+    description: 'The price of the product in USD for Global members',
+  })
+  @IsNotEmpty()
+  @Type(() => Number)
+  @IsNumber()
+  priceUSD: number;
+
+  @ApiProperty({
     type: 'string',
     format: 'binary',
     description: 'Featured image of the product as a file',

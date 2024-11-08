@@ -52,8 +52,8 @@ export class OrdersController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Init an order payment session' })
   @ApiBody({ type: InitOrderDto })
-  init(@Body() initOrderDto: InitOrderDto) {
-    return this.ordersService.init(initOrderDto);
+  init(@Req() req: { user: IJwtPayload }, @Body() initOrderDto: InitOrderDto) {
+    return this.ordersService.init(req.user.id, initOrderDto);
   }
 
   @Post('create')

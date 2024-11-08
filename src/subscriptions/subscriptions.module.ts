@@ -7,6 +7,7 @@ import { Subscription } from 'rxjs';
 import { SubscriptionShema } from './subscription.schema';
 import { User, UserSchema } from '../users/schema/users.schema';
 import { EmailModule } from '../email/email.module';
+import { PaypalModule } from '../paypal/paypal.module';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { EmailModule } from '../email/email.module';
     ]),
     PaystackModule,
     EmailModule,
+    PaypalModule,
   ],
   controllers: [SubscriptionsController],
   providers: [SubscriptionsService],

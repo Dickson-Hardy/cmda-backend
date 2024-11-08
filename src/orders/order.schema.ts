@@ -43,6 +43,15 @@ export class Order extends Document {
   @Prop({ type: Date })
   paymentDate: Date;
 
+  @Prop({ default: false })
+  isPaid: boolean;
+
+  @Prop()
+  source: string;
+
+  @Prop()
+  currency: string;
+
   @Prop({ type: Date })
   shippingDate?: Date;
 

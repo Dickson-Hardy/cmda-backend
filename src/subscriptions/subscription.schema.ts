@@ -13,6 +13,12 @@ export class Subscription extends Document {
   @Prop({ default: 'Annually ' })
   frequency?: string;
 
+  @Prop({ default: 'NGN' })
+  currency: string;
+
+  @Prop()
+  source: string;
+
   @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'User' })
   user: User;
 

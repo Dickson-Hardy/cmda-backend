@@ -18,6 +18,9 @@ export class Product extends Document {
   price: number;
 
   @Prop()
+  priceUSD: number;
+
+  @Prop()
   category: ProductCategory;
 
   @Prop()

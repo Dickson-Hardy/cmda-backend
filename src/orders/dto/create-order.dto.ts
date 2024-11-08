@@ -6,4 +6,9 @@ export class CreateOrderDto {
   @IsNotEmpty()
   @IsString()
   reference: string;
+
+  @ApiProperty({ example: 'PAYPAL | PAYSTACK' })
+  @IsNotEmpty()
+  @IsString()
+  source: string;
 }
