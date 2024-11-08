@@ -7,6 +7,7 @@ import { AuthModule } from '../auth/auth.module';
 import { CloudinaryModule } from '../cloudinary/cloudinary.module';
 import { PaystackModule } from '../paystack/paystack.module';
 import { User, UserSchema } from '../users/schema/users.schema';
+import { PaypalModule } from '../paypal/paypal.module';
 
 @Module({
   imports: [
@@ -17,6 +18,7 @@ import { User, UserSchema } from '../users/schema/users.schema';
     ]),
     CloudinaryModule,
     PaystackModule,
+    PaypalModule,
   ],
   controllers: [EventsController],
   providers: [EventsService],

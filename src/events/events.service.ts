@@ -16,6 +16,8 @@ import { User } from '../users/schema/users.schema';
 import { UserRole } from '../users/user.constant';
 import { PaystackService } from '../paystack/paystack.service';
 import { ConfigService } from '@nestjs/config';
+import { PaypalService } from '../paypal/paypal.service';
+import { ConfirmEventPayDto } from './dto/update-event.dto';
 
 @Injectable()
 export class EventsService {
@@ -25,6 +27,7 @@ export class EventsService {
     private cloudinaryService: CloudinaryService,
     private paystackService: PaystackService,
     private configService: ConfigService,
+    private paypalService: PaypalService,
   ) {}
 
   async create(
@@ -241,7 +244,7 @@ export class EventsService {
     };
   }
 
-  async payForEvent(userId: any, slug: string): Promise<ISuccessResponse> {
+  async payForEvent(userId: string, slug: string): Promise<ISuccessResponse> {
     const event = await this.eventModel.findOne({ slug }).lean();
 
     if (!event) {
@@ -254,34 +257,71 @@ export class EventsService {
       throw new ConflictException('User is already registered for this event');
     }
 
-    const user = await this.userModel.findById(userId);
+    let transaction: any;
 
-    const transaction = await this.paystackService.initializeTransaction({
-      amount: event.paymentPlans.find((p: any) => p.role == user.role).price * 100,
-      email: user.email,
-      callback_url: this.configService.get('EVENT_PAYMENT_SUCCESS_URL').replace('[slug]', slug),
-      metadata: JSON.stringify({ slug, userId, name: user.fullName }),
-    });
-    if (!transaction.status) {
-      throw new Error(transaction.message);
+    const user = await this.userModel.findById(userId);
+    const amount = event.paymentPlans.find((p: any) => p.role == user.role).price;
+
+    if (user.role === UserRole.GLOBALNETWORK) {
+      transaction = await this.paypalService.createOrder({
+        amount,
+        currency: 'USD',
+        description: 'EVENT',
+        metadata: JSON.stringify({ eventId: event._id, userId }),
+        items: [{ name: event.name, quantity: 1, amount }],
+      });
+    } else {
+      const transaction = await this.paystackService.initializeTransaction({
+        amount: event.paymentPlans.find((p: any) => p.role == user.role).price * 100,
+        email: user.email,
+        callback_url: this.configService.get('EVENT_PAYMENT_SUCCESS_URL').replace('[slug]', slug),
+        metadata: JSON.stringify({ eventId: event._id, userId, name: user.fullName }),
+      });
+      if (!transaction.status) {
+        throw new Error(transaction.message);
+      }
     }
+
     return {
       success: true,
       message: 'Event payment session initiated',
-      data: { checkout_url: transaction.data.authorization_url },
+      data:
+        user.role === UserRole.GLOBALNETWORK
+          ? transaction
+          : { checkout_url: transaction.data.authorization_url },
     };
   }
 
-  async confirmEventPayment(reference: string): Promise<ISuccessResponse> {
-    const transaction = await this.paystackService.verifyTransaction(reference);
-    if (!transaction.status) {
-      throw new Error(transaction.message);
-    }
-    const {
-      metadata: { slug, userId },
-    } = transaction.data;
+  async confirmEventPayment(confirmDto: ConfirmEventPayDto): Promise<ISuccessResponse> {
+    const { reference, source } = confirmDto;
+    let response: ISuccessResponse;
 
-    const response = await this.registerForEvent(userId, slug);
+    if (source && source?.toLowerCase() === 'paypal') {
+      const transaction = await this.paypalService.captureOrder(reference);
+
+      if (transaction?.status !== 'COMPLETED') {
+        throw new Error(transaction.message || 'Payment with Paypal was NOT successful');
+      }
+      const details = transaction.purchase_units[0].payments.captures[0];
+
+      let metadata: any = await Buffer.from(details.custom_id, 'base64').toString('utf-8');
+      metadata = JSON.parse(metadata);
+      const { eventId, userId } = metadata;
+
+      const event = await this.eventModel.findById(eventId);
+      response = await this.registerForEvent(userId, event.slug);
+      //
+    } else {
+      const transaction = await this.paystackService.verifyTransaction(reference);
+      if (!transaction.status) {
+        throw new Error(transaction.message);
+      }
+      const {
+        metadata: { slug, userId },
+      } = transaction.data;
+
+      response = await this.registerForEvent(userId, slug);
+    }
 
     return response;
   }

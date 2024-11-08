@@ -20,6 +20,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { EventPaginationQueryDto } from './dto/event-pagination.dto';
 import { AllUserRoles } from '../users/user.constant';
 import { IJwtPayload } from '../_global/interface/jwt-payload';
+import { ConfirmEventPayDto } from './dto/update-event.dto';
 
 @ApiTags('Events')
 @Controller('events')
@@ -51,12 +52,13 @@ export class EventsController {
     return this.eventsService.payForEvent(req.user.id, slug);
   }
 
-  @Post('/confirm-payment/:reference')
+  @Post('/confirm-payment')
   @Roles(AllUserRoles)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Confirm payment for an event' })
-  confirmEventPayment(@Param('reference') reference: string) {
-    return this.eventsService.confirmEventPayment(reference);
+  @ApiBody({ type: ConfirmEventPayDto })
+  confirmEventPayment(@Body() confirmEventPayDto: ConfirmEventPayDto) {
+    return this.eventsService.confirmEventPayment(confirmEventPayDto);
   }
 
   @Post('/register/:slug')
