@@ -268,14 +268,14 @@ export class EventsService {
         currency: 'USD',
         description: 'EVENT',
         metadata: JSON.stringify({ eventId: event._id, userId }),
-        items: [{ name: event.name, quantity: 1, amount }],
+        items: [{ name: 'EVENT - ' + event.name, quantity: 1, amount }],
       });
     } else {
       const transaction = await this.paystackService.initializeTransaction({
         amount: event.paymentPlans.find((p: any) => p.role == user.role).price * 100,
         email: user.email,
         callback_url: this.configService.get('EVENT_PAYMENT_SUCCESS_URL').replace('[slug]', slug),
-        metadata: JSON.stringify({ eventId: event._id, userId, name: user.fullName }),
+        metadata: JSON.stringify({ slug, userId, name: user.fullName }),
       });
       if (!transaction.status) {
         throw new Error(transaction.message);
