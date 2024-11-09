@@ -6,10 +6,13 @@ import { DonationFrequency } from './donation.constant';
 @Schema({ timestamps: true, versionKey: false })
 export class Donation extends Document {
   @Prop()
-  amount: number;
+  totalAmount: number;
 
   @Prop({ unique: true })
   reference: string;
+
+  @Prop()
+  isPaid: boolean;
 
   @Prop({ default: false })
   recurring: boolean;
@@ -20,8 +23,8 @@ export class Donation extends Document {
   @Prop({ default: 'NGN' })
   currency: string;
 
-  @Prop()
-  areasOfNeed: string;
+  @Prop({ type: [{ name: String, amount: Number }] })
+  areasOfNeed: { name: string; amount: number }[];
 
   @Prop()
   source: string;

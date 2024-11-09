@@ -7,7 +7,7 @@ import {
 import { CreateDonationDto } from './dto/create-donation.dto';
 import { InjectModel } from '@nestjs/mongoose';
 import { User } from '../users/schema/users.schema';
-import { Model } from 'mongoose';
+import { Model, PipelineStage } from 'mongoose';
 import { PaystackService } from '../paystack/paystack.service';
 import { ISuccessResponse } from '../_global/interface/success-response';
 import { ConfigService } from '@nestjs/config';
@@ -19,6 +19,7 @@ import { DonationPaginationQueryDto } from './dto/donation-pagination.dto';
 import { EmailService } from '../email/email.service';
 import { PaypalService } from '../paypal/paypal.service';
 import { UserRole } from '../users/user.constant';
+import ShortUniqueId from 'short-unique-id';
 
 @Injectable()
 export class DonationsService {
@@ -32,22 +33,39 @@ export class DonationsService {
   ) {}
 
   async init(id: string, createDonationDto: InitDonationDto): Promise<ISuccessResponse> {
-    const { amount, recurring, frequency, areasOfNeed, currency } = createDonationDto;
+    const { totalAmount, recurring, frequency, areasOfNeed, currency } = createDonationDto;
     const user = await this.userModel.findById(id);
     let transaction: any;
     // GLOBAL NETWORK DOCTORS
     if (user.role === UserRole.GLOBALNETWORK) {
+      const { randomUUID } = new ShortUniqueId({ length: 6, dictionary: 'alphanum_upper' });
+      const donation = await this.donationModel.create({
+        reference: 'UNPAID-' + randomUUID(),
+        isPaid: false,
+        totalAmount,
+        currency,
+        recurring: recurring && frequency ? true : false,
+        ...(frequency ? { frequency } : {}),
+        areasOfNeed,
+        user: user._id,
+        source: 'PAYPAL',
+      });
+
       transaction = await this.paypalService.createOrder({
-        amount,
+        amount: totalAmount,
         currency,
         description: 'DONATION',
-        metadata: JSON.stringify({ recurring, frequency, memId: user.membershipId, areasOfNeed }),
-        items: [{ name: 'Donation for ' + areasOfNeed, quantity: 1, amount }],
+        metadata: JSON.stringify({ donationId: donation._id, memId: user.membershipId }),
+        items: areasOfNeed.map(({ name, amount }) => ({
+          name: 'DONATION for ' + name,
+          amount,
+          quantity: 1,
+        })),
       });
     } else {
       // STUDENT AND DOCTORS
       transaction = await this.paystackService.initializeTransaction({
-        amount: amount * 100,
+        amount: totalAmount * 100,
         email: user.email,
         // channels: ['card'], show all options
         callback_url: this.configService.get('PAYMENT_SUCCESS_URL') + '?type=donation',
@@ -90,26 +108,19 @@ export class DonationsService {
       if (transaction?.status !== 'COMPLETED') {
         throw new Error(transaction.message || 'Payment with Paypal was NOT successful');
       }
+
       const details = transaction.purchase_units[0].payments.captures[0];
-
-      const { amount, custom_id } = details; // { currency_code, value },
-
-      let metadata: any = await Buffer.from(custom_id, 'base64').toString('utf-8');
+      let metadata: any = await Buffer.from(details.custom_id, 'base64').toString('utf-8');
       metadata = JSON.parse(metadata);
-      const { recurring, frequency, memId, areasOfNeed } = metadata;
+      const { donationId, memId } = metadata;
 
       user = await this.userModel.findOne({ membershipId: memId });
 
-      donation = await this.donationModel.create({
-        reference,
-        amount: +amount.value,
-        currency: amount.currency_code,
-        recurring: recurring && frequency ? true : false,
-        ...(frequency ? { frequency } : {}),
-        areasOfNeed,
-        user: user._id,
-        source: 'PAYPAL',
-      });
+      donation = await this.donationModel.findByIdAndUpdate(
+        donationId,
+        { reference, isPaid: true },
+        { new: true },
+      );
     } else {
       const transaction = await this.paystackService.verifyTransaction(reference);
 
@@ -125,8 +136,9 @@ export class DonationsService {
 
       donation = await this.donationModel.create({
         reference,
-        amount: amount / 100,
+        totalAmount: amount / 100,
         currency,
+        isPaid: true,
         recurring: recurring && frequency ? true : false,
         ...(frequency ? { frequency } : {}),
         areasOfNeed,
@@ -158,42 +170,59 @@ export class DonationsService {
     const perPage = Number(limit) || 10;
     const currentPage = Number(page) || 1;
 
-    const searchCriteria: any = {};
+    const searchCriteria: any = { isPaid: true };
 
     if (searchBy) {
       searchCriteria.$or = [
-        { reference: new RegExp(searchBy, 'i') },
-        { amount: new RegExp(searchBy, 'i') },
-        { frequency: new RegExp(searchBy, 'i') },
-        { areasOfNeed: new RegExp(searchBy, 'i') },
+        { reference: { $regex: searchBy, $options: 'i' } },
+        { amount: { $regex: searchBy, $options: 'i' } },
+        { frequency: { $regex: searchBy, $options: 'i' } },
       ];
     }
 
     if (areasOfNeed) {
-      searchCriteria.areasOfNeed = areasOfNeed;
+      searchCriteria.areasOfNeed = { $elemMatch: { name: areasOfNeed } };
     }
 
-    const donations = await this.donationModel
-      .find(searchCriteria)
-      .sort({ createdAt: -1 })
-      .limit(perPage)
-      .skip(perPage * (currentPage - 1))
-      .populate('user', ['_id', 'fullName', 'email', 'role', 'region']);
+    const pipeline: PipelineStage[] = [
+      { $match: searchCriteria },
+      { $lookup: { from: 'users', localField: 'user', foreignField: '_id', as: 'user' } },
+      { $unwind: '$user' },
+      {
+        $match: {
+          $and: [role ? { 'user.role': role } : {}, region ? { 'user.region': region } : {}],
+        },
+      },
+      {
+        $project: {
+          //  hide these
+          'user.password': 0,
+          'user.verificationCode': 0,
+          'user.eventsRegistered': 0,
+          'user.volunteerships': 0,
+        },
+      },
+    ];
 
-    // Filter the populated users by role and region
-    const filteredDonations = donations.filter((donation) => {
-      const user = donation.user as User;
-      return (!role || user.role === role) && (!region || user.region === region);
-    });
+    const paginationCriteria: any = [
+      { $sort: { createdAt: -1 } },
+      { $skip: (currentPage - 1) * perPage },
+      { $limit: perPage },
+    ];
 
-    const totalItems = filteredDonations.length;
+    const aggregatedDonors = await this.donationModel.aggregate(
+      pipeline.concat(paginationCriteria),
+    );
+
+    let totalItems: any = await this.donationModel.aggregate(pipeline);
+    totalItems = totalItems.length;
     const totalPages = Math.ceil(totalItems / perPage);
 
     return {
       success: true,
       message: 'Donation records fetched successfully',
       data: {
-        items: filteredDonations,
+        items: aggregatedDonors,
         meta: { currentPage, itemsPerPage: perPage, totalItems, totalPages },
       },
     };
@@ -201,7 +230,7 @@ export class DonationsService {
 
   async exportAll(userId: string): Promise<any> {
     const donations = await this.donationModel
-      .find(userId ? { user: userId } : {})
+      .find(userId ? { user: userId, isPaid: true } : { isPaid: true })
       .sort({ createdAt: -1 })
       .populate('user', ['_id', 'fullName', 'email', 'role'])
       .lean();
@@ -227,13 +256,13 @@ export class DonationsService {
     const currentPage = Number(page) || 1;
     const searchCriteria = {
       user: id,
+      isPaid: true,
       ...(searchBy
         ? {
             $or: [
               { reference: new RegExp(searchBy, 'i') },
               { amount: new RegExp(searchBy, 'i') },
               { frequency: new RegExp(searchBy, 'i') },
-              { areasOfNeed: new RegExp(searchBy, 'i') },
             ],
           }
         : {}),
@@ -258,14 +287,14 @@ export class DonationsService {
   }
 
   async getStats(): Promise<ISuccessResponse> {
-    const totalDonationCount = await this.donationModel.countDocuments();
+    const totalDonationCount = await this.donationModel.countDocuments({ isPaid: true });
 
     const totalDonationAmount = {};
     const currencies = await this.donationModel.distinct('currency');
 
     for (const currency of currencies) {
       const aggregatedTotal = await this.donationModel.aggregate([
-        { $match: { currency } },
+        { $match: { currency, isPaid: true } },
         { $group: { _id: null, totalAmount: { $sum: '$amount' } } },
       ]);
       totalDonationAmount[currency] =

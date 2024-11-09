@@ -224,6 +224,15 @@ export class SubscriptionsService {
           $and: [role ? { 'user.role': role } : {}, region ? { 'user.region': region } : {}],
         },
       },
+      {
+        $project: {
+          //  hide these
+          'user.password': 0,
+          'user.verificationCode': 0,
+          'user.eventsRegistered': 0,
+          'user.volunteerships': 0,
+        },
+      },
     ];
 
     const paginationCriteria: any = [
