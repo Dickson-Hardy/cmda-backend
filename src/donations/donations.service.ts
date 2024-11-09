@@ -295,7 +295,7 @@ export class DonationsService {
     for (const currency of currencies) {
       const aggregatedTotal = await this.donationModel.aggregate([
         { $match: { currency, isPaid: true } },
-        { $group: { _id: null, totalAmount: { $sum: '$amount' } } },
+        { $group: { _id: null, totalAmount: { $sum: '$totalAmount' } } },
       ]);
       totalDonationAmount[currency] =
         aggregatedTotal.length > 0 ? aggregatedTotal[0].totalAmount : 0;
@@ -305,6 +305,7 @@ export class DonationsService {
     const startOfToday = new Date(`${today}T00:00:00+01:00`);
     const endOfToday = new Date(`${today}T23:59:59+01:00`);
     const todayDonationCount = await this.donationModel.countDocuments({
+      isPaid: true,
       createdAt: { $gte: startOfToday, $lte: endOfToday },
     });
 
