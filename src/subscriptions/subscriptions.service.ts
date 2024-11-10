@@ -40,7 +40,7 @@ export class SubscriptionsService {
         : SUBSCRIPTION_PRICES[user.role];
 
     let transaction: any;
-    if ((user.role = UserRole.GLOBALNETWORK)) {
+    if (user.role === UserRole.GLOBALNETWORK) {
       transaction = await this.paypalService.createOrder({
         amount,
         currency: 'USD',

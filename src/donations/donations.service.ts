@@ -300,6 +300,10 @@ export class DonationsService {
       totalDonationAmount[currency] =
         aggregatedTotal.length > 0 ? aggregatedTotal[0].totalAmount : 0;
     }
+    // removec currencies with value 0
+    Object.entries(totalDonationAmount).forEach(([key, val]) => {
+      if (!val) delete totalDonationAmount[key];
+    });
 
     const today = new Date().toISOString().split('T')[0];
     const startOfToday = new Date(`${today}T00:00:00+01:00`);
