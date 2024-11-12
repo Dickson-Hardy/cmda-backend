@@ -41,7 +41,7 @@ export class NotificationsService {
       .limit(perPage)
       .skip(perPage * (currentPage - 1));
 
-    const totalItems = await this.notificationModel.countDocuments({});
+    const totalItems = await this.notificationModel.countDocuments({ userId });
     const totalPages = Math.ceil(totalItems / perPage);
 
     return {
