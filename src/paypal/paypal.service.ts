@@ -65,14 +65,53 @@ export class PaypalService {
     return response.data; // Returns order ID and status
   }
 
+  async _createOrder(amount: string) {
+    const accessToken = await this.getAccessToken();
+    const orderData = {
+      intent: 'CAPTURE',
+      purchase_units: [
+        {
+          amount: {
+            currency_code: 'USD',
+            value: amount,
+          },
+        },
+      ],
+    };
+
+    const response = await axios.post(`${this.baseUrl}/v2/checkout/orders`, orderData, {
+      headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+    });
+
+    return response.data; // Returns order ID and status
+  }
+
   // Method to capture payment
   async captureOrder(orderId: string) {
-    const accessToken = await this.getAccessToken();
-    const response = await axios.post(
-      `${this.baseUrl}/v2/checkout/orders/${orderId}/capture`,
-      {},
-      { headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' } },
-    );
-    return response.data; // Returns capture details
+    try {
+      const accessToken = await this.getAccessToken();
+      const response = await axios.post(
+        `${this.baseUrl}/v2/checkout/orders/${orderId}/capture`,
+        {},
+        { headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' } },
+      );
+      return response.data; // Returns capture details
+    } catch (error) {
+      console.error('ERR', error);
+    }
+  }
+
+  // Method to get order details
+  async getOrderDetails(orderId: string) {
+    try {
+      const accessToken = await this.getAccessToken();
+      const response = await axios.get(`${this.baseUrl}/v2/checkout/orders/${orderId}`, {
+        headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+      });
+      // console.log('RES', response.data);
+      return response.data; // Returns order details
+    } catch (error) {
+      console.error('ERR', error);
+    }
   }
 }
