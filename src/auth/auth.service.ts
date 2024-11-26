@@ -116,7 +116,7 @@ export class AuthService {
   async login(loginDto: LoginDto): Promise<ISuccessResponse> {
     const { email, password } = loginDto;
     // check if user with email exists
-    const user = await this.userModel.findOne({ email });
+    const user = await this.userModel.findOne({ email: { $regex: `^${email}$`, $options: 'i' } });
     if (!user) throw new UnauthorizedException('Invalid email or password');
     // check if password matches
     const isPasswordMatched = await bcrypt.compare(password, user.password);
@@ -211,7 +211,7 @@ export class AuthService {
 
   async resendVerifyCode(resendCodeDto: ForgotPasswordDto): Promise<ISuccessResponse> {
     const { email } = resendCodeDto;
-    const user = await this.userModel.findOne({ email });
+    const user = await this.userModel.findOne({ email: { $regex: `^${email}$`, $options: 'i' } });
     if (!user) {
       throw new NotFoundException('Email does not exist');
     }
@@ -239,7 +239,10 @@ export class AuthService {
 
   async verifyEmail(verifyEmailDto: VerifyEmailDto): Promise<ISuccessResponse> {
     const { code, email } = verifyEmailDto;
-    const user = await this.userModel.findOne({ email, verificationCode: code.toUpperCase() });
+    const user = await this.userModel.findOne({
+      email: { $regex: `^${email}$`, $options: 'i' },
+      verificationCode: code.toUpperCase(),
+    });
     if (!user) {
       throw new BadRequestException('Email verification code is invalid');
     }
@@ -252,7 +255,7 @@ export class AuthService {
 
   async forgotPassword(forgotPasswordDto: ForgotPasswordDto): Promise<ISuccessResponse> {
     const { email } = forgotPasswordDto;
-    const user = await this.userModel.findOne({ email });
+    const user = await this.userModel.findOne({ email: { $regex: `^${email}$`, $options: 'i' } });
     if (!user) {
       throw new NotFoundException('Email does not exist');
     }

@@ -56,7 +56,7 @@ export class AdminService {
   async login(loginDto: LoginAdminDto): Promise<ISuccessResponse> {
     const { email, password } = loginDto;
 
-    const admin = await this.adminModel.findOne({ email });
+    const admin = await this.adminModel.findOne({ email: { $regex: `^${email}$`, $options: 'i' } });
     if (!admin) throw new UnauthorizedException('Invalid login credentials');
 
     const isPasswordMatched = await bcrypt.compare(password, admin.password);

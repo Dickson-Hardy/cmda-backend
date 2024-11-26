@@ -16,7 +16,7 @@ export class Admin extends Document {
   @Prop()
   fullName: string;
 
-  @Prop({ unique: true })
+  @Prop({ unique: true, lowercase: true })
   email: string;
 
   @Prop()
