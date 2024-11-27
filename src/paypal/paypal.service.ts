@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, InternalServerErrorException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
 import { IPaypalCreateOrder } from './paypal.interface';
@@ -17,15 +17,21 @@ export class PaypalService {
 
   // Method to get PayPal OAuth token
   private async getAccessToken() {
-    const response = await axios.post(
-      `${this.baseUrl}/v1/oauth2/token`,
-      'grant_type=client_credentials',
-      {
-        auth: { username: this.clientId, password: this.clientSecret },
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      },
-    );
-    return response.data.access_token;
+    try {
+      const response = await axios.post(
+        `${this.baseUrl}/v1/oauth2/token`,
+        'grant_type=client_credentials',
+        {
+          auth: { username: this.clientId, password: this.clientSecret },
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        },
+      );
+      return response.data.access_token;
+    } catch (error) {
+      console.error('PAYPAL_TOKEN', error.message);
+      console.log('ERROR', error.response.data.error_description);
+      throw new InternalServerErrorException(error.response.data.error_description);
+    }
   }
 
   // Method to create an order
@@ -58,11 +64,15 @@ export class PaypalService {
       },
     };
 
-    const response = await axios.post(`${this.baseUrl}/v2/checkout/orders`, orderData, {
-      headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-    });
-
-    return response.data; // Returns order ID and status
+    try {
+      const response = await axios.post(`${this.baseUrl}/v2/checkout/orders`, orderData, {
+        headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+      });
+      return response.data; // Returns order ID and status
+    } catch (error) {
+      console.error(error.response.data);
+      throw new InternalServerErrorException(error.response.data.error_description);
+    }
   }
 
   async _createOrder(amount: string) {
