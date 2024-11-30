@@ -134,11 +134,17 @@ export class UsersService {
     user: string,
     updateUserSettingsDto: UpdateUserSettingsDto,
   ): Promise<ISuccessResponse> {
-    const settings = await this.userSettingsModel.findOneAndUpdate(
-      { user },
-      updateUserSettingsDto,
-      { new: true, upsert: true },
-    );
+    let settings: any;
+    const exists = await this.userSettingsModel.findOne({ user });
+
+    if (exists) {
+      settings = await this.userSettingsModel.findOneAndUpdate({ user }, updateUserSettingsDto, {
+        new: true,
+      });
+    } else {
+      settings = await this.userSettingsModel.create({ ...updateUserSettingsDto, user });
+    }
+
     return {
       success: true,
       message: 'User settings updated successfully',

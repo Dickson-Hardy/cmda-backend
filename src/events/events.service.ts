@@ -271,7 +271,7 @@ export class EventsService {
         items: [{ name: 'EVENT - ' + event.name, quantity: 1, amount }],
       });
     } else {
-      const transaction = await this.paystackService.initializeTransaction({
+      transaction = await this.paystackService.initializeTransaction({
         amount: event.paymentPlans.find((p: any) => p.role == user.role).price * 100,
         email: user.email,
         callback_url: this.configService.get('EVENT_PAYMENT_SUCCESS_URL').replace('[slug]', slug),
