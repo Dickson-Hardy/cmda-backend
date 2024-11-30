@@ -267,14 +267,16 @@ export class SubscriptionsService {
       .lean();
 
     const subscriptionsJson = subscriptions.map((sub: any) => ({
-      reference: sub.reference,
-      amount: sub.amount,
-      name: sub.user.fullName,
-      email: sub.user.email,
-      role: sub.user.role,
-      region: sub.user.region,
-      paidOn: new Date(sub.createdAt).toLocaleString('en-US', { dateStyle: 'medium' }),
-      expiresOn: new Date(sub.expiryDate).toLocaleString('en-US', { dateStyle: 'medium' }),
+      SOURCE: sub.source || 'N/A',
+      REFERENCE: sub.reference,
+      CURRENCY: sub.currency,
+      AMOUNT: sub.amount,
+      NAME: sub.user?.fullName || 'N/A',
+      EMAIL: sub.user?.email || 'N/A',
+      ROLE: sub.user?.role || 'N/A',
+      REGION: sub.user?.region || 'N/A',
+      PAID_ON: new Date(sub.createdAt).toLocaleString('en-US', { dateStyle: 'medium' }),
+      EXPIRES_ON: new Date(sub.expiryDate).toLocaleString('en-US', { dateStyle: 'medium' }),
     }));
 
     const csv = await json2csv(subscriptionsJson);

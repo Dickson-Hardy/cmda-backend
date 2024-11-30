@@ -40,6 +40,18 @@ export class VacancyService {
         }
       : {};
 
+    const currentDate = new Date();
+    // Deactivate expired vacancies
+    await this.vacancyModel.updateMany(
+      { closingDate: { $lte: currentDate }, isActive: true },
+      { $set: { isActive: false } },
+    );
+    // Activate upcoming vacancies
+    await this.vacancyModel.updateMany(
+      { closingDate: { $gt: currentDate }, isActive: false },
+      { $set: { isActive: true } },
+    );
+
     const vacancies = await this.vacancyModel
       .find(searchCriteria)
       .sort({ createdAt: -1 })
@@ -71,11 +83,19 @@ export class VacancyService {
   }
 
   async findOne(id: string): Promise<ISuccessResponse> {
-    let vacancy = await this.vacancyModel.findById(id);
-    // update isActive status if closing date is already passed
-    if (Date.now() > new Date(vacancy.closingDate).getTime() && vacancy.isActive) {
-      vacancy = await this.vacancyModel.findByIdAndUpdate(id, { isActive: false }, { new: true });
-    }
+    const currentDate = new Date();
+    // Deactivate expired vacancies
+    await this.vacancyModel.updateMany(
+      { closingDate: { $lte: currentDate }, isActive: true },
+      { $set: { isActive: false } },
+    );
+    // Activate upcoming vacancies
+    await this.vacancyModel.updateMany(
+      { closingDate: { $gt: currentDate }, isActive: false },
+      { $set: { isActive: true } },
+    );
+
+    const vacancy = await this.vacancyModel.findById(id);
     return {
       success: true,
       message: 'Volunteer job fetched successfully',

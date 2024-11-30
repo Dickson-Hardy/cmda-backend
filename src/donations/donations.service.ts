@@ -236,13 +236,17 @@ export class DonationsService {
       .lean();
 
     const donationsJson = donations.map((donation: any) => ({
-      reference: donation.reference,
-      amount: donation.amount,
-      name: donation.user.fullName,
-      email: donation.user.email,
-      recurring: donation.recurring && donation.frequency,
-      frequency: donation.frequency || '-',
-      date: new Date(donation.createdAt).toLocaleString('en-US', { dateStyle: 'medium' }),
+      DATE: new Date(donation.createdAt).toLocaleString('en-US', { dateStyle: 'medium' }),
+      SOURCE: donation.source || 'N/A',
+      REFERENCE: donation.reference,
+      CURRENCY: donation.currency,
+      TOTAL_AMOUNT: donation.totalAmount,
+      NAME: donation.user?.fullName || 'N/A',
+      EMAIL: donation.user?.email || 'N/A',
+      FREQUENCY: donation.frequency || 'One-time',
+      AREAS_OF_NEED: donation.areasOfNeed
+        .map((x) => x.name + ' - ' + x.amount + donation.currency)
+        .join(', '),
     }));
 
     const csv = await json2csv(donationsJson);

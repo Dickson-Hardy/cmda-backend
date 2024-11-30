@@ -74,14 +74,14 @@ export class UsersService {
       .lean();
 
     const usersJson = users.map((user: any) => ({
-      membershipId: user.membershipId,
-      firstName: user.firstName,
-      middleName: user.middleName,
-      lastName: user.lastName,
-      email: user.email,
-      role: user.role,
-      region: user.region,
-      createdAt: new Date(user.createdAt).toLocaleString('en-US', { dateStyle: 'medium' }),
+      MEMBER_ID: user.membershipId,
+      FIRST_NAME: user.firstName,
+      MIDDLE_NAME: user.middleName,
+      LAST_NAME: user.lastName,
+      EMAIL: user.email,
+      ROLE: user.role,
+      REGION: user.region,
+      REGISTERED: new Date(user.createdAt).toLocaleString('en-US', { dateStyle: 'medium' }),
     }));
 
     const csv = await json2csv(usersJson);

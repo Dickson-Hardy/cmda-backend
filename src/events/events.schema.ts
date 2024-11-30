@@ -56,6 +56,7 @@ export class Event extends Document {
   @Prop({
     type: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
     index: { unique: true, sparse: true },
+    default: [],
   })
   registeredUsers: User[];
 }

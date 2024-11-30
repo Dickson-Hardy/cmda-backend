@@ -48,12 +48,13 @@ export class EventsService {
 
       const event = await this.eventModel.create({
         ...createEventDto,
-        paymentPlans: JSON.parse(createEventDto.paymentPlans),
+        paymentPlans: createEventDto.paymentPlans ? JSON.parse(createEventDto.paymentPlans) : [],
         membersGroup: !createEventDto.membersGroup.length
           ? AllEventAudiences
           : createEventDto.membersGroup,
         featuredImageCloudId,
         featuredImageUrl,
+        registeredUsers: [],
       });
       return {
         success: true,
@@ -62,7 +63,7 @@ export class EventsService {
       };
     } catch (error) {
       if (error.code === 11000) {
-        throw new ConflictException('Event with such name already exists');
+        throw new ConflictException('One or more properties of Event has conflicts');
       }
       throw error;
     }
