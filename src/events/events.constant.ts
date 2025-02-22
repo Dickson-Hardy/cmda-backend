@@ -20,4 +20,5 @@ export enum EventTag {
 export enum EventType {
   PHYSICAL = 'Physical',
   VIRTUAL = 'Virtual',
+  HYBRID = 'Hybrid',
 }

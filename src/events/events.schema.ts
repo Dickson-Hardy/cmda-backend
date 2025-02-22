@@ -2,7 +2,6 @@ import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import mongoose, { Document } from 'mongoose';
 import { AllEventAudiences, EventAudience, EventTag, EventType } from './events.constant';
 import slugify from 'slugify';
-import { User } from '../users/schema/users.schema';
 
 class PaymentPlan {
   @Prop({ required: true })
@@ -10,6 +9,14 @@ class PaymentPlan {
 
   @Prop({ required: true })
   price: number;
+}
+
+class RegisteredUser {
+  @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true })
+  userId: mongoose.Schema.Types.ObjectId;
+
+  @Prop()
+  paymentReference?: string; // Only for paid events
 }
 
 @Schema({ timestamps: true, versionKey: false })
@@ -42,6 +49,9 @@ export class Event extends Document {
   paymentPlans: PaymentPlan[];
 
   @Prop()
+  reference: string;
+
+  @Prop()
   eventTags: EventTag[];
 
   @Prop()
@@ -53,11 +63,8 @@ export class Event extends Document {
   @Prop({ default: AllEventAudiences })
   membersGroup: EventAudience[];
 
-  @Prop({
-    type: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
-    default: [],
-  })
-  registeredUsers: User[];
+  @Prop({ type: [RegisteredUser], default: [] })
+  registeredUsers: RegisteredUser[];
 }
 
 export const EventSchema = SchemaFactory.createForClass(Event);

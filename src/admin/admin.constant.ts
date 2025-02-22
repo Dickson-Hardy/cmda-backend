@@ -1,7 +1,11 @@
 export enum AdminRole {
   SUPERADMIN = 'SuperAdmin',
-  ADMIN = 'Admin',
-  FINANCEADMIN = 'FinanceAdmin',
+  MEMBER_MANAGER = 'MemberManager',
+  FINANCE_MANAGER = 'FinanceManager',
 }
 
-export const AllAdminRoles = [AdminRole.SUPERADMIN, AdminRole.ADMIN, AdminRole.FINANCEADMIN];
+export const AllAdminRoles = [
+  AdminRole.SUPERADMIN,
+  AdminRole.MEMBER_MANAGER,
+  AdminRole.FINANCE_MANAGER,
+];

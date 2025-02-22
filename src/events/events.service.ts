@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { CreateEventDto } from './dto/create-event.dto';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import mongoose, { Model } from 'mongoose';
 import { ISuccessResponse } from '../_global/interface/success-response';
 import { Event } from './events.schema';
 import { CloudinaryService } from '../cloudinary/cloudinary.service';
@@ -120,6 +120,7 @@ export class EventsService {
 
   async findOne(slug: string): Promise<ISuccessResponse> {
     const event = await this.eventModel.findOne({ slug });
+
     if (!event) {
       throw new NotFoundException('No event with such slug');
     }
@@ -131,35 +132,44 @@ export class EventsService {
   }
 
   async findOneStat(slug: string): Promise<ISuccessResponse> {
-    const event = await this.eventModel
-      .findOne({ slug })
-      .populate('registeredUsers', '_id fullName membershipId gender email role region');
+    const event = await this.eventModel.findOne({ slug });
 
     if (!event) {
       throw new NotFoundException('No event with such slug');
     }
 
-    // Calculate the number of users in each audience group
+    // Manually populate `userId`
+    await event.populate({
+      path: 'registeredUsers.userId',
+      select: '_id fullName membershipId gender email role region',
+    });
+
+    console.log('EVENT', event.registeredUsers);
+
+    // Ensure registeredUsers is an array of objects containing userId
     const totalRegistered = event.registeredUsers.length;
-    const studentsRegistered = event.registeredUsers.filter(
-      (user: User) => user.role === UserRole.STUDENT,
-    ).length;
-    const doctorsRegistered = event.registeredUsers.filter(
-      (user: User) => user.role === UserRole.DOCTOR,
-    ).length;
-    const globalNetworkRegistered = event.registeredUsers.filter(
-      (user: User) => user.role === UserRole.GLOBALNETWORK,
-    ).length;
+    const roleCounts = {
+      studentsRegistered: 0,
+      doctorsRegistered: 0,
+      globalNetworkRegistered: 0,
+    };
+
+    event.registeredUsers.forEach((regUser) => {
+      const user: any = regUser.userId; // Extract the populated user object
+      if (user) {
+        if (user.role === UserRole.STUDENT) roleCounts.studentsRegistered++;
+        if (user.role === UserRole.DOCTOR) roleCounts.doctorsRegistered++;
+        if (user.role === UserRole.GLOBALNETWORK) roleCounts.globalNetworkRegistered++;
+      }
+    });
 
     return {
       success: true,
       message: 'Event statistics fetched successfully',
       data: {
         totalRegistered,
-        studentsRegistered,
-        doctorsRegistered,
-        globalNetworkRegistered,
-        registeredUsers: event.registeredUsers,
+        ...roleCounts,
+        registeredUsers: event.registeredUsers, // Keep the full list of registered users
       },
     };
   }
@@ -227,16 +237,35 @@ export class EventsService {
     };
   }
 
-  async registerForEvent(userId: any, slug: string): Promise<ISuccessResponse> {
-    const event = await this.eventModel.findOneAndUpdate(
-      { slug },
-      { $addToSet: { registeredUsers: userId } },
-      { new: true },
-    );
+  async registerForEvent(
+    userId: string, // Accept userId as a string
+    slug: string,
+    reference?: string,
+  ): Promise<ISuccessResponse> {
+    const event = await this.eventModel.findOne({ slug });
 
     if (!event) {
       throw new NotFoundException('No event with such slug');
     }
+
+    const userObjectId = new mongoose.Types.ObjectId(
+      userId,
+    ) as unknown as mongoose.Schema.Types.ObjectId;
+
+    const isAlreadyRegistered = event.registeredUsers.some(
+      (user) => user.userId.toString() === userObjectId.toString(),
+    );
+
+    if (isAlreadyRegistered) {
+      throw new ConflictException('User is already registered for this event');
+    }
+
+    if (event.isPaid && !reference) {
+      throw new BadRequestException('Payment reference is required for paid events');
+    }
+
+    event.registeredUsers.push({ userId: userObjectId, paymentReference: reference });
+    await event.save();
 
     return {
       success: true,
@@ -321,7 +350,7 @@ export class EventsService {
         metadata: { slug, userId },
       } = transaction.data;
 
-      response = await this.registerForEvent(userId, slug);
+      response = await this.registerForEvent(userId, slug, reference);
     }
 
     return response;
