@@ -132,21 +132,54 @@ export class EventsService {
   }
 
   async findOneStat(slug: string): Promise<ISuccessResponse> {
-    const event = await this.eventModel.findOne({ slug });
+    const eventStats = await this.eventModel.aggregate([
+      { $match: { slug } }, // Find the event by slug
 
-    if (!event) {
+      {
+        $lookup: {
+          from: 'users', // MongoDB collection name (ensure it's lowercase)
+          localField: 'registeredUsers.userId',
+          foreignField: '_id',
+          as: 'populatedUsers',
+        },
+      },
+
+      {
+        $addFields: {
+          registeredUsers: {
+            $map: {
+              input: '$registeredUsers',
+              as: 'regUser',
+              in: {
+                userId: {
+                  $arrayElemAt: [
+                    {
+                      $filter: {
+                        input: '$populatedUsers',
+                        as: 'populatedUser',
+                        cond: { $eq: ['$$populatedUser._id', '$$regUser.userId'] },
+                      },
+                    },
+                    0,
+                  ],
+                },
+                paymentReference: '$$regUser.paymentReference',
+              },
+            },
+          },
+        },
+      },
+
+      { $project: { populatedUsers: 0 } }, // Remove the extra populatedUsers array
+    ]);
+
+    if (!eventStats.length) {
       throw new NotFoundException('No event with such slug');
     }
 
-    // Manually populate `userId`
-    await event.populate({
-      path: 'registeredUsers.userId',
-      select: '_id fullName membershipId gender email role region',
-    });
+    const event = eventStats[0];
 
-    console.log('EVENT', event.registeredUsers);
-
-    // Ensure registeredUsers is an array of objects containing userId
+    // Count user roles
     const totalRegistered = event.registeredUsers.length;
     const roleCounts = {
       studentsRegistered: 0,
@@ -155,11 +188,10 @@ export class EventsService {
     };
 
     event.registeredUsers.forEach((regUser) => {
-      const user: any = regUser.userId; // Extract the populated user object
-      if (user) {
-        if (user.role === UserRole.STUDENT) roleCounts.studentsRegistered++;
-        if (user.role === UserRole.DOCTOR) roleCounts.doctorsRegistered++;
-        if (user.role === UserRole.GLOBALNETWORK) roleCounts.globalNetworkRegistered++;
+      if (regUser.userId) {
+        if (regUser.userId.role === UserRole.STUDENT) roleCounts.studentsRegistered++;
+        if (regUser.userId.role === UserRole.DOCTOR) roleCounts.doctorsRegistered++;
+        if (regUser.userId.role === UserRole.GLOBALNETWORK) roleCounts.globalNetworkRegistered++;
       }
     });
 
@@ -169,7 +201,7 @@ export class EventsService {
       data: {
         totalRegistered,
         ...roleCounts,
-        registeredUsers: event.registeredUsers, // Keep the full list of registered users
+        registeredUsers: event.registeredUsers,
       },
     };
   }
