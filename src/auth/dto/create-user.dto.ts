@@ -9,6 +9,7 @@ import {
   IsEmpty,
   IsStrongPassword,
   IsNumber,
+  IsDateString,
 } from 'class-validator';
 import { UserGender, UserRole } from '../../users/user.constant';
 
@@ -72,6 +73,11 @@ export class CreateUserDto {
   @IsNotEmpty()
   @IsEnum(UserRole, { message: 'correct values for role are Student, Doctor or GlobalNetwork' })
   readonly role: UserRole;
+
+  @ApiProperty({ example: '2000-01-01', description: 'Date of birth' })
+  @IsNotEmpty()
+  @IsDateString()
+  dateOfBirth: string;
 
   @IsEmpty({ message: 'membershipId cannot be manually set or updated' })
   readonly membershipId: string;
