@@ -7,12 +7,12 @@ import { UserPaginationQueryDto } from './dto/user-pagination.dto';
 import { CloudinaryService } from '../cloudinary/cloudinary.service';
 import { TransitionStatus, UserRole } from './user.constant';
 import { json2csv } from 'json-2-csv';
-import { ExportUsersDto } from './dto/export-user.dto';
 import { UserSettings } from './schema/user-settings.schema';
 import { UpdateUserSettingsDto } from './dto/user-settings.dto';
 import { UserTransition } from './schema/user-transition.schema';
 import { CreateUserTransitionDto } from './dto/create-transition.dto';
 import { EmailService } from '../email/email.service';
+import { PipelineStage } from 'mongoose';
 
 @Injectable()
 export class UsersService {
@@ -30,14 +30,17 @@ export class UsersService {
     const currentPage = Number(page) || 1;
     const searchCriteria: any = {};
     if (searchBy) {
-      searchCriteria.$or = [
-        { firstName: new RegExp(searchBy, 'i') },
-        { middleName: new RegExp(searchBy, 'i') },
-        { lastName: new RegExp(searchBy, 'i') },
-        { email: new RegExp(searchBy, 'i') },
-        { specialty: new RegExp(searchBy, 'i') },
-        { licenseNumber: new RegExp(searchBy, 'i') },
-        { membershipId: new RegExp(searchBy, 'i') },
+      const trimmedSearchBy = searchBy.trim();
+      searchCriteria.$or = await [
+        { firstName: { $regex: trimmedSearchBy, $options: 'i' } },
+        { middleName: { $regex: trimmedSearchBy, $options: 'i' } },
+        { lastName: { $regex: trimmedSearchBy, $options: 'i' } },
+        { gender: { $regex: trimmedSearchBy, $options: 'i' } },
+        { fullName: { $regex: trimmedSearchBy, $options: 'i' } },
+        { email: { $regex: trimmedSearchBy, $options: 'i' } },
+        { specialty: { $regex: trimmedSearchBy, $options: 'i' } },
+        { licenseNumber: { $regex: trimmedSearchBy, $options: 'i' } },
+        { membershipId: { $regex: trimmedSearchBy, $options: 'i' } },
       ];
     }
     if (role) searchCriteria.role = role;
@@ -61,35 +64,80 @@ export class UsersService {
     };
   }
 
-  async exportAll(query: ExportUsersDto): Promise<any> {
-    const { role, region } = query;
+  async exportAll(query: UserPaginationQueryDto): Promise<any> {
+    const { searchBy, role, region } = query;
     const searchCriteria: any = {};
+    if (searchBy) {
+      const trimmedSearchBy = searchBy.trim();
+      searchCriteria.$or = await [
+        { firstName: { $regex: trimmedSearchBy, $options: 'i' } },
+        { middleName: { $regex: trimmedSearchBy, $options: 'i' } },
+        { lastName: { $regex: trimmedSearchBy, $options: 'i' } },
+        { gender: { $regex: trimmedSearchBy, $options: 'i' } },
+        { fullName: { $regex: trimmedSearchBy, $options: 'i' } },
+        { email: { $regex: trimmedSearchBy, $options: 'i' } },
+        { specialty: { $regex: trimmedSearchBy, $options: 'i' } },
+        { licenseNumber: { $regex: trimmedSearchBy, $options: 'i' } },
+        { membershipId: { $regex: trimmedSearchBy, $options: 'i' } },
+      ];
+    }
     if (role) searchCriteria.role = role;
     if (region) searchCriteria.region = region;
 
-    const users = await this.userModel
-      .find(searchCriteria)
-      .sort({ createdAt: -1 })
-      .select('membershipId firstName middleName lastName email role region createdAt')
-      .lean();
+    const pipeline: PipelineStage[] = [
+      { $match: searchCriteria },
+      { $sort: { createdAt: -1 } },
+      {
+        $project: {
+          _id: 0,
+          MEMBER_ID: '$membershipId',
+          FIRST_NAME: '$firstName',
+          MIDDLE_NAME: '$middleName',
+          LAST_NAME: '$lastName',
+          GENDER: '$gender',
+          EMAIL: '$email',
+          PHONE: { $ifNull: ['$phone', '--'] },
+          BIRTH_DATE: {
+            $cond: {
+              if: '$dateOfBirth',
+              then: {
+                $dateToString: { format: '%d-%b-%Y', date: '$dateOfBirth' },
+              },
+              else: '--',
+            },
+          },
+          ROLE: '$role',
+          REGION: '$region',
+          SUBSCRIPTION: {
+            $cond: { if: '$subscribed', then: 'Active', else: 'Inactive' },
+          },
+          DATE_JOINED: {
+            $dateToString: { format: '%d-%b-%Y', date: '$createdAt' },
+          },
+        },
+      },
+    ];
 
-    const usersJson = users.map((user: any) => ({
-      MEMBER_ID: user.membershipId,
-      FIRST_NAME: user.firstName,
-      MIDDLE_NAME: user.middleName,
-      LAST_NAME: user.lastName,
-      EMAIL: user.email,
-      ROLE: user.role,
-      REGION: user.region,
-      REGISTERED: new Date(user.createdAt).toLocaleString('en-US', { dateStyle: 'medium' }),
-    }));
-
-    const csv = await json2csv(usersJson);
+    const users = await this.userModel.aggregate(pipeline);
+    const csv = await json2csv(users);
 
     return csv;
   }
 
   async getStats(): Promise<ISuccessResponse> {
+    const todayISO = new Date().toISOString().split('T')[0]; // Get today's date in YYYY-MM-DD format
+    const startOfToday = new Date(`${todayISO}T00:00:00.000Z`);
+    const endOfToday = new Date(`${todayISO}T23:59:59.999Z`);
+
+    const firstDayOfMonthISO = new Date(new Date().getFullYear(), new Date().getMonth(), 1)
+      .toISOString()
+      .split('T')[0];
+    const startOfMonth = new Date(`${firstDayOfMonthISO}T00:00:00.000Z`);
+    const firstDayOfNextMonth = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 1)
+      .toISOString()
+      .split('T')[0];
+    const endOfMonth = new Date(`${firstDayOfNextMonth}T00:00:00.000Z`);
+
     const totalMembers = await this.userModel.countDocuments();
     const totalStudents = await this.userModel.countDocuments({ role: UserRole.STUDENT });
     const totalDoctors = await this.userModel.countDocuments({ role: UserRole.DOCTOR });
@@ -97,10 +145,27 @@ export class UsersService {
       role: UserRole.GLOBALNETWORK,
     });
 
+    // Users registered today
+    const registeredToday = await this.userModel.countDocuments({
+      createdAt: { $gte: startOfToday, $lte: endOfToday },
+    });
+
+    // Users registered this month
+    const registeredThisMonth = await this.userModel.countDocuments({
+      createdAt: { $gte: startOfMonth, $lt: endOfMonth },
+    });
+
     return {
       success: true,
       message: 'User statistics calculated successfully',
-      data: { totalMembers, totalStudents, totalDoctors, totalGlobalNetworks },
+      data: {
+        totalMembers,
+        totalStudents,
+        totalDoctors,
+        totalGlobalNetworks,
+        registeredToday,
+        registeredThisMonth,
+      },
     };
   }
 

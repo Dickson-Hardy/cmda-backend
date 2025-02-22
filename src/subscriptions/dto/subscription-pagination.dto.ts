@@ -30,4 +30,9 @@ export class SubscriptionPaginationQueryDto {
   @IsOptional()
   @IsString()
   region?: string;
+
+  @ApiPropertyOptional({ description: 'Filter by userId', type: String })
+  @IsOptional()
+  @IsString()
+  userId?: string;
 }

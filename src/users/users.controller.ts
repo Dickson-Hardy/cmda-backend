@@ -4,7 +4,6 @@ import { UsersService } from './users.service';
 import { UserPaginationQueryDto } from './dto/user-pagination.dto';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { AllAdminRoles } from '../admin/admin.constant';
-import { ExportUsersDto } from './dto/export-user.dto';
 import { AllUserRoles, TransitionStatus } from './user.constant';
 import { IJwtPayload } from '../_global/interface/jwt-payload';
 import { UpdateUserSettingsDto } from './dto/user-settings.dto';
@@ -25,7 +24,7 @@ export class UsersController {
   @Get('export')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Downloads all members data as csv' })
-  exportAll(@Query() query: ExportUsersDto) {
+  exportAll(@Query() query: UserPaginationQueryDto) {
     return this.usersService.exportAll(query);
   }
 

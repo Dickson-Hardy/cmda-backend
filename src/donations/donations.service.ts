@@ -7,7 +7,7 @@ import {
 import { CreateDonationDto } from './dto/create-donation.dto';
 import { InjectModel } from '@nestjs/mongoose';
 import { User } from '../users/schema/users.schema';
-import { Model, PipelineStage } from 'mongoose';
+import { Model, PipelineStage, Types } from 'mongoose';
 import { PaystackService } from '../paystack/paystack.service';
 import { ISuccessResponse } from '../_global/interface/success-response';
 import { ConfigService } from '@nestjs/config';
@@ -173,11 +173,11 @@ export class DonationsService {
     const searchCriteria: any = { isPaid: true };
 
     if (searchBy) {
+      const searchNumber = Number(searchBy);
       searchCriteria.$or = [
         { reference: { $regex: searchBy, $options: 'i' } },
-        { amount: { $regex: searchBy, $options: 'i' } },
-        { frequency: { $regex: searchBy, $options: 'i' } },
-      ];
+        !isNaN(searchNumber) ? { totalAmount: searchNumber } : false,
+      ].filter(Boolean);
     }
 
     if (areasOfNeed) {
@@ -228,28 +228,93 @@ export class DonationsService {
     };
   }
 
-  async exportAll(userId: string): Promise<any> {
-    const donations = await this.donationModel
-      .find(userId ? { user: userId, isPaid: true } : { isPaid: true })
-      .sort({ createdAt: -1 })
-      .populate('user', ['_id', 'fullName', 'email', 'role'])
-      .lean();
+  async exportAll(query: DonationPaginationQueryDto): Promise<any> {
+    const { searchBy, role, region, areasOfNeed, userId } = query;
 
-    const donationsJson = donations.map((donation: any) => ({
-      DATE: new Date(donation.createdAt).toLocaleString('en-US', { dateStyle: 'medium' }),
-      SOURCE: donation.source || 'N/A',
-      REFERENCE: donation.reference,
-      CURRENCY: donation.currency,
-      TOTAL_AMOUNT: donation.totalAmount,
-      NAME: donation.user?.fullName || 'N/A',
-      EMAIL: donation.user?.email || 'N/A',
-      FREQUENCY: donation.frequency || 'One-time',
-      AREAS_OF_NEED: donation.areasOfNeed
-        .map((x) => x.name + ' - ' + x.amount + donation.currency)
-        .join(', '),
-    }));
+    const searchCriteria: any = { isPaid: true };
 
-    const csv = await json2csv(donationsJson);
+    if (searchBy) {
+      const searchNumber = Number(searchBy);
+      searchCriteria.$or = [
+        { reference: { $regex: searchBy, $options: 'i' } },
+        !isNaN(searchNumber) ? { totalAmount: searchNumber } : false,
+      ].filter(Boolean);
+    }
+
+    if (areasOfNeed) {
+      searchCriteria.areasOfNeed = { $elemMatch: { name: areasOfNeed } };
+    }
+
+    if (userId) {
+      searchCriteria.user = new Types.ObjectId(userId);
+    }
+
+    const pipeline: PipelineStage[] = [
+      { $match: searchCriteria },
+      {
+        $lookup: {
+          from: 'users',
+          localField: 'user',
+          foreignField: '_id',
+          as: 'user',
+        },
+      },
+      { $unwind: '$user' },
+      {
+        $match: {
+          $and: [role ? { 'user.role': role } : {}, region ? { 'user.region': region } : {}],
+        },
+      },
+      { $sort: { createdAt: -1 } },
+      {
+        $project: {
+          _id: 0,
+          DATE: {
+            $dateToString: { format: '%d-%b-%Y', date: '$createdAt' },
+          },
+          SOURCE: { $ifNull: ['$source', 'N/A'] },
+          REFERENCE: '$reference',
+          CURRENCY: '$currency',
+          TOTAL_AMOUNT: '$totalAmount',
+          NAME: { $ifNull: ['$user.fullName', 'N/A'] },
+          EMAIL: { $ifNull: ['$user.email', 'N/A'] },
+          ROLE: { $ifNull: ['$user.role', 'N/A'] },
+          REGION: { $ifNull: ['$user.region', 'N/A'] },
+          FREQUENCY: { $ifNull: ['$frequency', 'One-time'] },
+          AREAS_OF_NEED: {
+            $reduce: {
+              input: {
+                $map: {
+                  input: '$areasOfNeed',
+                  as: 'area',
+                  in: {
+                    $concat: [
+                      '$$area.name',
+                      ' - ',
+                      { $toString: '$$area.amount' },
+                      ' ',
+                      '$currency',
+                    ],
+                  },
+                },
+              },
+              initialValue: '',
+              in: {
+                $concat: [
+                  '$$value',
+                  { $cond: { if: { $eq: ['$$value', ''] }, then: '', else: ', ' } },
+                  '$$this',
+                ],
+              },
+            },
+          },
+        },
+      },
+    ];
+
+    const donations = await this.donationModel.aggregate(pipeline);
+
+    const csv = await json2csv(donations);
 
     return csv;
   }
@@ -258,19 +323,17 @@ export class DonationsService {
     const { searchBy, limit, page } = query;
     const perPage = Number(limit) || 10;
     const currentPage = Number(page) || 1;
-    const searchCriteria = {
+    const searchCriteria: any = {
       user: id,
       isPaid: true,
-      ...(searchBy
-        ? {
-            $or: [
-              { reference: new RegExp(searchBy, 'i') },
-              { amount: new RegExp(searchBy, 'i') },
-              { frequency: new RegExp(searchBy, 'i') },
-            ],
-          }
-        : {}),
     };
+    if (searchBy) {
+      const searchNumber = Number(searchBy);
+      searchCriteria.$or = [
+        { reference: { $regex: searchBy, $options: 'i' } },
+        !isNaN(searchNumber) ? { totalAmount: searchNumber } : false,
+      ].filter(Boolean);
+    }
 
     const donations = await this.donationModel
       .find(searchCriteria)

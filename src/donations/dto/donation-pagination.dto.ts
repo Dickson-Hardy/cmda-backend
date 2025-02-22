@@ -35,4 +35,9 @@ export class DonationPaginationQueryDto {
   @IsOptional()
   @IsString()
   areasOfNeed?: string;
+
+  @ApiPropertyOptional({ description: 'Filter by userId', type: String })
+  @IsOptional()
+  @IsString()
+  userId?: string;
 }

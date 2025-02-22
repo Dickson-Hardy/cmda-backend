@@ -7,7 +7,7 @@ import {
 import { CreateSubscriptionDto } from './dto/create-subscription.dto';
 import { InjectModel } from '@nestjs/mongoose';
 import { User } from '../users/schema/users.schema';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import { Subscription } from './subscription.schema';
 import { PaystackService } from '../paystack/paystack.service';
 import { ConfigService } from '@nestjs/config';
@@ -208,11 +208,11 @@ export class SubscriptionsService {
     const searchCriteria: any = {};
 
     if (searchBy) {
+      const searchNumber = Number(searchBy);
       searchCriteria.$or = [
         { reference: { $regex: searchBy, $options: 'i' } },
-        { amount: { $regex: searchBy, $options: 'i' } },
-        { frequency: { $regex: searchBy, $options: 'i' } },
-      ];
+        !isNaN(searchNumber) ? { amount: searchNumber } : false,
+      ].filter(Boolean);
     }
 
     const pipeline: PipelineStage[] = [
@@ -259,27 +259,64 @@ export class SubscriptionsService {
     };
   }
 
-  async exportAll(userId: string): Promise<any> {
-    const subscriptions = await this.subscriptionModel
-      .find(userId ? { user: userId } : {})
-      .sort({ createdAt: -1 })
-      .populate('user', ['_id', 'fullName', 'email', 'role', 'region'])
-      .lean();
+  async exportAll(query: SubscriptionPaginationQueryDto): Promise<any> {
+    const { searchBy, role, region, userId } = query;
 
-    const subscriptionsJson = subscriptions.map((sub: any) => ({
-      SOURCE: sub.source || 'N/A',
-      REFERENCE: sub.reference,
-      CURRENCY: sub.currency,
-      AMOUNT: sub.amount,
-      NAME: sub.user?.fullName || 'N/A',
-      EMAIL: sub.user?.email || 'N/A',
-      ROLE: sub.user?.role || 'N/A',
-      REGION: sub.user?.region || 'N/A',
-      PAID_ON: new Date(sub.createdAt).toLocaleString('en-US', { dateStyle: 'medium' }),
-      EXPIRES_ON: new Date(sub.expiryDate).toLocaleString('en-US', { dateStyle: 'medium' }),
-    }));
+    const searchCriteria: any = {};
 
-    const csv = await json2csv(subscriptionsJson);
+    if (searchBy) {
+      const searchNumber = Number(searchBy);
+      searchCriteria.$or = [
+        { reference: { $regex: searchBy, $options: 'i' } },
+        !isNaN(searchNumber) ? { amount: searchNumber } : false,
+      ].filter(Boolean);
+    }
+
+    if (userId) {
+      searchCriteria.user = new Types.ObjectId(userId);
+    }
+
+    const pipeline: PipelineStage[] = [
+      { $match: searchCriteria },
+      {
+        $lookup: {
+          from: 'users',
+          localField: 'user',
+          foreignField: '_id',
+          as: 'user',
+        },
+      },
+      { $unwind: '$user' },
+      {
+        $match: {
+          $and: [role ? { 'user.role': role } : {}, region ? { 'user.region': region } : {}],
+        },
+      },
+      { $sort: { createdAt: -1 } },
+      {
+        $project: {
+          _id: 0,
+          SOURCE: { $ifNull: ['$source', 'N/A'] },
+          REFERENCE: '$reference',
+          CURRENCY: '$currency',
+          AMOUNT: '$amount',
+          NAME: { $ifNull: ['$user.fullName', 'N/A'] },
+          EMAIL: { $ifNull: ['$user.email', 'N/A'] },
+          ROLE: { $ifNull: ['$user.role', 'N/A'] },
+          REGION: { $ifNull: ['$user.region', 'N/A'] },
+          PAID_ON: {
+            $dateToString: { format: '%d-%b-%Y', date: '$createdAt' },
+          },
+          EXPIRES_ON: {
+            $dateToString: { format: '%d-%b-%Y', date: '$expiryDate' },
+          },
+        },
+      },
+    ];
+
+    const subscriptions = await this.subscriptionModel.aggregate(pipeline);
+
+    const csv = await json2csv(subscriptions);
 
     return csv;
   }
@@ -292,11 +329,7 @@ export class SubscriptionsService {
       user: id,
       ...(searchBy
         ? {
-            $or: [
-              { reference: new RegExp(searchBy, 'i') },
-              { amount: new RegExp(searchBy, 'i') },
-              { frequency: new RegExp(searchBy, 'i') },
-            ],
+            $or: [{ reference: new RegExp(searchBy, 'i') }, { amount: new RegExp(searchBy, 'i') }],
           }
         : {}),
     };
