@@ -1,6 +1,6 @@
 import { MailerService } from '@nestjs-modules/mailer';
 import { Injectable } from '@nestjs/common';
-import { WELCOME_EMAIL_TEMPLATE } from './templates/welcome.template';
+import { MEMBER_CREDENTIALS_TEMPLATE, WELCOME_EMAIL_TEMPLATE } from './templates/welcome.template';
 import { PASSWORD_RESET_REQUEST_EMAIL_TEMPLATE } from './templates/password-reset.template';
 import { PASSWORD_RESET_SUCCESS_EMAIL_TEMPLATE } from './templates/password-success.template';
 import { VERIFICATION_CODE_EMAIL_TEMPLATE } from './templates/verification-code.template';
@@ -86,6 +86,22 @@ export class EmailService {
       await this.mailerService.sendMail({
         to: email,
         subject: 'Admin Login Credentials',
+        html,
+      });
+      return { success: true };
+    } catch (error) {
+      return { success: false };
+    }
+  }
+
+  async sendMemberCredentialsEmail({ name, email, password }): Promise<{ success: boolean }> {
+    try {
+      const html = MEMBER_CREDENTIALS_TEMPLATE.replace('[Name]', name)
+        .replace('[Email]', email)
+        .replace('[Password]', password);
+      await this.mailerService.sendMail({
+        to: email,
+        subject: 'CMDA Member Account Credentials',
         html,
       });
       return { success: true };

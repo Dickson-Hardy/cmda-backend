@@ -24,6 +24,9 @@ export class Admin extends Document {
 
   @Prop()
   role: AdminRole;
+
+  @Prop()
+  passwordResetToken: string;
 }
 
 export const AdminSchema = SchemaFactory.createForClass(Admin);

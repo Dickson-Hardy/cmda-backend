@@ -9,6 +9,8 @@ import { AdminRole, AllAdminRoles } from './admin.constant';
 import { UpdateAdminDto } from './dto/update-admin.dto';
 import { IJwtPayload } from '../_global/interface/jwt-payload';
 import { ChangeAdminPasswordDto } from './dto/change-admin-password.dto';
+import { ForgotPasswordDto } from '../auth/dto/forgot-password.dto';
+import { ResetPasswordDto } from '../auth/dto/reset-password.dto';
 
 @ApiTags('Admin')
 @Controller('admin')
@@ -66,6 +68,22 @@ export class AdminController {
     @Body() changePasswordDto: ChangeAdminPasswordDto,
   ) {
     return this.adminService.changePassword(req.user.id, changePasswordDto);
+  }
+
+  @Post('forgot-password')
+  @Public()
+  @ApiOperation({ summary: 'Sends password reset token to admin email' })
+  @ApiBody({ type: ForgotPasswordDto })
+  forgotPassword(@Body() forgotPasswordDto: ForgotPasswordDto) {
+    return this.adminService.forgotPassword(forgotPasswordDto);
+  }
+
+  @Post('reset-password')
+  @Public()
+  @ApiOperation({ summary: 'Resets the password of the admin' })
+  @ApiBody({ type: ResetPasswordDto })
+  resetPassword(@Body() resetPasswordDto: ResetPasswordDto) {
+    return this.adminService.resetPassword(resetPasswordDto);
   }
 
   @Patch('role/:role/:id')

@@ -3,11 +3,13 @@ import { ApiBearerAuth, ApiBody, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { UsersService } from './users.service';
 import { UserPaginationQueryDto } from './dto/user-pagination.dto';
 import { Roles } from '../auth/decorators/roles.decorator';
-import { AllAdminRoles } from '../admin/admin.constant';
+import { AdminRole, AllAdminRoles } from '../admin/admin.constant';
 import { AllUserRoles, TransitionStatus } from './user.constant';
 import { IJwtPayload } from '../_global/interface/jwt-payload';
 import { UpdateUserSettingsDto } from './dto/user-settings.dto';
 import { CreateUserTransitionDto } from './dto/create-transition.dto';
+import { UpdateMemberDto } from './dto/update-member.dto';
+import { CreateMemberDto } from './dto/create-member.dto';
 
 @ApiTags('Users')
 @Controller('users')
@@ -100,9 +102,30 @@ export class UsersController {
 
   @Delete(':membershipId')
   @ApiBearerAuth()
-  @Roles(AllAdminRoles)
+  @Roles([AdminRole.SUPERADMIN, AdminRole.MEMBER_MANAGER])
   @ApiOperation({ summary: 'Delete a user by membershipId' })
   remove(@Param('membershipId') membershipId: string) {
     return this.usersService.remove(membershipId);
+  }
+
+  @Post('create')
+  @ApiBearerAuth()
+  @Roles([AdminRole.SUPERADMIN, AdminRole.MEMBER_MANAGER])
+  @ApiOperation({ summary: 'Create a new user' })
+  @ApiBody({ type: CreateMemberDto })
+  createMember(@Body() createMemberDto: CreateMemberDto) {
+    return this.usersService.createMember(createMemberDto);
+  }
+
+  @Patch(':membershipId')
+  @ApiBearerAuth()
+  @Roles([AdminRole.SUPERADMIN, AdminRole.MEMBER_MANAGER])
+  @ApiOperation({ summary: 'Updates a user by membershipId' })
+  @ApiBody({ type: UpdateMemberDto })
+  updateMember(
+    @Param('membershipId') membershipId: string,
+    @Body() updateMemberDto: UpdateMemberDto,
+  ) {
+    return this.usersService.updateMember(membershipId, updateMemberDto);
   }
 }

@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
+  InternalServerErrorException,
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -18,6 +19,8 @@ import ShortUniqueId from 'short-unique-id';
 import { AdminRole, AllAdminRoles } from './admin.constant';
 import { UpdateAdminDto } from './dto/update-admin.dto';
 import { ChangeAdminPasswordDto } from './dto/change-admin-password.dto';
+import { ForgotPasswordDto } from '../auth/dto/forgot-password.dto';
+import { ResetPasswordDto } from '../auth/dto/reset-password.dto';
 
 @Injectable()
 export class AdminService {
@@ -143,6 +146,56 @@ export class AdminService {
       success: true,
       message: 'Admin deleted successfully',
       data: admin,
+    };
+  }
+
+  async forgotPassword(forgotPasswordDto: ForgotPasswordDto): Promise<ISuccessResponse> {
+    const { email } = forgotPasswordDto;
+    const user = await this.adminModel.findOne({ email: { $regex: `^${email}$`, $options: 'i' } });
+    if (!user) {
+      return {
+        success: true,
+        message: 'Password reset token has been sent to your email if it exists.',
+      };
+    }
+    if (user) {
+      const { randomUUID } = new ShortUniqueId({ length: 6, dictionary: 'alphanum_upper' });
+      const code = randomUUID();
+      const res = await this.emailService.sendPasswordResetTokenEmail({
+        name: user.fullName,
+        email,
+        code,
+      });
+      if (res.success) {
+        await user.updateOne({ passwordResetToken: code });
+      } else {
+        throw new InternalServerErrorException('Error on email server, please try again later');
+      }
+    }
+    return {
+      success: true,
+      message: "Password reset token has been sent to your email if it exists'",
+    };
+  }
+
+  async resetPassword(resetPasswordDto: ResetPasswordDto): Promise<ISuccessResponse> {
+    const { token, newPassword, confirmPassword } = resetPasswordDto;
+    if (newPassword !== confirmPassword) {
+      throw new BadRequestException('confirmPassword does not match newPassword');
+    }
+    const user = await this.adminModel.findOne({ passwordResetToken: token.toUpperCase() });
+    if (!user) {
+      throw new BadRequestException('Password reset token is invalid');
+    }
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    await user.updateOne({ password: hashedPassword, passwordResetToken: '' });
+    await this.emailService.sendPasswordResetSuccessEmail({
+      name: user.fullName,
+      email: user.email,
+    });
+    return {
+      success: true,
+      message: 'Password reset successful',
     };
   }
 }

@@ -1,4 +1,10 @@
-import { Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  InternalServerErrorException,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { ISuccessResponse } from '../_global/interface/success-response';
@@ -13,6 +19,10 @@ import { UserTransition } from './schema/user-transition.schema';
 import { CreateUserTransitionDto } from './dto/create-transition.dto';
 import { EmailService } from '../email/email.service';
 import { PipelineStage } from 'mongoose';
+import { CreateMemberDto } from './dto/create-member.dto';
+import ShortUniqueId from 'short-unique-id';
+import * as bcrypt from 'bcryptjs';
+import { UpdateMemberDto } from './dto/update-member.dto';
 
 @Injectable()
 export class UsersService {
@@ -306,6 +316,127 @@ export class UsersService {
       success: true,
       message: 'User deleted successfully',
       data: user,
+    };
+  }
+
+  async createMember(createMemberDto: CreateMemberDto): Promise<ISuccessResponse> {
+    try {
+      const {
+        email,
+        role,
+        admissionYear, // student
+        yearOfStudy, // student
+        licenseNumber, // doctor || globalnetwork
+        specialty, // doctor || globalnetwork
+        yearsOfExperience, // doctor || globalnetwork
+        ...createUserDto
+      } = createMemberDto;
+
+      const isExists = await this.userModel.findOne({
+        email: { $regex: `^${email}$`, $options: 'i' },
+      });
+      if (isExists) {
+        console.log('ISEXI', isExists);
+        throw new ConflictException('Email already exists');
+      }
+
+      // check for role specific fields and throw error
+      if (role === UserRole.STUDENT) {
+        if (!admissionYear || !yearOfStudy)
+          throw new BadRequestException('admissionYear, yearOfStudy are compulsory for students');
+      } else {
+        if (!licenseNumber || !specialty || !yearsOfExperience) {
+          throw new BadRequestException(
+            'licenseNumber, specialty, yearsOfExperience are compulsory for doctors / globalnetwork members',
+          );
+        }
+      }
+
+      // generate password
+      const { randomUUID } = new ShortUniqueId({ length: 5, dictionary: 'alphanum_upper' });
+      const pass = randomUUID();
+      const password = 'Cmda24@' + pass;
+
+      await this.emailService.sendMemberCredentialsEmail({
+        name: createUserDto.firstName,
+        email,
+        password,
+      });
+
+      // hash password
+      const hashedPassword = await bcrypt.hash(password, 10);
+      // create user based on role && ignore non-related fields
+
+      const user = await this.userModel.create({
+        ...createUserDto,
+        email,
+        password: hashedPassword,
+        role,
+        ...(role === UserRole.STUDENT
+          ? { admissionYear, yearOfStudy }
+          : { licenseNumber, specialty, yearsOfExperience }),
+      });
+
+      return {
+        success: true,
+        message: 'Member account created successfully',
+        data: user,
+      };
+    } catch (error) {
+      if (error.code === 11000) {
+        throw new ConflictException('Email already exists');
+      }
+      throw error;
+    }
+  }
+
+  async updateMember(id: string, updateMemberDto: UpdateMemberDto): Promise<ISuccessResponse> {
+    const NON_EDITABLES = [
+      '_id',
+      'membershipId',
+      'eventsRegistered',
+      'avatarUrl',
+      'avatarCloudId',
+      'role',
+    ];
+    NON_EDITABLES.forEach((key) => {
+      delete updateMemberDto[key];
+    });
+
+    let user: User;
+    if (id.startsWith('CM')) {
+      user = await this.userModel.findOne({ membershipId: id });
+    } else {
+      user = await this.userModel.findById(id);
+    }
+    if (!user) {
+      throw new NotFoundException('User with id/membershipId does not exist');
+    }
+
+    const {
+      admissionYear,
+      yearOfStudy,
+      licenseNumber,
+      specialty,
+      yearsOfExperience,
+      ...otherUpdateData
+    } = updateMemberDto;
+
+    const newUser = await this.userModel.findByIdAndUpdate(
+      user._id,
+      {
+        ...otherUpdateData,
+        ...(user.role === UserRole.STUDENT
+          ? { admissionYear, yearOfStudy }
+          : { licenseNumber, specialty, yearsOfExperience }),
+      },
+      { new: true },
+    );
+
+    return {
+      success: true,
+      message: 'Member profile updated successfully',
+      data: newUser,
     };
   }
 }
