@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
 import { SubscriptionsService } from './subscriptions.service';
 import { SubscriptionsController } from './subscriptions.controller';
 import { PaystackModule } from '../paystack/paystack.module';
@@ -15,11 +15,12 @@ import { PaypalModule } from '../paypal/paypal.module';
       { name: Subscription.name, schema: SubscriptionShema },
       { name: User.name, schema: UserSchema },
     ]),
-    PaystackModule,
+    forwardRef(() => PaystackModule),
     EmailModule,
     PaypalModule,
   ],
   controllers: [SubscriptionsController],
   providers: [SubscriptionsService],
+  exports: [SubscriptionsService],
 })
 export class SubscriptionsModule {}

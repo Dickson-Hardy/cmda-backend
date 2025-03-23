@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
 import { EventsService } from './events.service';
 import { EventsController } from './events.controller';
 import { MongooseModule } from '@nestjs/mongoose';
@@ -17,10 +17,11 @@ import { PaypalModule } from '../paypal/paypal.module';
       { name: User.name, schema: UserSchema },
     ]),
     CloudinaryModule,
-    PaystackModule,
+    forwardRef(() => PaystackModule),
     PaypalModule,
   ],
   controllers: [EventsController],
   providers: [EventsService],
+  exports: [EventsService],
 })
 export class EventsModule {}

@@ -70,6 +70,7 @@ export class DonationsService {
         // channels: ['card'], show all options
         callback_url: this.configService.get('PAYMENT_SUCCESS_URL') + '?type=donation',
         metadata: JSON.stringify({
+          desc: 'DONATION',
           recurring,
           frequency,
           currency,

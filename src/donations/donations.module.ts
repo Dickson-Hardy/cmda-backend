@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
 import { DonationsService } from './donations.service';
 import { DonationsController } from './donations.controller';
 import { MongooseModule } from '@nestjs/mongoose';
@@ -14,11 +14,12 @@ import { PaypalModule } from '../paypal/paypal.module';
       { name: Donation.name, schema: DonationShema },
       { name: User.name, schema: UserSchema },
     ]),
-    PaystackModule,
+    forwardRef(() => PaystackModule),
     EmailModule,
     PaypalModule,
   ],
   controllers: [DonationsController],
   providers: [DonationsService],
+  exports: [DonationsService],
 })
 export class DonationsModule {}

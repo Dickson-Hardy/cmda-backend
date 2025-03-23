@@ -54,6 +54,7 @@ export class SubscriptionsService {
         email: user.email,
         callback_url: this.configService.get('PAYMENT_SUCCESS_URL') + '?type=subscription',
         metadata: JSON.stringify({
+          desc: 'SUBSCRIPTION',
           name: user.fullName,
           memId: user.membershipId,
           currency: 'NGN',
@@ -73,10 +74,7 @@ export class SubscriptionsService {
     };
   }
 
-  async create(
-    id: string,
-    createSubscriptionDto: CreateSubscriptionDto,
-  ): Promise<ISuccessResponse> {
+  async create(createSubscriptionDto: CreateSubscriptionDto): Promise<ISuccessResponse> {
     const { reference, source } = createSubscriptionDto;
 
     const alreadyExist = await this.subscriptionModel.findOne({ reference });
@@ -135,7 +133,7 @@ export class SubscriptionsService {
     }
 
     user = await this.userModel.findByIdAndUpdate(
-      id,
+      user._id,
       { subscribed: true, subscriptionExpiry: oneYearFromNow },
       { new: true },
     );

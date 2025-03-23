@@ -50,8 +50,8 @@ export class SubscriptionsController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'saves a successful subscription payment details' })
   @ApiBody({ type: CreateSubscriptionDto })
-  create(@Req() req: { user: IJwtPayload }, @Body() createSubscriptionDto: CreateSubscriptionDto) {
-    return this.subscriptionsService.create(req.user.id, createSubscriptionDto);
+  create(@Body() createSubscriptionDto: CreateSubscriptionDto) {
+    return this.subscriptionsService.create(createSubscriptionDto);
   }
 
   @Post('activate/:userId/:subDate')

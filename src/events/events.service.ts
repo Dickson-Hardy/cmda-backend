@@ -337,7 +337,7 @@ export class EventsService {
         amount: event.paymentPlans.find((p: any) => p.role == user.role).price * 100,
         email: user.email,
         callback_url: this.configService.get('EVENT_PAYMENT_SUCCESS_URL').replace('[slug]', slug),
-        metadata: JSON.stringify({ slug, userId, name: user.fullName }),
+        metadata: JSON.stringify({ desc: 'EVENT', slug, userId, name: user.fullName }),
       });
       if (!transaction.status) {
         throw new Error(transaction.message);
@@ -371,7 +371,7 @@ export class EventsService {
       const { eventId, userId } = metadata;
 
       const event = await this.eventModel.findById(eventId);
-      response = await this.registerForEvent(userId, event.slug);
+      response = await this.registerForEvent(userId, event.slug, reference);
       //
     } else {
       const transaction = await this.paystackService.verifyTransaction(reference);
