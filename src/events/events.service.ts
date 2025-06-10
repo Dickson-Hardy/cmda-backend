@@ -10,7 +10,13 @@ import mongoose, { Model } from 'mongoose';
 import { ISuccessResponse } from '../_global/interface/success-response';
 import { Event } from './events.schema';
 import { CloudinaryService } from '../cloudinary/cloudinary.service';
-import { AllEventAudiences } from './events.constant';
+import {
+  AllEventAudiences,
+  ConferenceType,
+  ConferenceZone,
+  ConferenceRegion,
+  RegistrationPeriod,
+} from './events.constant';
 import { EventPaginationQueryDto } from './dto/event-pagination.dto';
 import { User } from '../users/schema/users.schema';
 import { UserRole } from '../users/user.constant';
@@ -18,6 +24,12 @@ import { PaystackService } from '../paystack/paystack.service';
 import { ConfigService } from '@nestjs/config';
 import { PaypalService } from '../paypal/paypal.service';
 import { ConfirmEventPayDto } from './dto/update-event.dto';
+import { EmailService } from '../email/email.service';
+
+// Type for Event with computed registrationStatus
+type EventWithRegistrationStatus = Event & {
+  registrationStatus?: 'regular' | 'late' | 'closed';
+};
 
 @Injectable()
 export class EventsService {
@@ -28,8 +40,8 @@ export class EventsService {
     private paystackService: PaystackService,
     private configService: ConfigService,
     private paypalService: PaypalService,
+    private emailService: EmailService,
   ) {}
-
   async create(
     createEventDto: CreateEventDto,
     file: Express.Multer.File,
@@ -46,6 +58,20 @@ export class EventsService {
         throw new BadRequestException('featuredImage is required');
       }
 
+      // Prepare conference configuration if this is a conference
+      let conferenceConfig = undefined;
+      if (createEventDto.isConference) {
+        conferenceConfig = {
+          conferenceType: createEventDto.conferenceType,
+          zone: createEventDto.conferenceZone,
+          region: createEventDto.conferenceRegion,
+          regularRegistrationEndDate: createEventDto.regularRegistrationEndDate,
+          lateRegistrationEndDate: createEventDto.lateRegistrationEndDate,
+          paystackSplitCode: createEventDto.paystackSplitCode,
+          usePayPalForGlobal: createEventDto.usePayPalForGlobal,
+        };
+      }
+
       const event = await this.eventModel.create({
         ...createEventDto,
         paymentPlans: createEventDto.paymentPlans ? JSON.parse(createEventDto.paymentPlans) : [],
@@ -55,10 +81,13 @@ export class EventsService {
         featuredImageCloudId,
         featuredImageUrl,
         registeredUsers: [],
+        isConference: createEventDto.isConference || false,
+        conferenceConfig,
       });
+
       return {
         success: true,
-        message: 'Event created successfully',
+        message: `${createEventDto.isConference ? 'Conference' : 'Event'} created successfully`,
         data: event,
       };
     } catch (error) {
@@ -269,6 +298,202 @@ export class EventsService {
     };
   }
 
+  async payForEvent(userId: string, slug: string): Promise<ISuccessResponse> {
+    const event = await this.eventModel.findOne({ slug }).lean();
+
+    if (!event) {
+      throw new NotFoundException('No event with such slug');
+    }
+
+    // Check if user is already registered
+    const isRegistered = event.registeredUsers.some((user) => user.toString() === userId);
+    if (isRegistered) {
+      throw new ConflictException('User is already registered for this event');
+    }
+
+    let transaction: any;
+
+    const user = await this.userModel.findById(userId);
+
+    // Determine current registration period for conferences
+    const currentRegistrationPeriod = this.getCurrentRegistrationPeriod(event);
+
+    // Find the appropriate payment plan based on role and registration period
+    const amount = this.getEventPaymentAmount(event, user.role, currentRegistrationPeriod);
+
+    if (user.role === UserRole.GLOBALNETWORK) {
+      // Check if conference is configured to use PayPal for global network
+      const usePayPal = event.isConference && event.conferenceConfig?.usePayPalForGlobal;
+
+      if (usePayPal) {
+        transaction = await this.paypalService.createOrder({
+          amount,
+          currency: 'USD',
+          description: event.isConference ? 'CONFERENCE' : 'EVENT',
+          metadata: JSON.stringify({
+            eventId: event._id,
+            userId,
+            registrationPeriod: currentRegistrationPeriod,
+          }),
+          items: [
+            {
+              name: `${event.isConference ? 'CONFERENCE' : 'EVENT'} - ${event.name}`,
+              quantity: 1,
+              amount,
+            },
+          ],
+        });
+      }
+    }
+
+    if (!transaction) {
+      // Use Paystack for local payments or fallback
+      const paystackConfig: any = {
+        amount: amount * 100,
+        email: user.email,
+        callback_url: this.configService.get('EVENT_PAYMENT_SUCCESS_URL').replace('[slug]', slug),
+        metadata: JSON.stringify({
+          desc: event.isConference ? 'CONFERENCE' : 'EVENT',
+          slug,
+          userId,
+          name: user.fullName,
+          registrationPeriod: currentRegistrationPeriod,
+        }),
+      };
+
+      // Add split code for conferences if configured
+      if (event.isConference && event.conferenceConfig?.paystackSplitCode) {
+        paystackConfig.split_code = event.conferenceConfig.paystackSplitCode;
+      }
+
+      transaction = await this.paystackService.initializeTransaction(paystackConfig);
+      if (!transaction.status) {
+        throw new Error(transaction.message);
+      }
+    }
+
+    return {
+      success: true,
+      message: `${event.isConference ? 'Conference' : 'Event'} payment session initiated`,
+      data:
+        user.role === UserRole.GLOBALNETWORK && event.conferenceConfig?.usePayPalForGlobal
+          ? transaction
+          : { checkout_url: transaction.data.authorization_url },
+    };
+  }
+  private getCurrentRegistrationPeriod(event: any): RegistrationPeriod {
+    if (!event.isConference || !event.conferenceConfig) {
+      return RegistrationPeriod.REGULAR;
+    }
+
+    const now = new Date();
+    const regularEnd = event.conferenceConfig.regularRegistrationEndDate
+      ? new Date(event.conferenceConfig.regularRegistrationEndDate)
+      : null;
+    const lateEnd = event.conferenceConfig.lateRegistrationEndDate
+      ? new Date(event.conferenceConfig.lateRegistrationEndDate)
+      : null;
+    const eventDate = new Date(event.eventDateTime);
+
+    // Convert all dates to UTC for comparison
+    const nowUTC = new Date(now.toISOString());
+    const regularEndUTC = regularEnd ? new Date(regularEnd.toISOString()) : null;
+    const lateEndUTC = lateEnd ? new Date(lateEnd.toISOString()) : null;
+    const eventDateUTC = new Date(eventDate.toISOString());
+
+    // If no registration dates are set, allow registration until event date
+    if (!regularEndUTC && !lateEndUTC) {
+      const registrationCutoff = new Date(eventDateUTC.getTime() - 24 * 60 * 60 * 1000);
+      if (nowUTC <= registrationCutoff) {
+        return RegistrationPeriod.REGULAR;
+      } else {
+        throw new BadRequestException('Registration period has ended');
+      }
+    }
+
+    if (regularEndUTC && nowUTC <= regularEndUTC) {
+      return RegistrationPeriod.REGULAR;
+    } else if (lateEndUTC && nowUTC <= lateEndUTC) {
+      return RegistrationPeriod.LATE;
+    } else {
+      throw new BadRequestException('Registration period has ended');
+    }
+  }
+  // Safe version that doesn't throw errors - for public views
+  private getRegistrationPeriodStatus(event: any): 'regular' | 'late' | 'closed' {
+    if (!event.isConference || !event.conferenceConfig) {
+      return 'regular';
+    }
+
+    const now = new Date();
+    const regularEnd = event.conferenceConfig.regularRegistrationEndDate;
+    const lateEnd = event.conferenceConfig.lateRegistrationEndDate;
+    const eventDate = new Date(event.eventDateTime);
+
+    // If no registration dates are set, allow registration until event date
+    if (!regularEnd && !lateEnd) {
+      // Allow registration up to 24 hours before the event
+      const registrationCutoff = new Date(eventDate.getTime() - 24 * 60 * 60 * 1000);
+      if (now <= registrationCutoff) {
+        return 'regular';
+      } else {
+        return 'closed';
+      }
+    }
+
+    if (regularEnd && now <= regularEnd) {
+      return 'regular';
+    } else if (lateEnd && now <= lateEnd) {
+      return 'late';
+    } else {
+      return 'closed';
+    }
+  }
+
+  // Debug method to check registration status with detailed info
+  async checkRegistrationStatus(slug: string): Promise<any> {
+    const event = await this.eventModel.findOne({ slug }).lean();
+    if (!event) {
+      throw new NotFoundException('Event not found');
+    }
+
+    const now = new Date();
+    const eventDate = new Date(event.eventDateTime);
+    const regularEnd = event.conferenceConfig?.regularRegistrationEndDate;
+    const lateEnd = event.conferenceConfig?.lateRegistrationEndDate;
+
+    return {
+      currentTime: now.toISOString(),
+      eventDateTime: eventDate.toISOString(),
+      regularRegistrationEndDate: regularEnd?.toISOString() || 'Not set',
+      lateRegistrationEndDate: lateEnd?.toISOString() || 'Not set',
+      isConference: event.isConference,
+      hasConferenceConfig: !!event.conferenceConfig,
+      registrationStatus: this.getRegistrationPeriodStatus(event),
+      timeUntilEvent: Math.floor((eventDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)),
+    };
+  }
+
+  private getEventPaymentAmount(
+    event: any,
+    userRole: string,
+    registrationPeriod: RegistrationPeriod,
+  ): number {
+    // For conferences, find payment plan by role and registration period
+    if (event.isConference) {
+      const plan = event.paymentPlans.find(
+        (p: any) =>
+          p.role === userRole &&
+          (p.registrationPeriod === registrationPeriod || !p.registrationPeriod),
+      );
+      if (plan) return plan.price;
+    }
+
+    // Fallback to regular event payment plan
+    const plan = event.paymentPlans.find((p: any) => p.role === userRole);
+    return plan ? plan.price : 0;
+  }
+
   async registerForEvent(
     userId: string, // Accept userId as a string
     slug: string,
@@ -296,107 +521,72 @@ export class EventsService {
       throw new BadRequestException('Payment reference is required for paid events');
     }
 
-    event.registeredUsers.push({ userId: userObjectId, paymentReference: reference });
+    // For conferences, track the registration period
+    const registrationPeriod = event.isConference
+      ? this.getCurrentRegistrationPeriod(event)
+      : undefined;
+    event.registeredUsers.push({
+      userId: userObjectId,
+      paymentReference: reference,
+      registrationPeriod,
+    });
     await event.save();
+
+    // Send registration confirmation email for conferences
+    if (event.isConference) {
+      try {
+        const user = await this.userModel.findById(userId);
+        if (user) {
+          await this.emailService.sendConferenceRegistrationConfirmationEmail({
+            name: `${user.firstName} ${user.lastName}`,
+            email: user.email,
+            conferenceName: event.name,
+            conferenceType: event.conferenceConfig?.type || 'General',
+            conferenceScope: this.getConferenceScope(event),
+            conferenceDate: this.formatDate(event.eventDateTime),
+            conferenceVenue: event.linkOrLocation,
+            registrationPeriod: registrationPeriod || 'Regular',
+            conferenceUrl: `${this.configService.get('FRONTEND_URL')}/dashboard/conferences/${event.slug}`,
+          });
+        }
+      } catch (emailError) {
+        // Log email error but don't fail the registration
+        console.error('Failed to send conference registration email:', emailError);
+      }
+    }
 
     return {
       success: true,
-      message: 'Successfully registered for the event',
+      message: `Successfully registered for the ${event.isConference ? 'conference' : 'event'}`,
       data: event,
     };
   }
 
-  async payForEvent(userId: string, slug: string): Promise<ISuccessResponse> {
-    const event = await this.eventModel.findOne({ slug }).lean();
-
-    if (!event) {
-      throw new NotFoundException('No event with such slug');
-    }
-
-    // Check if user is already registered
-    const isRegistered = event.registeredUsers.some((user) => user.toString() === userId);
-    if (isRegistered) {
-      throw new ConflictException('User is already registered for this event');
-    }
-
-    let transaction: any;
-
-    const user = await this.userModel.findById(userId);
-    const amount = event.paymentPlans.find((p: any) => p.role == user.role).price;
-
-    if (user.role === UserRole.GLOBALNETWORK) {
-      transaction = await this.paypalService.createOrder({
-        amount,
-        currency: 'USD',
-        description: 'EVENT',
-        metadata: JSON.stringify({ eventId: event._id, userId }),
-        items: [{ name: 'EVENT - ' + event.name, quantity: 1, amount }],
-      });
-    } else {
-      transaction = await this.paystackService.initializeTransaction({
-        amount: event.paymentPlans.find((p: any) => p.role == user.role).price * 100,
-        email: user.email,
-        callback_url: this.configService.get('EVENT_PAYMENT_SUCCESS_URL').replace('[slug]', slug),
-        metadata: JSON.stringify({ desc: 'EVENT', slug, userId, name: user.fullName }),
-      });
-      if (!transaction.status) {
-        throw new Error(transaction.message);
-      }
-    }
-
-    return {
-      success: true,
-      message: 'Event payment session initiated',
-      data:
-        user.role === UserRole.GLOBALNETWORK
-          ? transaction
-          : { checkout_url: transaction.data.authorization_url },
-    };
-  }
-
-  async confirmEventPayment(confirmDto: ConfirmEventPayDto): Promise<ISuccessResponse> {
-    const { reference, source } = confirmDto;
-    let response: ISuccessResponse;
-
-    if (source && source?.toLowerCase() === 'paypal') {
-      const transaction = await this.paypalService.captureOrder(reference);
-
-      if (transaction?.status !== 'COMPLETED') {
-        throw new Error(transaction.message || 'Payment with Paypal was NOT successful');
-      }
-      const details = transaction.purchase_units[0].payments.captures[0];
-
-      let metadata: any = await Buffer.from(details.custom_id, 'base64').toString('utf-8');
-      metadata = JSON.parse(metadata);
-      const { eventId, userId } = metadata;
-
-      const event = await this.eventModel.findById(eventId);
-      response = await this.registerForEvent(userId, event.slug, reference);
-      //
-    } else {
-      const transaction = await this.paystackService.verifyTransaction(reference);
-      if (!transaction.status) {
-        throw new Error(transaction.message);
-      }
-      const {
-        metadata: { slug, userId },
-      } = transaction.data;
-
-      response = await this.registerForEvent(userId, slug, reference);
-    }
-
-    return response;
-  }
-
-  async findRegistered(userId: string, query: EventPaginationQueryDto): Promise<ISuccessResponse> {
-    const { limit, page, searchBy } = query;
+  // New method to find conferences with filtering
+  async findConferences(
+    query: EventPaginationQueryDto & {
+      conferenceType?: ConferenceType;
+      zone?: ConferenceZone;
+      region?: ConferenceRegion;
+    },
+  ): Promise<ISuccessResponse> {
+    const {
+      searchBy,
+      limit,
+      page,
+      eventType,
+      membersGroup,
+      eventDate,
+      fromToday,
+      conferenceType,
+      zone,
+      region,
+    } = query;
     const perPage = Number(limit) || 10;
     const currentPage = Number(page) || 1;
 
-    // Build the search criteria
-    const searchCriteria: any = { registeredUsers: { $in: [userId] } };
+    const searchCriteria: any = { isConference: true };
 
-    // If searchBy is provided, add the search conditions to the criteria
     if (searchBy) {
       searchCriteria.$or = [
         { name: new RegExp(searchBy, 'i') },
@@ -406,22 +596,348 @@ export class EventsService {
       ];
     }
 
-    // Fetch events that match the search criteria and pagination
-    const events = await this.eventModel
+    if (eventType) searchCriteria.eventType = eventType;
+    if (membersGroup) searchCriteria.membersGroup = membersGroup;
+    if (conferenceType) searchCriteria['conferenceConfig.conferenceType'] = conferenceType;
+    if (zone) searchCriteria['conferenceConfig.zone'] = zone;
+    if (region) searchCriteria['conferenceConfig.region'] = region;
+
+    if (eventDate && String(fromToday) === 'true') {
+      throw new BadRequestException('Please use only one of eventDate or fromToday');
+    }
+
+    if (eventDate) {
+      const startOfDay = new Date(`${eventDate}T00:00:00+01:00`);
+      const endOfDay = new Date(`${eventDate}T23:59:59+01:00`);
+      searchCriteria.eventDateTime = { $gte: startOfDay, $lte: endOfDay };
+    } else if (String(fromToday) === 'true') {
+      const today = new Date().toISOString().split('T')[0];
+      const startOfToday = new Date(`${today}T00:00:00+01:00`);
+      searchCriteria.eventDateTime = { $gte: startOfToday };
+    }
+
+    const conferences = await this.eventModel
       .find(searchCriteria)
-      .sort({ eventDateTime: -1 })
+      .sort({ createdAt: -1 })
       .limit(perPage)
       .skip(perPage * (currentPage - 1));
-
-    const totalItems = await this.eventModel.countDocuments({ registeredUsers: userId });
+    const totalItems = await this.eventModel.countDocuments(searchCriteria);
     const totalPages = Math.ceil(totalItems / perPage);
 
     return {
       success: true,
-      message: 'Registered events fetched successfully',
+      message: 'Conferences fetched successfully',
       data: {
-        items: events,
+        items: conferences,
         meta: { currentPage, itemsPerPage: perPage, totalItems, totalPages },
+      },
+    };
+  }
+  // Public method to find conferences (no authentication required)
+  async findPublicConferences(
+    query: EventPaginationQueryDto & {
+      conferenceType?: ConferenceType;
+      zone?: ConferenceZone;
+      region?: ConferenceRegion;
+    },
+  ): Promise<ISuccessResponse> {
+    const {
+      searchBy,
+      limit,
+      page,
+      eventType,
+      membersGroup,
+      eventDate,
+      conferenceType,
+      zone,
+      region,
+    } = query;
+    const perPage = Number(limit) || 10;
+    const currentPage = Number(page) || 1;
+    const searchCriteria: any = {
+      isConference: true,
+      // Temporarily show all conferences for debugging (remove this line later)
+      // eventDateTime: { $gte: new Date() },
+    };
+
+    if (searchBy) {
+      searchCriteria.$or = [
+        { name: new RegExp(searchBy, 'i') },
+        { eventType: new RegExp(searchBy, 'i') },
+        { linkOrLocation: new RegExp(searchBy, 'i') },
+      ];
+    }
+
+    if (eventType) searchCriteria.eventType = eventType;
+    if (membersGroup) searchCriteria.membersGroup = membersGroup;
+    if (conferenceType) searchCriteria['conferenceConfig.conferenceType'] = conferenceType;
+    if (zone) searchCriteria['conferenceConfig.zone'] = zone;
+    if (region) searchCriteria['conferenceConfig.region'] = region;
+
+    if (eventDate) {
+      const startOfDay = new Date(`${eventDate}T00:00:00+01:00`);
+      const endOfDay = new Date(`${eventDate}T23:59:59+01:00`);
+      searchCriteria.eventDateTime = { $gte: startOfDay, $lte: endOfDay };
+    }
+    const conferences = await this.eventModel
+      .find(searchCriteria)
+      // Select only public fields
+      .select(
+        'name description featuredImageUrl eventType linkOrLocation eventDateTime membersGroup isPaid paymentPlans conferenceConfig slug createdAt',
+      )
+      .sort({ eventDateTime: 1 }) // Sort by event date (upcoming first)
+      .limit(perPage)
+      .skip(perPage * (currentPage - 1)); // Add registration status to each conference
+    const conferencesWithStatus = conferences.map((conference) => {
+      const conferenceObj = conference.toObject() as EventWithRegistrationStatus;
+      conferenceObj.registrationStatus = this.getRegistrationPeriodStatus(conferenceObj);
+      return conferenceObj;
+    });
+
+    const totalItems = await this.eventModel.countDocuments(searchCriteria);
+    const totalPages = Math.ceil(totalItems / perPage);
+
+    return {
+      success: true,
+      message: 'Public conferences fetched successfully',
+      data: {
+        items: conferencesWithStatus,
+        meta: { currentPage, itemsPerPage: perPage, totalItems, totalPages },
+      },
+    };
+  }
+
+  // Check if user exists by email
+  async checkUserExists(email: string): Promise<ISuccessResponse> {
+    console.log('Service checkUserExists called with email:', email);
+    console.log('Email type:', typeof email);
+
+    if (!email) {
+      console.error('Email is undefined or null');
+      throw new BadRequestException('Email is required');
+    }
+
+    // Ensure email is a string and clean it
+    let emailValue = email;
+    if (typeof email === 'object' && email !== null) {
+      console.log('Email is an object:', email);
+      emailValue = (email as any).email || '';
+      console.log('Extracted email value:', emailValue);
+    }
+
+    if (typeof emailValue !== 'string') {
+      console.error('Email is not a string:', emailValue);
+      throw new BadRequestException('Email must be a string');
+    }
+
+    emailValue = emailValue.trim().toLowerCase();
+    if (emailValue === '') {
+      console.error('Email is empty after processing');
+      throw new BadRequestException('Email cannot be empty');
+    }
+
+    console.log('Searching for user with email:', emailValue);
+
+    try {
+      const user = await this.userModel
+        .findOne({ email: emailValue })
+        .select('email firstName lastName')
+        .lean();
+
+      console.log('User found:', !!user);
+
+      return {
+        success: true,
+        message: 'User check completed',
+        data: {
+          exists: !!user,
+          user: user
+            ? {
+                email: user.email,
+                firstName: user.firstName,
+                lastName: user.lastName,
+              }
+            : null,
+        },
+      };
+    } catch (dbError) {
+      console.error('Database error during user lookup:', dbError);
+      throw new BadRequestException('Error checking user existence');
+    }
+  }
+
+  private getConferenceScope(event: Event): string {
+    if (event.conferenceConfig?.zone) {
+      return `${event.conferenceConfig.zone} Zone`;
+    }
+    if (event.conferenceConfig?.region) {
+      return `${event.conferenceConfig.region} Region`;
+    }
+    return 'National';
+  }
+
+  private formatDate(date: Date): string {
+    return new Date(date).toLocaleDateString('en-US', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    });
+  }
+
+  private formatCurrency(amount: number): string {
+    return new Intl.NumberFormat('en-NG', {
+      style: 'currency',
+      currency: 'NGN',
+    }).format(amount);
+  }
+
+  async confirmEventPayment(confirmEventPayDto: ConfirmEventPayDto): Promise<ISuccessResponse> {
+    const { reference, source } = confirmEventPayDto;
+
+    try {
+      let paymentVerification: any;
+      let eventData: any;
+      if (source === 'paypal') {
+        // Verify PayPal payment
+        paymentVerification = await this.paypalService.captureOrder(reference);
+        if (!paymentVerification.status || paymentVerification.status !== 'COMPLETED') {
+          throw new BadRequestException('Payment verification failed');
+        } // Extract event data from PayPal custom metadata
+        const customId = paymentVerification.purchase_units[0].custom_id || '{}';
+        console.log('PayPal custom ID type:', typeof customId);
+        console.log('PayPal custom ID value:', customId);
+
+        // Only parse if it's a string, otherwise use as is
+        if (typeof customId === 'string') {
+          try {
+            eventData = JSON.parse(customId);
+          } catch (parseError) {
+            console.error('Failed to parse PayPal custom ID:', parseError);
+            throw new BadRequestException('Invalid PayPal metadata format');
+          }
+        } else if (typeof customId === 'object') {
+          // If it's already an object, use it directly
+          eventData = customId;
+        } else {
+          console.error('PayPal custom ID is neither string nor object:', customId);
+          throw new BadRequestException('Unexpected PayPal metadata format');
+        }
+      } else {
+        // Verify Paystack payment
+        paymentVerification = await this.paystackService.verifyTransaction(reference);
+        if (!paymentVerification.status) {
+          throw new BadRequestException('Payment verification failed');
+        }
+
+        // Debug log to see what we're getting
+        console.log('Payment metadata type:', typeof paymentVerification.data.metadata);
+        console.log('Payment metadata value:', paymentVerification.data.metadata);
+
+        // Only parse if it's a string, otherwise use as is
+        if (typeof paymentVerification.data.metadata === 'string') {
+          try {
+            eventData = JSON.parse(paymentVerification.data.metadata);
+          } catch (parseError) {
+            console.error('Failed to parse metadata string:', parseError);
+            throw new BadRequestException('Invalid metadata format');
+          }
+        } else if (typeof paymentVerification.data.metadata === 'object') {
+          // If it's already an object, use it directly
+          eventData = paymentVerification.data.metadata;
+        } else {
+          console.error(
+            'Metadata is neither string nor object:',
+            paymentVerification.data.metadata,
+          );
+          throw new BadRequestException('Unexpected metadata format');
+        }
+      }
+
+      const { userId, slug, registrationPeriod } = eventData;
+      const event = await this.eventModel.findOne({ slug });
+
+      if (!event) {
+        throw new NotFoundException('Event not found');
+      }
+
+      // Register the user for the event
+      await this.registerForEvent(userId, slug, reference);
+
+      // Send payment confirmation email for conferences
+      if (event.isConference) {
+        try {
+          const user = await this.userModel.findById(userId);
+          if (user) {
+            const amount = this.getEventPaymentAmount(event, user.role, registrationPeriod);
+            await this.emailService.sendConferencePaymentConfirmationEmail({
+              name: `${user.firstName} ${user.lastName}`,
+              email: user.email,
+              conferenceName: event.name,
+              amountPaid: this.formatCurrency(amount),
+              registrationPeriod: registrationPeriod || 'Regular',
+              paymentMethod: source === 'paypal' ? 'PayPal' : 'Paystack',
+              transactionId: reference,
+              paymentDate: this.formatDate(new Date()),
+              conferenceDate: this.formatDate(event.eventDateTime),
+              conferenceVenue: event.linkOrLocation,
+              conferenceType: event.conferenceConfig?.type || 'General',
+              conferenceScope: this.getConferenceScope(event),
+              conferenceUrl: `${this.configService.get('FRONTEND_URL')}/dashboard/conferences/${event.slug}`,
+            });
+          }
+        } catch (emailError) {
+          // Log email error but don't fail the payment confirmation
+          console.error('Failed to send conference payment confirmation email:', emailError);
+        }
+      }
+
+      return {
+        success: true,
+        message: `Payment confirmed and registered for ${event.isConference ? 'conference' : 'event'}`,
+        data: { event, paymentVerification },
+      };
+    } catch (error) {
+      throw new BadRequestException(`Payment confirmation failed: ${error.message}`);
+    }
+  }
+
+  async findRegistered(userId: string, query: EventPaginationQueryDto): Promise<ISuccessResponse> {
+    // Ensure page and limit are numbers, and support both 'search' and 'searchBy' for backward compatibility
+    const page = Number(query.page) || 1;
+    const limit = Number(query.limit) || 10;
+    const search = query.search || query.searchBy;
+    const skip = (page - 1) * limit;
+
+    const searchQuery: any = {
+      'registeredUsers.userId': new mongoose.Types.ObjectId(userId),
+    };
+
+    if (search) {
+      searchQuery.name = { $regex: search, $options: 'i' };
+    }
+
+    const events = await this.eventModel
+      .find(searchQuery)
+      .skip(skip)
+      .limit(limit)
+      .sort({ createdAt: -1 })
+      .lean();
+
+    const total = await this.eventModel.countDocuments(searchQuery);
+
+    return {
+      success: true,
+      message: 'User registered events fetched successfully',
+      data: {
+        events,
+        pagination: {
+          currentPage: page,
+          totalPages: Math.ceil(total / limit),
+          totalItems: total,
+          hasNextPage: page < Math.ceil(total / limit),
+          hasPrevPage: page > 1,
+        },
       },
     };
   }

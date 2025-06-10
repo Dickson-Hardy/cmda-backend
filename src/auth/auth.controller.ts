@@ -21,6 +21,7 @@ import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { ChangePasswordDto } from './dto/change-password-dto';
 import { VerifyEmailDto } from './dto/verify-email.dto';
+import { CheckUserDto } from './dto/check-user.dto';
 import { FileInterceptor } from '@nestjs/platform-express';
 
 @ApiTags('Auth')
@@ -105,5 +106,13 @@ export class AuthController {
   @ApiBody({ type: ChangePasswordDto })
   changePassword(@Req() req: { user: IJwtPayload }, @Body() changePasswordDto: ChangePasswordDto) {
     return this.authService.changePassword(req.user.id, changePasswordDto);
+  }
+
+  @Post('check-user')
+  @Public()
+  @ApiOperation({ summary: 'Check if user exists by email' })
+  @ApiBody({ type: CheckUserDto })
+  checkUser(@Body() checkUserDto: CheckUserDto) {
+    return this.authService.checkUserExists(checkUserDto);
   }
 }

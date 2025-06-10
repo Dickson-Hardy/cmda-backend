@@ -8,6 +8,7 @@ import { CloudinaryModule } from '../cloudinary/cloudinary.module';
 import { PaystackModule } from '../paystack/paystack.module';
 import { User, UserSchema } from '../users/schema/users.schema';
 import { PaypalModule } from '../paypal/paypal.module';
+import { EmailModule } from '../email/email.module';
 
 @Module({
   imports: [
@@ -17,6 +18,7 @@ import { PaypalModule } from '../paypal/paypal.module';
       { name: User.name, schema: UserSchema },
     ]),
     CloudinaryModule,
+    EmailModule,
     forwardRef(() => PaystackModule),
     PaypalModule,
   ],

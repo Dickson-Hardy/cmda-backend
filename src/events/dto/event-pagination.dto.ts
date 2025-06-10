@@ -8,6 +8,11 @@ export class EventPaginationQueryDto {
   @IsString()
   searchBy?: string;
 
+  @ApiPropertyOptional({ description: 'Search term for event name', type: String })
+  @IsOptional()
+  @IsString()
+  search?: string;
+
   @ApiPropertyOptional({ description: 'Number of users per page, default is 10', type: String })
   @IsOptional()
   @IsString()

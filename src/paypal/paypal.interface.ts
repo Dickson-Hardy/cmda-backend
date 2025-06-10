@@ -3,5 +3,5 @@ export interface IPaypalCreateOrder {
   currency: string;
   metadata: string;
   items?: { name: string; quantity: number; amount: number }[];
-  description: 'DONATION' | 'SUBSCRIPTION' | 'ORDER' | 'EVENT';
+  description: 'DONATION' | 'SUBSCRIPTION' | 'ORDER' | 'EVENT' | 'CONFERENCE';
 }

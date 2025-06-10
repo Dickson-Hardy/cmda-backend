@@ -8,6 +8,9 @@ import { ADMIN_CREDENTIALS_TEMPLATE } from './templates/admin-created.template';
 import { DONATION_CONFIRMATION_EMAIL_TEMPLATE } from './templates/donation-confirmation.template';
 import { SUBSCRIPTION_CONFIRMATION_EMAIL_TEMPLATE } from './templates/subscription-confirm.template';
 import { TRANSITION_SUCCESS_EMAIL_TEMPLATE } from './templates/transition-success.template';
+import { CONFERENCE_REGISTRATION_CONFIRMATION_TEMPLATE } from './templates/conference-registration.template';
+import { CONFERENCE_PAYMENT_CONFIRMATION_TEMPLATE } from './templates/conference-payment.template';
+import { CONFERENCE_UPDATE_NOTIFICATION_TEMPLATE } from './templates/conference-update.template';
 
 @Injectable()
 export class EmailService {
@@ -157,6 +160,108 @@ export class EmailService {
       await this.mailerService.sendMail({
         to: email,
         subject: 'Transition Successful',
+        html,
+      });
+      return { success: true };
+    } catch (error) {
+      return { success: false };
+    }
+  }
+
+  async sendConferenceRegistrationConfirmationEmail({
+    name,
+    email,
+    conferenceName,
+    conferenceType,
+    conferenceScope,
+    conferenceDate,
+    conferenceVenue,
+    registrationPeriod,
+    conferenceUrl,
+  }): Promise<{ success: boolean }> {
+    try {
+      const html = CONFERENCE_REGISTRATION_CONFIRMATION_TEMPLATE.replace('[Name]', name)
+        .replace(/\[ConferenceName\]/g, conferenceName)
+        .replace('[ConferenceType]', conferenceType)
+        .replace('[ConferenceScope]', conferenceScope)
+        .replace('[ConferenceDate]', conferenceDate)
+        .replace('[ConferenceVenue]', conferenceVenue)
+        .replace('[RegistrationPeriod]', registrationPeriod)
+        .replace('[ConferenceUrl]', conferenceUrl);
+
+      await this.mailerService.sendMail({
+        to: email,
+        subject: `Registration Confirmed: ${conferenceName}`,
+        html,
+      });
+      return { success: true };
+    } catch (error) {
+      return { success: false };
+    }
+  }
+
+  async sendConferencePaymentConfirmationEmail({
+    name,
+    email,
+    conferenceName,
+    amountPaid,
+    registrationPeriod,
+    paymentMethod,
+    transactionId,
+    paymentDate,
+    conferenceDate,
+    conferenceVenue,
+    conferenceType,
+    conferenceScope,
+    conferenceUrl,
+  }): Promise<{ success: boolean }> {
+    try {
+      const html = CONFERENCE_PAYMENT_CONFIRMATION_TEMPLATE.replace('[Name]', name)
+        .replace(/\[ConferenceName\]/g, conferenceName)
+        .replace('[AmountPaid]', amountPaid)
+        .replace('[RegistrationPeriod]', registrationPeriod)
+        .replace('[PaymentMethod]', paymentMethod)
+        .replace('[TransactionId]', transactionId)
+        .replace('[PaymentDate]', paymentDate)
+        .replace('[ConferenceDate]', conferenceDate)
+        .replace('[ConferenceVenue]', conferenceVenue)
+        .replace('[ConferenceType]', conferenceType)
+        .replace('[ConferenceScope]', conferenceScope)
+        .replace('[ConferenceUrl]', conferenceUrl);
+
+      await this.mailerService.sendMail({
+        to: email,
+        subject: `Payment Confirmed: ${conferenceName}`,
+        html,
+      });
+      return { success: true };
+    } catch (error) {
+      return { success: false };
+    }
+  }
+
+  async sendConferenceUpdateNotificationEmail({
+    name,
+    email,
+    conferenceName,
+    updateMessage,
+    conferenceDate,
+    conferenceVenue,
+    conferenceType,
+    conferenceUrl,
+  }): Promise<{ success: boolean }> {
+    try {
+      const html = CONFERENCE_UPDATE_NOTIFICATION_TEMPLATE.replace('[Name]', name)
+        .replace(/\[ConferenceName\]/g, conferenceName)
+        .replace('[UpdateMessage]', updateMessage)
+        .replace('[ConferenceDate]', conferenceDate)
+        .replace('[ConferenceVenue]', conferenceVenue)
+        .replace('[ConferenceType]', conferenceType)
+        .replace('[ConferenceUrl]', conferenceUrl);
+
+      await this.mailerService.sendMail({
+        to: email,
+        subject: `Update: ${conferenceName}`,
         html,
       });
       return { success: true };

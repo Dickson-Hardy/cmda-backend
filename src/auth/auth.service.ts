@@ -21,6 +21,7 @@ import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { VerifyEmailDto } from './dto/verify-email.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { ChangePasswordDto } from './dto/change-password-dto';
+import { CheckUserDto } from './dto/check-user.dto';
 import { EmailService } from '../email/email.service';
 import ShortUniqueId from 'short-unique-id';
 import { CloudinaryService } from '../cloudinary/cloudinary.service';
@@ -318,6 +319,19 @@ export class AuthService {
     return {
       success: true,
       message: 'Password changed successfully',
+    };
+  }
+
+  async checkUserExists(checkUserDto: CheckUserDto): Promise<ISuccessResponse> {
+    const { email } = checkUserDto;
+    const user = await this.userModel.findOne({ email });
+    return {
+      success: true,
+      message: 'User check completed',
+      data: {
+        exists: !!user,
+        email,
+      },
     };
   }
 }
