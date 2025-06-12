@@ -13,7 +13,11 @@ import { PaystackService } from '../paystack/paystack.service';
 import { ConfigService } from '@nestjs/config';
 import { ISuccessResponse } from '../_global/interface/success-response';
 import { PaginationQueryDto } from '../_global/dto/pagination-query.dto';
-import { SUBSCRIPTION_PRICES } from './subscription.constant';
+import {
+  SUBSCRIPTION_PRICES,
+  GLOBAL_INCOME_BASED_PRICING,
+  LIFETIME_MEMBERSHIPS,
+} from './subscription.constant';
 import { json2csv } from 'json-2-csv';
 import { SubscriptionPaginationQueryDto } from './dto/subscription-pagination.dto';
 import { EmailService } from '../email/email.service';
@@ -32,22 +36,75 @@ export class SubscriptionsService {
     private emailService: EmailService,
   ) {}
 
-  async init(id: string): Promise<ISuccessResponse> {
+  async init(id: string, subscriptionData?: any): Promise<ISuccessResponse> {
     const user = await this.userModel.findById(id);
-    const amount =
-      user.role === UserRole.DOCTOR && user.yearsOfExperience?.toLowerCase()?.includes('above')
-        ? SUBSCRIPTION_PRICES['DoctorSenior']
-        : SUBSCRIPTION_PRICES[user.role];
+    let amount: number;
+    let frequency = 'Annually';
+    let isLifetime = false;
+    let lifetimeType: string | undefined;
+    let incomeBracket: string | undefined;
+
+    // Handle Global Network members with income-based pricing or lifetime memberships
+    if (user.role === UserRole.GLOBALNETWORK && subscriptionData) {
+      if (subscriptionData.selectedTab === 'lifetime') {
+        // Lifetime membership
+        const lifetimePlan = LIFETIME_MEMBERSHIPS[subscriptionData.lifetimeType];
+        amount = lifetimePlan.price;
+        isLifetime = true;
+        lifetimeType = subscriptionData.lifetimeType;
+      } else if (subscriptionData.selectedTab === 'donations') {
+        // Vision Partner (donations)
+        amount = +subscriptionData.donationAmount;
+        frequency = 'Monthly';
+        incomeBracket = subscriptionData.incomeBracket;
+      } else {
+        // Regular subscription with income-based pricing
+        const incomeBracketData = GLOBAL_INCOME_BASED_PRICING[subscriptionData.incomeBracket];
+        amount = incomeBracketData[subscriptionData.paymentFrequency];
+        frequency = subscriptionData.paymentFrequency === 'monthly' ? 'Monthly' : 'Annually';
+        incomeBracket = subscriptionData.incomeBracket;
+      }
+    } else {
+      // Standard pricing for other roles
+      amount =
+        user.role === UserRole.DOCTOR && user.yearsOfExperience?.toLowerCase()?.includes('above')
+          ? SUBSCRIPTION_PRICES['DoctorSenior']
+          : SUBSCRIPTION_PRICES[user.role];
+    }
 
     let transaction: any;
     if (user.role === UserRole.GLOBALNETWORK) {
-      transaction = await this.paypalService.createOrder({
+      // Determine the appropriate PayPal description type
+      const paypalDescription: 'DONATION' | 'SUBSCRIPTION' =
+        subscriptionData?.selectedTab === 'donations' ? 'DONATION' : 'SUBSCRIPTION';
+
+      const orderData = {
         amount,
         currency: 'USD',
-        description: 'SUBSCRIPTION',
-        metadata: JSON.stringify({ memId: user.membershipId, name: user.fullName }),
-        items: [{ name: 'Annual Subscription CMDA Nigeria', quantity: 1, amount }],
-      });
+        description: paypalDescription,
+        metadata: JSON.stringify({
+          memId: user.membershipId,
+          name: user.fullName,
+          incomeBracket,
+          isLifetime,
+          lifetimeType,
+          frequency,
+          selectedTab: subscriptionData?.selectedTab,
+        }),
+        items: [
+          {
+            name: isLifetime
+              ? `CMDA Nigeria ${LIFETIME_MEMBERSHIPS[lifetimeType]?.label}`
+              : subscriptionData?.selectedTab === 'donations'
+                ? 'CMDA Nigeria Vision Partner'
+                : `CMDA Nigeria ${frequency} Subscription`,
+            quantity: 1,
+            amount,
+          },
+        ],
+      };
+
+      transaction = await this.paypalService.createOrder(orderData);
     } else {
       transaction = await this.paystackService.initializeTransaction({
         amount: amount * 100,
@@ -73,7 +130,6 @@ export class SubscriptionsService {
           : { checkout_url: transaction.data.authorization_url },
     };
   }
-
   async create(createSubscriptionDto: CreateSubscriptionDto): Promise<ISuccessResponse> {
     const { reference, source } = createSubscriptionDto;
 
@@ -84,7 +140,7 @@ export class SubscriptionsService {
 
     let user: User;
     let subscription: Subscription;
-    const oneYearFromNow = new Date(new Date().setFullYear(new Date().getFullYear() + 1)); // 1 year - annually
+    let expiryDate: Date;
 
     if (source && source?.toLowerCase() === 'paypal') {
       const transaction = await this.paypalService.captureOrder(reference);
@@ -94,22 +150,65 @@ export class SubscriptionsService {
       }
       const details = transaction.purchase_units[0].payments.captures[0];
 
-      const { amount, custom_id } = details; // { currency_code, value },
+      const { amount, custom_id } = details;
 
       let metadata: any = await Buffer.from(custom_id, 'base64').toString('utf-8');
       metadata = JSON.parse(metadata);
-      const { memId } = metadata;
+      const { memId, isLifetime, lifetimeType, frequency, incomeBracket, selectedTab } = metadata;
 
       user = await this.userModel.findOne({ membershipId: memId });
+
+      // Calculate expiry date based on subscription type
+      if (isLifetime) {
+        const lifetimePlan = LIFETIME_MEMBERSHIPS[lifetimeType];
+        expiryDate = new Date(
+          new Date().setFullYear(new Date().getFullYear() + lifetimePlan.years),
+        );
+      } else if (frequency === 'Monthly') {
+        expiryDate = new Date(new Date().setMonth(new Date().getMonth() + 1));
+      } else {
+        expiryDate = new Date(new Date().setFullYear(new Date().getFullYear() + 1));
+      }
 
       subscription = await this.subscriptionModel.create({
         reference,
         amount: +amount.value,
-        expiryDate: oneYearFromNow,
+        expiryDate,
         user: user._id,
         currency: amount.currency_code,
         source: 'PAYPAL',
+        frequency: frequency || 'Annually',
+        incomeBracket,
+        isLifetime: isLifetime || false,
+        lifetimeType,
+        isVisionPartner: selectedTab === 'donations',
       });
+
+      // Update user fields for Global Network members
+      if (user.role === UserRole.GLOBALNETWORK) {
+        const updateData: any = {
+          subscribed: true,
+          subscriptionExpiry: expiryDate,
+        };
+
+        if (incomeBracket) {
+          updateData.incomeBracket = incomeBracket;
+        }
+
+        if (isLifetime) {
+          updateData.hasLifetimeMembership = true;
+          updateData.lifetimeMembershipType = lifetimeType;
+          updateData.lifetimeMembershipExpiry = expiryDate;
+        }
+
+        user = await this.userModel.findByIdAndUpdate(user._id, updateData, { new: true });
+      } else {
+        user = await this.userModel.findByIdAndUpdate(
+          user._id,
+          { subscribed: true, subscriptionExpiry: expiryDate },
+          { new: true },
+        );
+      }
     } else {
       const transaction = await this.paystackService.verifyTransaction(reference);
 
@@ -121,22 +220,23 @@ export class SubscriptionsService {
       } = transaction.data;
 
       user = await this.userModel.findOne({ membershipId: memId });
+      expiryDate = new Date(new Date().setFullYear(new Date().getFullYear() + 1));
 
       subscription = await this.subscriptionModel.create({
         reference,
         amount: amount / 100,
-        expiryDate: oneYearFromNow,
+        expiryDate,
         user: user._id,
         currency,
         source: 'PAYSTACK',
       });
-    }
 
-    user = await this.userModel.findByIdAndUpdate(
-      user._id,
-      { subscribed: true, subscriptionExpiry: oneYearFromNow },
-      { new: true },
-    );
+      user = await this.userModel.findByIdAndUpdate(
+        user._id,
+        { subscribed: true, subscriptionExpiry: expiryDate },
+        { new: true },
+      );
+    }
 
     const res = await this.emailService.sendSubscriptionConfirmedEmail({
       name: user.fullName,
@@ -373,7 +473,6 @@ export class SubscriptionsService {
       },
     };
   }
-
   async findOne(id: string): Promise<ISuccessResponse> {
     const subscription = await this.subscriptionModel
       .findById(id)
@@ -387,5 +486,110 @@ export class SubscriptionsService {
       message: 'Subscription fetched successfully',
       data: subscription,
     };
+  }
+  async syncPaymentStatus(userId: string, reference: string): Promise<ISuccessResponse> {
+    try {
+      // Check if subscription already exists with this reference
+      const existingSubscription = await this.subscriptionModel.findOne({
+        reference,
+        user: userId,
+      });
+
+      if (existingSubscription) {
+        return {
+          success: true,
+          message: 'Subscription payment is already confirmed',
+          data: existingSubscription,
+        };
+      }
+
+      // Get user details
+      const user = await this.userModel.findById(userId);
+      if (!user) {
+        throw new NotFoundException('User not found');
+      }
+
+      // Verify payment with payment provider
+      let transaction: any;
+      let source = 'PAYSTACK';
+
+      try {
+        // Try Paystack first
+        transaction = await this.paystackService.verifyTransaction(reference);
+        if (!transaction.status) {
+          // If Paystack fails, try PayPal for global network users
+          if (user.role === UserRole.GLOBALNETWORK) {
+            try {
+              transaction = await this.paypalService.captureOrder(reference);
+              source = 'PAYPAL';
+              if (transaction?.status !== 'COMPLETED') {
+                throw new Error('Payment verification failed with both providers');
+              }
+            } catch (paypalError) {
+              throw new Error('Payment verification failed with both providers');
+            }
+          } else {
+            throw new Error('Payment verification failed - transaction not successful');
+          }
+        }
+      } catch (error) {
+        throw new Error('Payment verification failed - unable to verify with payment providers');
+      }
+
+      // Create subscription record based on payment provider
+      let newSubscription: Subscription;
+      const oneYearFromNow = new Date(new Date().setFullYear(new Date().getFullYear() + 1));
+
+      if (source === 'PAYPAL') {
+        const details = transaction.purchase_units[0].payments.captures[0];
+        const { amount } = details;
+
+        newSubscription = await this.subscriptionModel.create({
+          reference,
+          amount: +amount.value,
+          expiryDate: oneYearFromNow,
+          user: userId,
+          currency: amount.currency_code,
+          source: 'PAYPAL',
+        });
+      } else {
+        const { amount, metadata } = transaction.data;
+
+        newSubscription = await this.subscriptionModel.create({
+          reference,
+          amount: amount / 100,
+          expiryDate: oneYearFromNow,
+          user: userId,
+          currency: metadata?.currency || 'NGN',
+          source: 'PAYSTACK',
+        });
+      }
+
+      // Update user subscription status
+      await this.userModel.findByIdAndUpdate(
+        userId,
+        { subscribed: true, subscriptionExpiry: oneYearFromNow },
+        { new: true },
+      );
+
+      // Send confirmation email
+      try {
+        await this.emailService.sendSubscriptionConfirmedEmail({
+          name: user.fullName,
+          email: user.email,
+        });
+      } catch (emailError) {
+        // Log email error but don't fail the sync
+        console.error('Failed to send subscription confirmation email:', emailError);
+      }
+
+      return {
+        success: true,
+        message: 'Subscription payment status synchronized successfully',
+        data: newSubscription,
+      };
+    } catch (error) {
+      throw error;
+    }
   }
 }

@@ -901,7 +901,6 @@ export class EventsService {
       throw new BadRequestException(`Payment confirmation failed: ${error.message}`);
     }
   }
-
   async findRegistered(userId: string, query: EventPaginationQueryDto): Promise<ISuccessResponse> {
     // Ensure page and limit are numbers, and support both 'search' and 'searchBy' for backward compatibility
     const page = Number(query.page) || 1;
@@ -940,5 +939,113 @@ export class EventsService {
         },
       },
     };
+  }
+
+  async syncEventPaymentStatus(userId: string, reference: string): Promise<ISuccessResponse> {
+    try {
+      // Find event with this payment reference for this user
+      const event = await this.eventModel.findOne({
+        registeredUsers: {
+          $elemMatch: {
+            userId: new mongoose.Types.ObjectId(userId),
+            paymentReference: reference,
+          },
+        },
+      });
+
+      if (!event) {
+        throw new NotFoundException('Event registration with this payment reference not found');
+      }
+
+      // Find the specific registration
+      const registration = event.registeredUsers.find(
+        (reg) => reg.userId.toString() === userId && reg.paymentReference === reference,
+      );
+
+      if (!registration) {
+        throw new NotFoundException('Registration not found');
+      }
+
+      // The registration exists, so we just need to verify the payment was successful
+      // In the event model, having a paymentReference means the user registered for a paid event
+      // If the reference exists, the payment should have been processed
+
+      let paymentVerification: any;
+      try {
+        // Try to verify with Paystack first
+        paymentVerification = await this.paystackService.verifyTransaction(reference);
+
+        if (!paymentVerification.status) {
+          // If Paystack fails, try PayPal for global network events
+          if (event.conferenceConfig?.usePayPalForGlobal) {
+            try {
+              paymentVerification = await this.paypalService.captureOrder(reference);
+              if (paymentVerification?.status !== 'COMPLETED') {
+                throw new Error('Payment verification failed with both providers');
+              }
+            } catch (paypalError) {
+              throw new Error('Payment verification failed with both providers');
+            }
+          } else {
+            throw new Error('Payment verification failed - transaction not successful');
+          }
+        }
+      } catch (error) {
+        return {
+          success: false,
+          message: 'Payment verification failed - unable to verify with payment providers',
+          data: null,
+        };
+      }
+
+      // Payment is verified, send confirmation email if it's a conference
+      if (event.isConference) {
+        try {
+          const user = await this.userModel.findById(userId);
+          if (user) {
+            const amount = this.getEventPaymentAmount(
+              event,
+              user.role,
+              registration.registrationPeriod,
+            );
+            await this.emailService.sendConferencePaymentConfirmationEmail({
+              name: `${user.firstName} ${user.lastName}`,
+              email: user.email,
+              conferenceName: event.name,
+              amountPaid: this.formatCurrency(amount),
+              registrationPeriod: registration.registrationPeriod || 'Regular',
+              paymentMethod: paymentVerification.status === 'COMPLETED' ? 'PayPal' : 'Paystack',
+              transactionId: reference,
+              paymentDate: this.formatDate(new Date()),
+              conferenceDate: this.formatDate(event.eventDateTime),
+              conferenceVenue: event.linkOrLocation,
+              conferenceType: event.conferenceConfig?.type || 'General',
+              conferenceScope: this.getConferenceScope(event),
+              conferenceUrl: `${this.configService.get('FRONTEND_URL')}/dashboard/conferences/${event.slug}`,
+            });
+          }
+        } catch (emailError) {
+          // Log email error but don't fail the sync
+          console.error('Failed to send conference payment confirmation email:', emailError);
+        }
+      }
+
+      return {
+        success: true,
+        message: `${event.isConference ? 'Conference' : 'Event'} payment status verified successfully`,
+        data: {
+          event: {
+            name: event.name,
+            slug: event.slug,
+            isConference: event.isConference,
+            eventDateTime: event.eventDateTime,
+          },
+          registration,
+          paymentVerified: true,
+        },
+      };
+    } catch (error) {
+      throw error;
+    }
   }
 }

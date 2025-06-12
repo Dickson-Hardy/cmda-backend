@@ -46,7 +46,6 @@ export class DonationsController {
   init(@Req() req: { user: IJwtPayload }, @Body() initDonationDto: InitDonationDto) {
     return this.donationsService.init(req.user.id, initDonationDto);
   }
-
   @Post('create')
   @Roles(AllUserRoles)
   @ApiBearerAuth()
@@ -54,6 +53,17 @@ export class DonationsController {
   @ApiBody({ type: CreateDonationDto })
   create(@Body() createDonationDto: CreateDonationDto) {
     return this.donationsService.create(createDonationDto);
+  }
+
+  @Post('sync-payment-status')
+  @Roles(AllUserRoles)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Manually sync donation payment status with payment provider' })
+  syncPaymentStatus(
+    @Req() req: { user: IJwtPayload },
+    @Body() { reference }: { reference: string },
+  ) {
+    return this.donationsService.syncPaymentStatus(req.user.id, reference);
   }
 
   @Get('stats')

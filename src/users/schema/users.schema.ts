@@ -105,12 +105,24 @@ export class User extends Document {
     }),
   )
   socials: Record<string, string>;
-
   @Prop({ default: false })
   subscribed: boolean;
 
   @Prop()
   subscriptionExpiry: Date;
+
+  // Income bracket for Global Network members
+  @Prop()
+  incomeBracket?: string; // greater_than_200k, 100k_to_200k, etc.
+
+  @Prop({ default: false })
+  hasLifetimeMembership?: boolean;
+
+  @Prop()
+  lifetimeMembershipType?: string; // gold, platinum, diamond
+
+  @Prop()
+  lifetimeMembershipExpiry?: Date;
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);

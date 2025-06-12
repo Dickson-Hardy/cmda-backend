@@ -24,6 +24,19 @@ export class Subscription extends Document {
 
   @Prop()
   expiryDate: Date;
+
+  // New fields for income-based pricing
+  @Prop()
+  incomeBracket?: string; // for global members: greater_than_200k, 100k_to_200k, etc.
+
+  @Prop({ default: false })
+  isLifetime?: boolean;
+
+  @Prop()
+  lifetimeType?: string; // gold, platinum, diamond
+
+  @Prop({ default: false })
+  isVisionPartner?: boolean; // for donations/vision partners
 }
 
 export const SubscriptionShema = SchemaFactory.createForClass(Subscription);

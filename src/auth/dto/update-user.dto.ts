@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsOptional, IsString, IsEnum, IsNumberString, IsDateString } from 'class-validator';
+import { IsOptional, IsString, IsEnum, IsNumberString, IsDateString, IsIn } from 'class-validator';
 import { UserGender } from '../../users/user.constant';
+import { INCOME_BRACKETS } from '../../subscriptions/subscription.constant';
 
 export class UpdateUserDto {
   @ApiProperty({
@@ -81,7 +82,6 @@ export class UpdateUserDto {
   @IsOptional()
   @IsString()
   yearsOfExperience?: string; // doctor || globalnetwork
-
   @ApiPropertyOptional({
     example: {
       facebook: 'https://facebook.com/user',
@@ -93,4 +93,12 @@ export class UpdateUserDto {
   })
   @IsOptional()
   socials?: Record<string, string>;
+  @ApiPropertyOptional({
+    example: 'greater_than_200k',
+    description: 'Income bracket for global network members',
+    enum: INCOME_BRACKETS.map((bracket) => bracket.value),
+  })
+  @IsOptional()
+  @IsIn(INCOME_BRACKETS.map((bracket) => bracket.value))
+  incomeBracket?: string;
 }

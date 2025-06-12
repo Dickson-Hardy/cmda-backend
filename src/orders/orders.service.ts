@@ -290,7 +290,6 @@ export class OrdersService {
       data: order,
     };
   }
-
   async update(id: string, updateOrderDto: UpdateOrderDto): Promise<ISuccessResponse> {
     const { status, comment } = updateOrderDto;
 
@@ -309,5 +308,57 @@ export class OrdersService {
       message: 'Order updated successfully',
       data: order,
     };
+  }
+
+  async syncPaymentStatus(userId: string, reference: string): Promise<ISuccessResponse> {
+    try {
+      // Find pending order with this reference for this user
+      const existingOrder = await this.orderModel.findOne({
+        paymentReference: reference,
+        user: userId,
+      });
+
+      if (!existingOrder) {
+        throw new NotFoundException('Order with this payment reference not found');
+      }
+
+      if (existingOrder.isPaid) {
+        return {
+          success: true,
+          message: 'Order payment is already confirmed',
+          data: existingOrder,
+        };
+      }
+
+      // Verify with payment provider
+      const transaction = await this.paystackService.verifyTransaction(reference);
+
+      if (!transaction.status) {
+        return {
+          success: false,
+          message: 'Payment verification failed - transaction not successful',
+          data: null,
+        };
+      }
+
+      // Update order status
+      const updatedOrder = await this.orderModel.findByIdAndUpdate(
+        existingOrder._id,
+        {
+          isPaid: true,
+          paymentDate: transaction.data.paidAt ? new Date(transaction.data.paidAt) : new Date(),
+          totalAmount: transaction.data.amount / 100,
+        },
+        { new: true },
+      );
+
+      return {
+        success: true,
+        message: 'Order payment status synchronized successfully',
+        data: updatedOrder,
+      };
+    } catch (error) {
+      throw error;
+    }
   }
 }

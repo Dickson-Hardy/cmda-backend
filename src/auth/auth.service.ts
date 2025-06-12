@@ -88,7 +88,7 @@ export class AuthService {
       // accessToken using id and email
       const accessToken = this.jwtService.sign({ id: user._id, email, role: user.role });
       // send welcome mail
-      const { randomUUID } = new ShortUniqueId({ length: 6, dictionary: 'alphanum_upper' });
+      const { randomUUID } = new ShortUniqueId({ length: 6, dictionary: 'number' });
       const code = randomUUID();
       const res = await this.emailService.sendWelcomeEmail({
         name: user.firstName,
@@ -219,7 +219,7 @@ export class AuthService {
     if (user.emailVerified) {
       throw new BadRequestException('Email is already verified');
     }
-    const { randomUUID } = new ShortUniqueId({ length: 6, dictionary: 'alphanum_upper' });
+    const { randomUUID } = new ShortUniqueId({ length: 6, dictionary: 'number' });
     const code = randomUUID();
     const res = await this.emailService.sendVerificationCodeEmail({
       name: user.firstName,
@@ -261,7 +261,7 @@ export class AuthService {
       throw new NotFoundException('Email does not exist');
     }
     if (user) {
-      const { randomUUID } = new ShortUniqueId({ length: 6, dictionary: 'alphanum_upper' });
+      const { randomUUID } = new ShortUniqueId({ length: 6, dictionary: 'number' });
       const code = randomUUID();
       const res = await this.emailService.sendPasswordResetTokenEmail({
         name: user.firstName,

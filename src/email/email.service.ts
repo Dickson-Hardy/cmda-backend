@@ -72,11 +72,33 @@ export class EmailService {
       );
       await this.mailerService.sendMail({
         to: email,
-        subject: 'Email Verification Code',
+        subject: 'Complete your CMDA Nigeria registration',
         html,
+        text: `Hello ${name},
+
+Thank you for joining CMDA Nigeria! 
+
+To complete your registration, please enter this code: ${code}
+
+This code will expire in 30 minutes.
+
+If you didn't sign up for CMDA Nigeria, please ignore this email.
+
+Best regards,
+The CMDA Nigeria Team
+
+CMDA Nigeria
+Wholeness House Gwagwalada, FCT, Nigeria
+Email: office@cmdanigeria.org`,
+        headers: {
+          'X-Mailer': 'CMDA Nigeria',
+          'List-Unsubscribe': '<mailto:unsubscribe@cmdanigeria.org>',
+          'Reply-To': 'office@cmdanigeria.org',
+        },
       });
       return { success: true };
     } catch (error) {
+      console.error('Verification email failed:', error);
       return { success: false };
     }
   }

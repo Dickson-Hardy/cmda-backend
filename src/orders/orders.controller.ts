@@ -55,7 +55,6 @@ export class OrdersController {
   init(@Req() req: { user: IJwtPayload }, @Body() initOrderDto: InitOrderDto) {
     return this.ordersService.init(req.user.id, initOrderDto);
   }
-
   @Post('create')
   @Roles(AllUserRoles)
   @ApiBearerAuth()
@@ -63,6 +62,16 @@ export class OrdersController {
   @ApiBody({ type: CreateOrderDto })
   create(@Req() req: { user: IJwtPayload }, @Body() createOrderDto: CreateOrderDto) {
     return this.ordersService.create(req.user.id, createOrderDto);
+  }
+  @Post('sync-payment-status')
+  @Roles(AllUserRoles)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Manually sync payment status with payment provider' })
+  syncPaymentStatus(
+    @Req() req: { user: IJwtPayload },
+    @Body() { reference }: { reference: string },
+  ) {
+    return this.ordersService.syncPaymentStatus(req.user.id, reference);
   }
 
   @Get(':id')

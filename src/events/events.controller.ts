@@ -104,7 +104,6 @@ export class EventsController {
   payForEvent(@Param('slug') slug: string, @Req() req: { user: IJwtPayload }) {
     return this.eventsService.payForEvent(req.user.id, slug);
   }
-
   @Post('/confirm-payment')
   @Roles(AllUserRoles)
   @ApiBearerAuth()
@@ -112,6 +111,17 @@ export class EventsController {
   @ApiBody({ type: ConfirmEventPayDto })
   confirmEventPayment(@Body() confirmEventPayDto: ConfirmEventPayDto) {
     return this.eventsService.confirmEventPayment(confirmEventPayDto);
+  }
+
+  @Post('/sync-payment-status')
+  @Roles(AllUserRoles)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Manually sync event payment status with payment provider' })
+  syncEventPaymentStatus(
+    @Req() req: { user: IJwtPayload },
+    @Body() { reference }: { reference: string },
+  ) {
+    return this.eventsService.syncEventPaymentStatus(req.user.id, reference);
   }
 
   @Post('/register/:slug')

@@ -391,7 +391,6 @@ export class DonationsService {
       },
     };
   }
-
   async findOne(id: string): Promise<ISuccessResponse> {
     const donation = await this.donationModel.findById(id).populate('user', '_id fullName email');
 
@@ -403,5 +402,117 @@ export class DonationsService {
       message: 'Donation fetched successfully',
       data: donation,
     };
+  }
+  async syncPaymentStatus(userId: string, reference: string): Promise<ISuccessResponse> {
+    try {
+      // Check if donation already exists with this reference
+      const existingDonation = await this.donationModel.findOne({
+        reference,
+        user: userId,
+      });
+
+      if (existingDonation) {
+        if (existingDonation.isPaid) {
+          return {
+            success: true,
+            message: 'Donation payment is already confirmed',
+            data: existingDonation,
+          };
+        }
+      } else {
+        // If donation doesn't exist, we need to verify and create it
+        const transaction = await this.paystackService.verifyTransaction(reference);
+
+        if (!transaction.status) {
+          return {
+            success: false,
+            message: 'Payment verification failed - transaction not successful',
+            data: null,
+          };
+        }
+
+        const {
+          amount,
+          metadata: { recurring, frequency, currency, areasOfNeed, memId },
+        } = transaction.data;
+
+        // Verify user
+        const user = await this.userModel.findOne({ membershipId: memId });
+        if (!user || user._id.toString() !== userId) {
+          throw new NotFoundException('User mismatch - donation reference not valid for this user');
+        }
+
+        // Create new donation
+        const newDonation = await this.donationModel.create({
+          reference,
+          totalAmount: amount / 100,
+          currency,
+          isPaid: true,
+          recurring: recurring && frequency ? true : false,
+          ...(frequency ? { frequency } : {}),
+          areasOfNeed,
+          user: userId,
+          source: 'PAYSTACK',
+        });
+
+        // Send confirmation email
+        try {
+          await this.emailService.sendDonationConfirmedEmail({
+            name: user.fullName,
+            email: user.email,
+          });
+        } catch (emailError) {
+          console.error('Failed to send donation confirmation email:', emailError);
+        }
+
+        return {
+          success: true,
+          message: 'Donation payment status synchronized successfully',
+          data: newDonation,
+        };
+      }
+
+      // If donation exists but not paid, verify and update
+      const transaction = await this.paystackService.verifyTransaction(reference);
+
+      if (!transaction.status) {
+        return {
+          success: false,
+          message: 'Payment verification failed - transaction not successful',
+          data: null,
+        };
+      }
+
+      // Update donation status
+      const updatedDonation = await this.donationModel.findByIdAndUpdate(
+        existingDonation._id,
+        {
+          isPaid: true,
+          totalAmount: transaction.data.amount / 100,
+        },
+        { new: true },
+      );
+
+      // Send confirmation email
+      try {
+        const user = await this.userModel.findById(userId);
+        if (user) {
+          await this.emailService.sendDonationConfirmedEmail({
+            name: user.fullName,
+            email: user.email,
+          });
+        }
+      } catch (emailError) {
+        console.error('Failed to send donation confirmation email:', emailError);
+      }
+
+      return {
+        success: true,
+        message: 'Donation payment status synchronized successfully',
+        data: updatedDonation,
+      };
+    } catch (error) {
+      throw error;
+    }
   }
 }

@@ -36,15 +36,13 @@ export class SubscriptionsController {
   findUserSubs(@Req() req: { user: IJwtPayload }, @Query() query: PaginationQueryDto) {
     return this.subscriptionsService.findUserSubs(req.user.id, query);
   }
-
   @Post('pay')
   @Roles(AllUserRoles)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'init a subscription payment session' })
-  init(@Req() req: { user: IJwtPayload }) {
-    return this.subscriptionsService.init(req.user.id);
+  init(@Req() req: { user: IJwtPayload }, @Body() subscriptionData?: any) {
+    return this.subscriptionsService.init(req.user.id, subscriptionData);
   }
-
   @Post('save')
   @Roles(AllUserRoles)
   @ApiBearerAuth()
@@ -52,6 +50,17 @@ export class SubscriptionsController {
   @ApiBody({ type: CreateSubscriptionDto })
   create(@Body() createSubscriptionDto: CreateSubscriptionDto) {
     return this.subscriptionsService.create(createSubscriptionDto);
+  }
+
+  @Post('sync-payment-status')
+  @Roles(AllUserRoles)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Manually sync subscription payment status with payment provider' })
+  syncPaymentStatus(
+    @Req() req: { user: IJwtPayload },
+    @Body() { reference }: { reference: string },
+  ) {
+    return this.subscriptionsService.syncPaymentStatus(req.user.id, reference);
   }
 
   @Post('activate/:userId/:subDate')
