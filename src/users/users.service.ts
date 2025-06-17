@@ -11,7 +11,7 @@ import { ISuccessResponse } from '../_global/interface/success-response';
 import { User } from './schema/users.schema';
 import { UserPaginationQueryDto } from './dto/user-pagination.dto';
 import { CloudinaryService } from '../cloudinary/cloudinary.service';
-import { TransitionStatus, UserRole } from './user.constant';
+import { TransitionStatus, UserRole, getUserExperienceCategory } from './user.constant';
 import { json2csv } from 'json-2-csv';
 import { UserSettings } from './schema/user-settings.schema';
 import { UpdateUserSettingsDto } from './dto/user-settings.dto';
@@ -23,6 +23,7 @@ import { CreateMemberDto } from './dto/create-member.dto';
 import ShortUniqueId from 'short-unique-id';
 import * as bcrypt from 'bcryptjs';
 import { UpdateMemberDto } from './dto/update-member.dto';
+import { EventAudience } from '../events/events.constant';
 
 @Injectable()
 export class UsersService {
@@ -438,5 +439,55 @@ export class UsersService {
       message: 'Member profile updated successfully',
       data: newUser,
     };
+  }
+
+  /**
+   * Get user's experience category for event visibility
+   * @param user - User document
+   * @returns EventAudience enum value
+   */
+  getUserExperienceCategory(user: User): EventAudience {
+    return getUserExperienceCategory(user.role as UserRole, user.yearsOfExperience);
+  }
+
+  /**
+   * Check if user can see a specific conference based on member groups
+   * @param user - User document
+   * @param membersGroup - Array of member groups for the conference
+   * @returns boolean indicating visibility
+   */
+  canUserSeeConference(user: User, membersGroup: EventAudience[]): boolean {
+    const userCategory = this.getUserExperienceCategory(user);
+
+    // Check if user's category is in the conference's member groups
+    if (membersGroup.includes(userCategory)) {
+      return true;
+    }
+
+    // Check for legacy support - if conference includes old DOCTOR enum
+    // and user is any doctor category, allow access
+    if (
+      membersGroup.includes(EventAudience.DOCTOR) &&
+      (userCategory === EventAudience.DOCTOR_0_5_YEARS ||
+        userCategory === EventAudience.DOCTOR_ABOVE_5_YEARS)
+    ) {
+      return true;
+    }
+
+    return false;
+  }
+
+  /**
+   * Get user's member group string for payment plan and conference filtering
+   * @param user - User document
+   * @returns string representing the user's member group
+   */
+  getUserMemberGroup(user: User): string {
+    if (!user?.role) return 'Student';
+    if (user.role === 'Doctor') {
+      const years = Number(user.yearsOfExperience) || 0;
+      return years <= 5 ? 'Doctor_0_5_years' : 'Doctor_Above_5_years';
+    }
+    return user.role;
   }
 }

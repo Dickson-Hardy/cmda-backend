@@ -25,6 +25,7 @@ import { ConfigService } from '@nestjs/config';
 import { PaypalService } from '../paypal/paypal.service';
 import { ConfirmEventPayDto } from './dto/update-event.dto';
 import { EmailService } from '../email/email.service';
+import { UsersService } from '../users/users.service';
 
 // Type for Event with computed registrationStatus
 type EventWithRegistrationStatus = Event & {
@@ -41,6 +42,7 @@ export class EventsService {
     private configService: ConfigService,
     private paypalService: PaypalService,
     private emailService: EmailService,
+    private usersService: UsersService,
   ) {}
   async create(
     createEventDto: CreateEventDto,
@@ -157,6 +159,70 @@ export class EventsService {
       success: true,
       message: 'Event fetched successfully',
       data: event,
+    };
+  }
+
+  // Get payment plans for a specific event based on user's role and experience
+  async getUserPaymentPlans(slug: string, userId: string): Promise<ISuccessResponse> {
+    const event = await this.eventModel.findOne({ slug });
+    if (!event) {
+      throw new NotFoundException('Event not found');
+    }
+
+    const user = await this.userModel.findById(userId);
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    // Check if user can see this event
+    if (!this.usersService.canUserSeeConference(user, event.membersGroup)) {
+      throw new BadRequestException('You do not have access to this event');
+    }
+
+    // Get user's relevant member group
+    const userMemberGroup = this.usersService.getUserMemberGroup(user);
+
+    // Filter payment plans for the user's member group
+    const userPaymentPlans = event.paymentPlans.filter(
+      (plan: any) => plan.role === userMemberGroup,
+    );
+
+    // If this is a conference, include registration period information
+    let registrationInfo = null;
+    if (event.isConference && event.conferenceConfig) {
+      const now = new Date();
+      const regularEndDate = new Date(event.conferenceConfig.regularRegistrationEndDate);
+      const lateEndDate = new Date(event.conferenceConfig.lateRegistrationEndDate);
+
+      let currentPeriod = 'Regular';
+      if (now > regularEndDate && now <= lateEndDate) {
+        currentPeriod = 'Late';
+      } else if (now > lateEndDate) {
+        currentPeriod = 'Closed';
+      }
+
+      registrationInfo = {
+        currentPeriod,
+        regularEndDate: event.conferenceConfig.regularRegistrationEndDate,
+        lateEndDate: event.conferenceConfig.lateRegistrationEndDate,
+        isRegistrationOpen: now <= lateEndDate,
+      };
+    }
+
+    return {
+      success: true,
+      message: 'Payment plans fetched successfully',
+      data: {
+        paymentPlans: userPaymentPlans,
+        userMemberGroup,
+        registrationInfo,
+        eventInfo: {
+          name: event.name,
+          slug: event.slug,
+          isConference: event.isConference,
+          isPaid: event.isPaid,
+        },
+      },
     };
   }
 
@@ -562,7 +628,113 @@ export class EventsService {
     };
   }
 
-  // New method to find conferences with filtering
+  // New method to find conferences for a specific user based on their role and experience
+  async findConferencesForUser(
+    userId: string,
+    query: EventPaginationQueryDto & {
+      conferenceType?: ConferenceType;
+      zone?: ConferenceZone;
+      region?: ConferenceRegion;
+    },
+  ): Promise<ISuccessResponse> {
+    // Get user to determine their event audience
+    const user = await this.userModel.findById(userId);
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    const { searchBy, limit, page, eventType, eventDate, fromToday, conferenceType, zone, region } =
+      query;
+    const perPage = Number(limit) || 10;
+    const currentPage = Number(page) || 1;
+
+    // Get all conferences first
+    const allConferences = await this.eventModel.find({ isConference: true });
+
+    // Filter conferences based on user visibility using the helper method
+    const visibleConferences = allConferences.filter((conference) =>
+      this.usersService.canUserSeeConference(user, conference.membersGroup),
+    );
+
+    // Extract conference IDs for the main query
+    const visibleConferenceIds = visibleConferences.map((conf) => conf._id);
+
+    const searchCriteria: any = {
+      isConference: true,
+      _id: { $in: visibleConferenceIds },
+    };
+
+    if (searchBy) {
+      searchCriteria.$or = [
+        { name: new RegExp(searchBy, 'i') },
+        { eventType: new RegExp(searchBy, 'i') },
+        { linkOrLocation: new RegExp(searchBy, 'i') },
+        { eventDateTime: new RegExp(searchBy, 'i') },
+      ];
+    }
+
+    if (eventType) searchCriteria.eventType = eventType;
+    if (conferenceType) searchCriteria['conferenceConfig.conferenceType'] = conferenceType;
+    if (zone) searchCriteria['conferenceConfig.zone'] = zone;
+    if (region) searchCriteria['conferenceConfig.region'] = region;
+
+    if (eventDate && String(fromToday) === 'true') {
+      throw new BadRequestException('Please use only one of eventDate or fromToday');
+    }
+
+    if (eventDate) {
+      const startOfDay = new Date(`${eventDate}T00:00:00+01:00`);
+      const endOfDay = new Date(`${eventDate}T23:59:59+01:00`);
+      searchCriteria.eventDateTime = { $gte: startOfDay, $lte: endOfDay };
+    } else if (String(fromToday) === 'true') {
+      const today = new Date().toISOString().split('T')[0];
+      const startOfToday = new Date(`${today}T00:00:00+01:00`);
+      searchCriteria.eventDateTime = { $gte: startOfToday };
+    }
+
+    const conferences = await this.eventModel
+      .find(searchCriteria)
+      .sort({ createdAt: -1 })
+      .limit(perPage)
+      .skip(perPage * (currentPage - 1));
+
+    // Add user-specific information to each conference
+    const conferencesWithUserInfo = conferences.map((conference) => {
+      const conferenceObj = conference.toObject() as any;
+
+      // Check if user is registered
+      conferenceObj.isRegistered = conference.registeredUsers.some(
+        (registeredUser: any) => registeredUser.userId.toString() === userId,
+      );
+
+      // Get user's payment plan
+      conferenceObj.userPaymentPlan = (conference as any).getPaymentPlanForUser(
+        user.role,
+        user.yearsOfExperience,
+      );
+
+      return conferenceObj;
+    });
+
+    const totalItems = await this.eventModel.countDocuments(searchCriteria);
+    const totalPages = Math.ceil(totalItems / perPage);
+
+    return {
+      success: true,
+      message: 'User conferences fetched successfully',
+      data: {
+        items: conferencesWithUserInfo,
+        meta: { currentPage, itemsPerPage: perPage, totalItems, totalPages },
+        userInfo: {
+          role: user.role,
+          eventAudience: this.usersService.getUserExperienceCategory(user),
+          yearsOfExperience: user.yearsOfExperience,
+        },
+      },
+    };
+  }
+
+  // Keep existing findConferences method for admin use
   async findConferences(
     query: EventPaginationQueryDto & {
       conferenceType?: ConferenceType;

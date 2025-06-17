@@ -8,7 +8,7 @@ import {
   IsBooleanString,
 } from 'class-validator';
 import {
-  AllEventAudiences,
+  AllEventAudiencesWithLegacy,
   EventAudience,
   EventTag,
   EventType,
@@ -73,10 +73,21 @@ export class CreateEventDto {
   eventTags: EventTag[];
 
   @ApiProperty({
-    example: [EventAudience.DOCTOR, EventAudience.GLOBALNETWORK],
-    description: 'The audience groups for the event',
+    example: [
+      EventAudience.DOCTOR_0_5_YEARS,
+      EventAudience.DOCTOR_ABOVE_5_YEARS,
+      EventAudience.GLOBALNETWORK,
+    ],
+    description:
+      'The audience groups for the event. Use DOCTOR_0_5_YEARS and DOCTOR_ABOVE_5_YEARS for specific doctor categories, or DOCTOR for both (legacy support).',
     isArray: true,
-    default: AllEventAudiences,
+    enum: AllEventAudiencesWithLegacy,
+    default: [
+      EventAudience.STUDENT,
+      EventAudience.DOCTOR_0_5_YEARS,
+      EventAudience.DOCTOR_ABOVE_5_YEARS,
+      EventAudience.GLOBALNETWORK,
+    ],
   })
   @IsArray()
   @IsEnum(EventAudience, { each: true })

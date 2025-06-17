@@ -97,6 +97,23 @@ export class EventsController {
     return this.eventsService.findConferences(query);
   }
 
+  @Get('user-conferences')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Fetch conferences visible to the current user based on their role and experience',
+  })
+  findUserConferences(
+    @Query()
+    query: EventPaginationQueryDto & {
+      conferenceType?: ConferenceType;
+      zone?: ConferenceZone;
+      region?: ConferenceRegion;
+    },
+    @Req() req: { user: IJwtPayload },
+  ) {
+    return this.eventsService.findConferencesForUser(req.user.id, query);
+  }
+
   @Post('/pay/:slug')
   @Roles(AllUserRoles)
   @ApiBearerAuth()
@@ -172,5 +189,12 @@ export class EventsController {
   @ApiOperation({ summary: 'Delete an event by its slug' })
   removeOne(@Param('slug') slug: string) {
     return this.eventsService.removeOne(slug);
+  }
+
+  @Get(':slug/payment-plans')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get payment plans for an event based on user role' })
+  getUserPaymentPlans(@Param('slug') slug: string, @Req() req: { user: IJwtPayload }) {
+    return this.eventsService.getUserPaymentPlans(slug, req.user.id);
   }
 }

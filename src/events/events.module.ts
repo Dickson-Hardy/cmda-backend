@@ -9,6 +9,7 @@ import { PaystackModule } from '../paystack/paystack.module';
 import { User, UserSchema } from '../users/schema/users.schema';
 import { PaypalModule } from '../paypal/paypal.module';
 import { EmailModule } from '../email/email.module';
+import { UsersModule } from '../users/users.module';
 
 @Module({
   imports: [
@@ -21,6 +22,7 @@ import { EmailModule } from '../email/email.module';
     EmailModule,
     forwardRef(() => PaystackModule),
     PaypalModule,
+    UsersModule,
   ],
   controllers: [EventsController],
   providers: [EventsService],
