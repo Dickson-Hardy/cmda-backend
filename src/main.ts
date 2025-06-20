@@ -19,8 +19,32 @@ async function bootstrap() {
     next();
   });
 
-  app.enableCors();
-  app.enableCors();
+  // Configure CORS with specific origins
+  app.enableCors({
+    origin: [
+      'http://localhost:3000',
+      'http://localhost:5173',
+      'http://localhost:5174',
+      'https://cmdanigeria.net',
+      'https://www.cmdanigeria.net',
+      'https://admin.cmdanigeria.net',
+      'https://api.cmdanigeria.net',
+    ],
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: [
+      'Origin',
+      'X-Requested-With',
+      'Content-Type',
+      'Accept',
+      'Authorization',
+      'Access-Control-Allow-Headers',
+      'Access-Control-Request-Method',
+      'Access-Control-Request-Headers',
+    ],
+    credentials: true,
+    preflightContinue: false,
+    optionsSuccessStatus: 200,
+  });
 
   app.useGlobalPipes(new ValidationPipe());
 
