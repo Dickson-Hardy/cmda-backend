@@ -26,6 +26,7 @@ import { PaypalService } from '../paypal/paypal.service';
 import { ConfirmEventPayDto } from './dto/update-event.dto';
 import { EmailService } from '../email/email.service';
 import { UsersService } from '../users/users.service';
+import { PaystackFeeCalculator } from '../_global/utils/paystack-fees.util';
 
 // Type for Event with computed registrationStatus
 type EventWithRegistrationStatus = Event & {
@@ -187,6 +188,30 @@ export class EventsService {
       (plan: any) => plan.role === userMemberGroup,
     );
 
+    // Calculate payment breakdown including fees if applicable
+    let paymentBreakdown = null;
+    if (event.isPaid && userPaymentPlans.length > 0) {
+      // For conferences, use current registration period
+      let currentRegistrationPeriod = 'Regular';
+      if (event.isConference && event.conferenceConfig) {
+        const now = new Date();
+        const regularEndDate = new Date(event.conferenceConfig.regularRegistrationEndDate);
+        const lateEndDate = new Date(event.conferenceConfig.lateRegistrationEndDate);
+
+        if (now > regularEndDate && now <= lateEndDate) {
+          currentRegistrationPeriod = 'Late';
+        } else if (now > lateEndDate) {
+          currentRegistrationPeriod = 'Closed';
+        }
+      }
+
+      paymentBreakdown = this.getConferencePaymentBreakdown(
+        event,
+        userMemberGroup,
+        currentRegistrationPeriod as RegistrationPeriod,
+      );
+    }
+
     // If this is a conference, include registration period information
     let registrationInfo = null;
     if (event.isConference && event.conferenceConfig) {
@@ -216,6 +241,7 @@ export class EventsService {
         paymentPlans: userPaymentPlans,
         userMemberGroup,
         registrationInfo,
+        paymentBreakdown,
         eventInfo: {
           name: event.name,
           slug: event.slug,
@@ -414,8 +440,11 @@ export class EventsService {
 
     if (!transaction) {
       // Use Paystack for local payments or fallback
+      // Ensure amount is properly rounded to avoid floating point precision issues
+      const amountInKobo = Math.round(amount * 100);
+
       const paystackConfig: any = {
-        amount: amount * 100,
+        amount: amountInKobo,
         email: user.email,
         callback_url: this.configService.get('EVENT_PAYMENT_SUCCESS_URL').replace('[slug]', slug),
         metadata: JSON.stringify({
@@ -539,12 +568,13 @@ export class EventsService {
       timeUntilEvent: Math.floor((eventDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)),
     };
   }
-
   private getEventPaymentAmount(
     event: any,
     userRole: string,
     registrationPeriod: RegistrationPeriod,
   ): number {
+    let baseAmount = 0;
+
     // For conferences, find payment plan by role and registration period
     if (event.isConference) {
       const plan = event.paymentPlans.find(
@@ -552,12 +582,128 @@ export class EventsService {
           p.role === userRole &&
           (p.registrationPeriod === registrationPeriod || !p.registrationPeriod),
       );
-      if (plan) return plan.price;
+      if (plan) {
+        baseAmount = plan.price;
+      }
+    } else {
+      // Fallback to regular event payment plan
+      const plan = event.paymentPlans.find((p: any) => p.role === userRole);
+      baseAmount = plan ? plan.price : 0;
     }
 
-    // Fallback to regular event payment plan
-    const plan = event.paymentPlans.find((p: any) => p.role === userRole);
-    return plan ? plan.price : 0;
+    // If no amount found, return 0
+    if (baseAmount <= 0) {
+      return 0;
+    }
+
+    // For conferences with split codes (using Paystack), calculate amount including fees
+    // so that after Paystack deducts fees, the organization receives the base amount
+    if (
+      event.isConference &&
+      event.conferenceConfig?.paystackSplitCode &&
+      userRole !== UserRole.GLOBALNETWORK
+    ) {
+      try {
+        // Calculate the amount to charge user so that after Paystack fees,
+        // the organization receives the exact base amount
+        const chargeAmount = PaystackFeeCalculator.calculateChargeAmount(baseAmount);
+
+        // Log for debugging (can be removed in production)
+        console.log(`Conference fee calculation for ${userRole}:`, {
+          baseAmount,
+          chargeAmount,
+          fees: PaystackFeeCalculator.calculateFees(chargeAmount),
+        });
+
+        return chargeAmount;
+      } catch (error) {
+        console.error('Error calculating Paystack fees:', error);
+        // Fallback to base amount if calculation fails
+        return baseAmount;
+      }
+    }
+
+    // For PayPal payments (GlobalNetwork) or events without split codes, return base amount
+    return baseAmount;
+  }
+
+  /**
+   * Get detailed payment breakdown for a conference including fees
+   * This is useful for displaying to users what they'll pay vs what the organization receives
+   */
+  getConferencePaymentBreakdown(
+    event: any,
+    userRole: string,
+    registrationPeriod: RegistrationPeriod,
+  ): {
+    baseAmount: number;
+    chargeAmount: number;
+    includesFees: boolean;
+    feeBreakdown?: {
+      percentageFee: number;
+      fixedFee: number;
+      totalFees: number;
+    };
+    currency: string;
+    paymentMethod: string;
+  } {
+    let baseAmount = 0;
+
+    // Find the base payment plan
+    if (event.isConference) {
+      const plan = event.paymentPlans.find(
+        (p: any) =>
+          p.role === userRole &&
+          (p.registrationPeriod === registrationPeriod || !p.registrationPeriod),
+      );
+      if (plan) {
+        baseAmount = plan.price;
+      }
+    } else {
+      const plan = event.paymentPlans.find((p: any) => p.role === userRole);
+      baseAmount = plan ? plan.price : 0;
+    }
+
+    // Determine payment method and currency
+    const isGlobalNetwork = userRole === UserRole.GLOBALNETWORK;
+    const usePayPal = isGlobalNetwork && event.conferenceConfig?.usePayPalForGlobal;
+    const currency = isGlobalNetwork ? 'USD' : 'NGN';
+    const paymentMethod = usePayPal ? 'PayPal' : 'Paystack';
+
+    // Calculate fees for Paystack payments with split codes
+    const shouldIncludeFees =
+      event.isConference && event.conferenceConfig?.paystackSplitCode && !isGlobalNetwork;
+
+    if (shouldIncludeFees && baseAmount > 0) {
+      try {
+        const chargeAmount = PaystackFeeCalculator.calculateChargeAmount(baseAmount);
+        const fees = PaystackFeeCalculator.calculateFees(chargeAmount);
+
+        return {
+          baseAmount,
+          chargeAmount,
+          includesFees: true,
+          feeBreakdown: {
+            percentageFee: fees.percentageFee,
+            fixedFee: fees.fixedFee,
+            totalFees: fees.totalFees,
+          },
+          currency,
+          paymentMethod,
+        };
+      } catch (error) {
+        console.error('Error calculating fee breakdown:', error);
+      }
+    }
+
+    // Return base amount without fees
+    return {
+      baseAmount,
+      chargeAmount: baseAmount,
+      includesFees: false,
+      currency,
+      paymentMethod,
+    };
   }
 
   async registerForEvent(
