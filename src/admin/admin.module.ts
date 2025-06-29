@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
 import { AdminController } from './admin.controller';
 import { AdminService } from './admin.service';
+import { PendingPaymentsController } from './pending-payments.controller';
+import { PendingPaymentsService } from './pending-payments.service';
 import { MongooseModule } from '@nestjs/mongoose';
 import { Admin, AdminSchema } from './admin.schema';
 import { JwtModule } from '@nestjs/jwt';
@@ -23,7 +25,7 @@ import { EmailModule } from '../email/email.module';
     MongooseModule.forFeature([{ name: Admin.name, schema: AdminSchema }]),
     EmailModule,
   ],
-  controllers: [AdminController],
-  providers: [AdminService],
+  controllers: [AdminController, PendingPaymentsController],
+  providers: [AdminService, PendingPaymentsService],
 })
 export class AdminModule {}
