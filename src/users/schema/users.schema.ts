@@ -10,7 +10,7 @@ import { Vacancy } from '../../vacancy/vacancy.schema';
   timestamps: true,
   versionKey: false,
   toJSON: {
-    transform: (doc, ret) => {
+    transform: (doc, ret: any) => {
       delete ret.password;
       delete ret.passwordResetToken;
       delete ret.verificationCode;

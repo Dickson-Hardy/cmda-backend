@@ -7,7 +7,7 @@ import { AdminRole } from './admin.constant';
   timestamps: true,
   versionKey: false,
   toJSON: {
-    transform(doc, ret) {
+    transform(doc, ret: any) {
       delete ret.password;
     },
   },
