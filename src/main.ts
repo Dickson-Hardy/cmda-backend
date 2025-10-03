@@ -75,6 +75,6 @@ async function bootstrap() {
     customfavIcon: 'https://cdn.jsdelivr.net/npm/swagger-ui-dist@5.0.0/favicon-32x32.png',
   });
   //
-  await app.listen(3000);
+  await app.listen(process.env.PORT || 3000);
 }
 bootstrap();
