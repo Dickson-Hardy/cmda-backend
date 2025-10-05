@@ -4,8 +4,18 @@ services:
     build_command: npm install -g pnpm && pnpm install --frozen-lockfile && pnpm run build
     run_command: pnpm run start:prod
     environment_slug: node-js
+    http_port: 8080
+    health_check:
+      http_path: /
+      initial_delay_seconds: 30
+      period_seconds: 10
+      timeout_seconds: 5
+      success_threshold: 1
+      failure_threshold: 3
     envs:
       - key: NODE_ENV
         value: production
       - key: NPM_CONFIG_PRODUCTION
         value: "false"
+      - key: PORT
+        value: "8080"
