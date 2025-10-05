@@ -47,21 +47,8 @@ async function bootstrap() {
     optionsSuccessStatus: 200,
   });
 
-  app.useGlobalPipes(
-    new ValidationPipe({
-      transform: true,
-      whitelist: true,
-      forbidNonWhitelisted: false,
-      transformOptions: {
-        enableImplicitConversion: true,
-      },
-    }),
-  );
+  app.useGlobalPipes(new ValidationPipe());
 
-  // Use port 8080 as required by DigitalOcean App Service
-  const port = process.env.PORT ? parseInt(process.env.PORT, 10) : 8080;
-  // Must bind to 0.0.0.0 for container environments
-  const host = '0.0.0.0';
   // Swagger configuration
   const swaggerConfig = new DocumentBuilder()
     .setTitle('CMDA Nigeria API')
@@ -79,6 +66,6 @@ async function bootstrap() {
     customfavIcon: 'https://cdn.jsdelivr.net/npm/swagger-ui-dist@5.0.0/favicon-32x32.png',
   });
   //
-  await app.listen(port, host);
+  await app.listen(3000);
 }
 bootstrap();
