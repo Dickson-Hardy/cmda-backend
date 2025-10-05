@@ -5,9 +5,11 @@
   "author": "",
   "private": true,
   "license": "UNLICENSED",
+  "packageManager": "pnpm@10.18.0",
   "engines": {
     "node": "22.x",
-    "npm": "10.x"
+    "npm": "10.x",
+    "pnpm": "10.x"
   },
   "scripts": {
     "build": "nest build",
@@ -47,8 +49,8 @@
     "short-unique-id": "^5.2.0",
     "slugify": "^1.6.6",
     "socket.io": "^4.8.1",
-    "swagger-ui-express": "^5.0.1"
-  ,"express": "^4.18.2"
+    "swagger-ui-express": "^5.0.1",
+    "express": "^4.18.2"
   },
   "devDependencies": {
     "@nestjs/cli": "^10.0.0",
