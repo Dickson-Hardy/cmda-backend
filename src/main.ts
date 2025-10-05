@@ -58,6 +58,9 @@ async function bootstrap() {
     }),
   );
 
+  // Determine port and host for deployment
+  const port = parseInt(process.env.PORT, 10) || 8080;
+  const host = process.env.HOST || '0.0.0.0';
   // Swagger configuration
   const swaggerConfig = new DocumentBuilder()
     .setTitle('CMDA Nigeria API')
@@ -75,6 +78,6 @@ async function bootstrap() {
     customfavIcon: 'https://cdn.jsdelivr.net/npm/swagger-ui-dist@5.0.0/favicon-32x32.png',
   });
   //
-  await app.listen(process.env.PORT || 3000);
+  await app.listen(port, host);
 }
 bootstrap();

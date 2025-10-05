@@ -12,7 +12,7 @@
   "scripts": {
     "build": "nest build",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
-    "start": "nest start",
+  "start": "npm run build && npm run start:prod",
     "start:dev": "nest start --watch",
     "start:debug": "nest start --debug --watch",
     "start:prod": "node dist/main",
@@ -48,6 +48,7 @@
     "slugify": "^1.6.6",
     "socket.io": "^4.8.1",
     "swagger-ui-express": "^5.0.1"
+  ,"express": "^4.18.2"
   },
   "devDependencies": {
     "@nestjs/cli": "^10.0.0",
