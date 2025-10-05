@@ -8,7 +8,12 @@ export class AppController {
 
   @Get()
   @Public()
-  getHello(): string {
-    return this.appService.getHello();
+  getHello(): object {
+    return {
+      status: 'ok',
+      message: this.appService.getHello(),
+      timestamp: new Date().toISOString(),
+      version: '1.0.0',
+    };
   }
 }

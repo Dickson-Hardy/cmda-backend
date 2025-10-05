@@ -58,9 +58,10 @@ async function bootstrap() {
     }),
   );
 
-  // Determine port and host for deployment
-  const port = parseInt(process.env.PORT, 10) || 8080;
-  const host = process.env.HOST || '0.0.0.0';
+  // Use port 8080 as required by DigitalOcean App Service
+  const port = process.env.PORT ? parseInt(process.env.PORT, 10) : 8080;
+  // Must bind to 0.0.0.0 for container environments
+  const host = '0.0.0.0';
   // Swagger configuration
   const swaggerConfig = new DocumentBuilder()
     .setTitle('CMDA Nigeria API')
