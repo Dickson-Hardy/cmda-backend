@@ -66,6 +66,14 @@ async function bootstrap() {
     customfavIcon: 'https://cdn.jsdelivr.net/npm/swagger-ui-dist@5.0.0/favicon-32x32.png',
   });
   //
-  await app.listen(3000);
+  const port = Number(process.env.PORT) || 3000;
+  const host = '0.0.0.0';
+  await app.listen(port, host);
+  console.log(
+    `Application is running on: http://${host === '0.0.0.0' ? 'localhost' : host}:${port}`,
+  );
+  console.log(
+    `Swagger documentation is available at: http://${host === '0.0.0.0' ? 'localhost' : host}:${port}/apidocs`,
+  );
 }
 bootstrap();
