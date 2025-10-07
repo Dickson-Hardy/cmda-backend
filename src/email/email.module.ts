@@ -15,12 +15,16 @@ import { ConfigService } from '@nestjs/config';
             user: config.get<string>('EMAIL_USER'),
             pass: config.get<string>('EMAIL_PASS'),
           },
-          connectionTimeout: 10000, // 10 seconds
-          greetingTimeout: 5000,
-          socketTimeout: 15000,
+          connectionTimeout: 60000, // 60 seconds - increased for slow connections
+          greetingTimeout: 30000, // 30 seconds
+          socketTimeout: 60000, // 60 seconds - increased for reliability
           pool: true, // Use connection pooling
           maxConnections: 5,
           maxMessages: 100,
+          rateLimit: 10, // Max 10 emails per second
+          tls: {
+            rejectUnauthorized: false, // Allow self-signed certificates if needed
+          },
           // logger: true, // Enable logging
           // debug: true, // Enable debug output
         },

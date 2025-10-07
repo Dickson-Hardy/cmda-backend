@@ -22,13 +22,24 @@ export class EmailService {
         '[VerificationCode]',
         code,
       );
-      await this.mailerService.sendMail({
-        to: email,
-        subject: 'Welcome to CMDA Nigeria',
-        html,
-      });
+
+      // Add timeout to prevent hanging
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Email send timeout')), 45000),
+      );
+
+      await Promise.race([
+        this.mailerService.sendMail({
+          to: email,
+          subject: 'Welcome to CMDA Nigeria',
+          html,
+        }),
+        timeoutPromise,
+      ]);
+
       return { success: true };
     } catch (error) {
+      console.error('Welcome email failed:', error.message);
       return { success: false };
     }
   }
@@ -39,13 +50,24 @@ export class EmailService {
         '[ResetToken]',
         code,
       );
-      await this.mailerService.sendMail({
-        to: email,
-        subject: 'Password Reset Request',
-        html,
-      });
+
+      // Add timeout to prevent hanging
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Email send timeout')), 45000),
+      );
+
+      await Promise.race([
+        this.mailerService.sendMail({
+          to: email,
+          subject: 'Password Reset Request',
+          html,
+        }),
+        timeoutPromise,
+      ]);
+
       return { success: true };
     } catch (error) {
+      console.error('Password reset email failed:', error.message);
       return { success: false };
     }
   }
@@ -70,11 +92,18 @@ export class EmailService {
         '[VerificationCode]',
         code,
       );
-      await this.mailerService.sendMail({
-        to: email,
-        subject: 'Complete your CMDA Nigeria registration',
-        html,
-        text: `Hello ${name},
+
+      // Add timeout to prevent hanging
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Email send timeout')), 45000),
+      );
+
+      await Promise.race([
+        this.mailerService.sendMail({
+          to: email,
+          subject: 'Complete your CMDA Nigeria registration',
+          html,
+          text: `Hello ${name},
 
 Thank you for joining CMDA Nigeria! 
 
@@ -90,15 +119,18 @@ The CMDA Nigeria Team
 CMDA Nigeria
 Wholeness House Gwagwalada, FCT, Nigeria
 Email: office@cmdanigeria.org`,
-        headers: {
-          'X-Mailer': 'CMDA Nigeria',
-          'List-Unsubscribe': '<mailto:unsubscribe@cmdanigeria.org>',
-          'Reply-To': 'office@cmdanigeria.org',
-        },
-      });
+          headers: {
+            'X-Mailer': 'CMDA Nigeria',
+            'List-Unsubscribe': '<mailto:unsubscribe@cmdanigeria.org>',
+            'Reply-To': 'office@cmdanigeria.org',
+          },
+        }),
+        timeoutPromise,
+      ]);
+
       return { success: true };
     } catch (error) {
-      console.error('Verification email failed:', error);
+      console.error('Verification email failed:', error.message);
       return { success: false };
     }
   }
