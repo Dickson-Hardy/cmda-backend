@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { EmailService } from './email.service';
+import { ResendFallbackService } from './resend-fallback.service';
 import { MailerModule } from '@nestjs-modules/mailer';
 import { ConfigService } from '@nestjs/config';
 
@@ -35,7 +36,7 @@ import { ConfigService } from '@nestjs/config';
       inject: [ConfigService],
     }),
   ],
-  providers: [EmailService],
-  exports: [EmailService],
+  providers: [EmailService, ResendFallbackService],
+  exports: [EmailService, ResendFallbackService],
 })
 export class EmailModule {}

@@ -1,5 +1,6 @@
 import { MailerService } from '@nestjs-modules/mailer';
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
+import { ResendFallbackService } from './resend-fallback.service';
 import { MEMBER_CREDENTIALS_TEMPLATE, WELCOME_EMAIL_TEMPLATE } from './templates/welcome.template';
 import { PASSWORD_RESET_REQUEST_EMAIL_TEMPLATE } from './templates/password-reset.template';
 import { PASSWORD_RESET_SUCCESS_EMAIL_TEMPLATE } from './templates/password-success.template';
@@ -14,15 +15,17 @@ import { CONFERENCE_UPDATE_NOTIFICATION_TEMPLATE } from './templates/conference-
 
 @Injectable()
 export class EmailService {
-  constructor(private mailerService: MailerService) {}
+  private readonly logger = new Logger(EmailService.name);
+
+  constructor(
+    private mailerService: MailerService,
+    private resendFallback: ResendFallbackService,
+  ) {}
 
   async sendWelcomeEmail({ name, email, code }): Promise<{ success: boolean }> {
-    try {
-      const html = WELCOME_EMAIL_TEMPLATE.replace('[Name]', name).replace(
-        '[VerificationCode]',
-        code,
-      );
+    const html = WELCOME_EMAIL_TEMPLATE.replace('[Name]', name).replace('[VerificationCode]', code);
 
+    try {
       // Add timeout to prevent hanging
       const timeoutPromise = new Promise((_, reject) =>
         setTimeout(() => reject(new Error('Email send timeout')), 45000),
@@ -37,20 +40,37 @@ export class EmailService {
         timeoutPromise,
       ]);
 
+      this.logger.log('Welcome email sent via primary SMTP');
       return { success: true };
     } catch (error) {
-      console.error('Welcome email failed:', error.message);
+      this.logger.warn(`Primary email failed: ${error.message}. Trying Resend fallback...`);
+
+      // Try Resend fallback
+      if (this.resendFallback.isAvailable()) {
+        const fallbackResult = await this.resendFallback.sendEmail({
+          to: email,
+          subject: 'Welcome to CMDA Nigeria',
+          html,
+        });
+
+        if (fallbackResult.success) {
+          this.logger.log('Welcome email sent via Resend fallback');
+          return { success: true };
+        }
+      }
+
+      this.logger.error('All email services failed for welcome email');
       return { success: false };
     }
   }
 
   async sendPasswordResetTokenEmail({ name, email, code }): Promise<{ success: boolean }> {
-    try {
-      const html = PASSWORD_RESET_REQUEST_EMAIL_TEMPLATE.replace('[Name]', name).replace(
-        '[ResetToken]',
-        code,
-      );
+    const html = PASSWORD_RESET_REQUEST_EMAIL_TEMPLATE.replace('[Name]', name).replace(
+      '[ResetToken]',
+      code,
+    );
 
+    try {
       // Add timeout to prevent hanging
       const timeoutPromise = new Promise((_, reject) =>
         setTimeout(() => reject(new Error('Email send timeout')), 45000),
@@ -65,9 +85,26 @@ export class EmailService {
         timeoutPromise,
       ]);
 
+      this.logger.log('Password reset email sent via primary SMTP');
       return { success: true };
     } catch (error) {
-      console.error('Password reset email failed:', error.message);
+      this.logger.warn(`Primary email failed: ${error.message}. Trying Resend fallback...`);
+
+      // Try Resend fallback
+      if (this.resendFallback.isAvailable()) {
+        const fallbackResult = await this.resendFallback.sendEmail({
+          to: email,
+          subject: 'Password Reset Request',
+          html,
+        });
+
+        if (fallbackResult.success) {
+          this.logger.log('Password reset email sent via Resend fallback');
+          return { success: true };
+        }
+      }
+
+      this.logger.error('All email services failed for password reset email');
       return { success: false };
     }
   }
@@ -87,23 +124,12 @@ export class EmailService {
   }
 
   async sendVerificationCodeEmail({ name, email, code }): Promise<{ success: boolean }> {
-    try {
-      const html = VERIFICATION_CODE_EMAIL_TEMPLATE.replace('[Name]', name).replace(
-        '[VerificationCode]',
-        code,
-      );
+    const html = VERIFICATION_CODE_EMAIL_TEMPLATE.replace('[Name]', name).replace(
+      '[VerificationCode]',
+      code,
+    );
 
-      // Add timeout to prevent hanging
-      const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Email send timeout')), 45000),
-      );
-
-      await Promise.race([
-        this.mailerService.sendMail({
-          to: email,
-          subject: 'Complete your CMDA Nigeria registration',
-          html,
-          text: `Hello ${name},
+    const textContent = `Hello ${name},
 
 Thank you for joining CMDA Nigeria! 
 
@@ -118,7 +144,20 @@ The CMDA Nigeria Team
 
 CMDA Nigeria
 Wholeness House Gwagwalada, FCT, Nigeria
-Email: office@cmdanigeria.org`,
+Email: office@cmdanigeria.org`;
+
+    try {
+      // Add timeout to prevent hanging
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Email send timeout')), 45000),
+      );
+
+      await Promise.race([
+        this.mailerService.sendMail({
+          to: email,
+          subject: 'Complete your CMDA Nigeria registration',
+          html,
+          text: textContent,
           headers: {
             'X-Mailer': 'CMDA Nigeria',
             'List-Unsubscribe': '<mailto:unsubscribe@cmdanigeria.org>',
@@ -128,9 +167,27 @@ Email: office@cmdanigeria.org`,
         timeoutPromise,
       ]);
 
+      this.logger.log('Verification email sent via primary SMTP');
       return { success: true };
     } catch (error) {
-      console.error('Verification email failed:', error.message);
+      this.logger.warn(`Primary email failed: ${error.message}. Trying Resend fallback...`);
+
+      // Try Resend fallback
+      if (this.resendFallback.isAvailable()) {
+        const fallbackResult = await this.resendFallback.sendEmail({
+          to: email,
+          subject: 'Complete your CMDA Nigeria registration',
+          html,
+          text: textContent,
+        });
+
+        if (fallbackResult.success) {
+          this.logger.log('Verification email sent via Resend fallback');
+          return { success: true };
+        }
+      }
+
+      this.logger.error('All email services failed for verification email');
       return { success: false };
     }
   }
