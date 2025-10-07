@@ -2,7 +2,6 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
-  InternalServerErrorException,
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -90,16 +89,19 @@ export class AuthService {
       // send welcome mail
       const { randomUUID } = new ShortUniqueId({ length: 6, dictionary: 'number' });
       const code = randomUUID();
-      const res = await this.emailService.sendWelcomeEmail({
-        name: user.firstName,
-        email,
-        code,
-      });
-      if (res.success) {
-        await user.updateOne({ verificationCode: code });
-      } else {
-        throw new InternalServerErrorException('Error on email server but user was created');
-      }
+      // Save verification code first, then send email in background
+      await user.updateOne({ verificationCode: code });
+
+      // Send email asynchronously without blocking
+      this.emailService
+        .sendWelcomeEmail({
+          name: user.firstName,
+          email,
+          code,
+        })
+        .catch((error) => {
+          console.error('Failed to send welcome email:', error);
+        });
       // return response
       return {
         success: true,
@@ -221,16 +223,19 @@ export class AuthService {
     }
     const { randomUUID } = new ShortUniqueId({ length: 6, dictionary: 'number' });
     const code = randomUUID();
-    const res = await this.emailService.sendVerificationCodeEmail({
-      name: user.firstName,
-      email,
-      code,
-    });
-    if (res.success) {
-      await user.updateOne({ verificationCode: code });
-    } else {
-      throw new InternalServerErrorException('Error on email server, please try again later');
-    }
+    // Save verification code first, then send email in background
+    await user.updateOne({ verificationCode: code });
+
+    // Send email asynchronously without blocking
+    this.emailService
+      .sendVerificationCodeEmail({
+        name: user.firstName,
+        email,
+        code,
+      })
+      .catch((error) => {
+        console.error('Failed to send verification code email:', error);
+      });
 
     return {
       success: true,
@@ -263,16 +268,20 @@ export class AuthService {
     if (user) {
       const { randomUUID } = new ShortUniqueId({ length: 6, dictionary: 'number' });
       const code = randomUUID();
-      const res = await this.emailService.sendPasswordResetTokenEmail({
-        name: user.firstName,
-        email,
-        code,
-      });
-      if (res.success) {
-        await user.updateOne({ passwordResetToken: code });
-      } else {
-        throw new InternalServerErrorException('Error on email server, please try again later');
-      }
+      // Save the token first, then send email in background (non-blocking)
+      await user.updateOne({ passwordResetToken: code });
+
+      // Send email asynchronously without blocking the response
+      this.emailService
+        .sendPasswordResetTokenEmail({
+          name: user.firstName,
+          email,
+          code,
+        })
+        .catch((error) => {
+          console.error('Failed to send password reset email:', error);
+          // Log but don't throw - email failure shouldn't block the user
+        });
     }
     return {
       success: true,
@@ -291,10 +300,17 @@ export class AuthService {
     }
     const hashedPassword = await bcrypt.hash(newPassword, 10);
     await user.updateOne({ password: hashedPassword, passwordResetToken: '' });
-    await this.emailService.sendPasswordResetSuccessEmail({
-      name: user.firstName,
-      email: user.email,
-    });
+
+    // Send success email asynchronously without blocking
+    this.emailService
+      .sendPasswordResetSuccessEmail({
+        name: user.firstName,
+        email: user.email,
+      })
+      .catch((error) => {
+        console.error('Failed to send password reset success email:', error);
+      });
+
     return {
       success: true,
       message: 'Password reset successful',
