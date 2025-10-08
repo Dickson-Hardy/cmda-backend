@@ -114,15 +114,37 @@ export class EmailService {
   }
 
   async sendPasswordResetSuccessEmail({ name, email }): Promise<{ success: boolean }> {
+    const html = PASSWORD_RESET_SUCCESS_EMAIL_TEMPLATE.replace('[Name]', name);
+
+    // Try Resend first
+    if (this.resendFallback.isAvailable()) {
+      try {
+        const result = await this.resendFallback.sendEmail({
+          to: email,
+          subject: 'Password Reset Successful',
+          html,
+        });
+
+        if (result.success) {
+          this.logger.log('Password reset success email sent via Resend API');
+          return { success: true };
+        }
+      } catch (error) {
+        this.logger.warn(`Resend failed: ${error.message}. Trying SMTP fallback...`);
+      }
+    }
+
+    // Fallback to SMTP
     try {
-      const html = PASSWORD_RESET_SUCCESS_EMAIL_TEMPLATE.replace('[Name]', name);
       await this.mailerService.sendMail({
         to: email,
         subject: 'Password Reset Successful',
         html,
       });
+      this.logger.log('Password reset success email sent via SMTP fallback');
       return { success: true };
     } catch (error) {
+      this.logger.error('All email services failed for password reset success email');
       return { success: false };
     }
   }
@@ -199,33 +221,77 @@ Email: office@cmdanigeria.org`;
   }
 
   async sendAdminCredentialsEmail({ name, email, password }): Promise<{ success: boolean }> {
+    const html = ADMIN_CREDENTIALS_TEMPLATE.replace('[Name]', name)
+      .replace('[Email]', email)
+      .replace('[Password]', password);
+
+    // Try Resend first
+    if (this.resendFallback.isAvailable()) {
+      try {
+        const result = await this.resendFallback.sendEmail({
+          to: email,
+          subject: 'Admin Login Credentials',
+          html,
+        });
+
+        if (result.success) {
+          this.logger.log('Admin credentials email sent via Resend API');
+          return { success: true };
+        }
+      } catch (error) {
+        this.logger.warn(`Resend failed: ${error.message}. Trying SMTP fallback...`);
+      }
+    }
+
+    // Fallback to SMTP
     try {
-      const html = ADMIN_CREDENTIALS_TEMPLATE.replace('[Name]', name)
-        .replace('[Email]', email)
-        .replace('[Password]', password);
       await this.mailerService.sendMail({
         to: email,
         subject: 'Admin Login Credentials',
         html,
       });
+      this.logger.log('Admin credentials email sent via SMTP fallback');
       return { success: true };
     } catch (error) {
+      this.logger.error('All email services failed for admin credentials email');
       return { success: false };
     }
   }
 
   async sendMemberCredentialsEmail({ name, email, password }): Promise<{ success: boolean }> {
+    const html = MEMBER_CREDENTIALS_TEMPLATE.replace('[Name]', name)
+      .replace('[Email]', email)
+      .replace('[Password]', password);
+
+    // Try Resend first
+    if (this.resendFallback.isAvailable()) {
+      try {
+        const result = await this.resendFallback.sendEmail({
+          to: email,
+          subject: 'CMDA Member Account Credentials',
+          html,
+        });
+
+        if (result.success) {
+          this.logger.log('Member credentials email sent via Resend API');
+          return { success: true };
+        }
+      } catch (error) {
+        this.logger.warn(`Resend failed: ${error.message}. Trying SMTP fallback...`);
+      }
+    }
+
+    // Fallback to SMTP
     try {
-      const html = MEMBER_CREDENTIALS_TEMPLATE.replace('[Name]', name)
-        .replace('[Email]', email)
-        .replace('[Password]', password);
       await this.mailerService.sendMail({
         to: email,
         subject: 'CMDA Member Account Credentials',
         html,
       });
+      this.logger.log('Member credentials email sent via SMTP fallback');
       return { success: true };
     } catch (error) {
+      this.logger.error('All email services failed for member credentials email');
       return { success: false };
     }
   }
@@ -267,20 +333,42 @@ Email: office@cmdanigeria.org`;
     newRegion,
     specialty,
   }): Promise<{ success: boolean }> {
+    const html = TRANSITION_SUCCESS_EMAIL_TEMPLATE.replace('[Name]', name)
+      .replace('[TransitionFrom]', oldRole)
+      .replace('[TransitionTo]', newRole)
+      .replace('[Specialty]', specialty)
+      .replace('[LicenseNumber]', licenseNumber)
+      .replace('[Region]', newRegion);
+
+    // Try Resend first
+    if (this.resendFallback.isAvailable()) {
+      try {
+        const result = await this.resendFallback.sendEmail({
+          to: email,
+          subject: 'Transition Successful',
+          html,
+        });
+
+        if (result.success) {
+          this.logger.log('Transition success email sent via Resend API');
+          return { success: true };
+        }
+      } catch (error) {
+        this.logger.warn(`Resend failed: ${error.message}. Trying SMTP fallback...`);
+      }
+    }
+
+    // Fallback to SMTP
     try {
-      const html = TRANSITION_SUCCESS_EMAIL_TEMPLATE.replace('[Name]', name)
-        .replace('[TransitionFrom]', oldRole)
-        .replace('[TransitionTo]', newRole)
-        .replace('[Specialty]', specialty)
-        .replace('[LicenseNumber]', licenseNumber)
-        .replace('[Region]', newRegion);
       await this.mailerService.sendMail({
         to: email,
         subject: 'Transition Successful',
         html,
       });
+      this.logger.log('Transition success email sent via SMTP fallback');
       return { success: true };
     } catch (error) {
+      this.logger.error('All email services failed for transition success email');
       return { success: false };
     }
   }
