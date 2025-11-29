@@ -20,6 +20,11 @@ import { EmailService } from '../email/email.service';
 import { PaypalService } from '../paypal/paypal.service';
 import { UserRole } from '../users/user.constant';
 import ShortUniqueId from 'short-unique-id';
+import { PaymentIntentsService } from '../payment-intents/payment-intents.service';
+import {
+  PaymentIntentContext,
+  PaymentIntentProvider,
+} from '../payment-intents/payment-intent.schema';
 
 @Injectable()
 export class DonationsService {
@@ -30,16 +35,19 @@ export class DonationsService {
     private configService: ConfigService,
     private emailService: EmailService,
     private paypalService: PaypalService,
+    private paymentIntentsService: PaymentIntentsService,
   ) {}
 
   async init(id: string, createDonationDto: InitDonationDto): Promise<ISuccessResponse> {
     const { totalAmount, recurring, frequency, areasOfNeed, currency } = createDonationDto;
     const user = await this.userModel.findById(id);
     let transaction: any;
+    let donation: Donation;
+    const { randomUUID } = new ShortUniqueId({ length: 6, dictionary: 'alphanum_upper' });
+
     // GLOBAL NETWORK DOCTORS
     if (user.role === UserRole.GLOBALNETWORK) {
-      const { randomUUID } = new ShortUniqueId({ length: 6, dictionary: 'alphanum_upper' });
-      const donation = await this.donationModel.create({
+      donation = await this.donationModel.create({
         reference: 'UNPAID-' + randomUUID(),
         isPaid: false,
         totalAmount,
@@ -63,24 +71,63 @@ export class DonationsService {
         })),
       });
     } else {
-      // STUDENT AND DOCTORS
+      // STUDENT AND DOCTORS - Create payment intent
+      const intent = await this.paymentIntentsService.createIntent({
+        email: user.email,
+        userId: user._id.toString(),
+        amount: totalAmount,
+        currency: currency || 'NGN',
+        provider: PaymentIntentProvider.PAYSTACK,
+        context: PaymentIntentContext.DONATION,
+        contextData: {
+          recurring,
+          frequency,
+          areasOfNeed,
+          memId: user.membershipId,
+        },
+      });
+
+      donation = await this.donationModel.create({
+        reference: intent.intentCode,
+        isPaid: false,
+        totalAmount,
+        currency: currency || 'NGN',
+        recurring: recurring && frequency ? true : false,
+        ...(frequency ? { frequency } : {}),
+        areasOfNeed,
+        user: user._id,
+        source: 'PAYSTACK',
+      });
+
+      await this.paymentIntentsService.linkContextEntity(intent.id, donation._id.toString());
+
       transaction = await this.paystackService.initializeTransaction({
         amount: totalAmount * 100,
         email: user.email,
-        // channels: ['card'], show all options
         callback_url: this.configService.get('PAYMENT_SUCCESS_URL') + '?type=donation',
         metadata: JSON.stringify({
           desc: 'DONATION',
+          intentId: intent.id,
           recurring,
           frequency,
-          currency,
+          currency: currency || 'NGN',
           memId: user.membershipId,
           areasOfNeed,
+          donationId: donation._id.toString(),
         }),
       });
       if (!transaction.status) {
         throw new Error(transaction.message);
       }
+
+      await this.paymentIntentsService.attachCheckoutData(
+        intent.id,
+        transaction.data.authorization_url,
+      );
+      await this.paymentIntentsService.updateProviderReference(
+        intent.id,
+        transaction.data.reference,
+      );
     }
 
     return {
@@ -130,22 +177,36 @@ export class DonationsService {
       }
       const {
         amount,
-        metadata: { recurring, frequency, currency, areasOfNeed, memId },
+        metadata: { recurring, frequency, currency, areasOfNeed, memId, donationId, intentId },
       } = transaction.data;
 
       user = await this.userModel.findOne({ membershipId: memId });
 
-      donation = await this.donationModel.create({
-        reference,
-        totalAmount: amount / 100,
-        currency,
-        isPaid: true,
-        recurring: recurring && frequency ? true : false,
-        ...(frequency ? { frequency } : {}),
-        areasOfNeed,
-        user: user._id,
-        source: 'PAYSTACK',
-      });
+      // Update existing intent if it exists, otherwise create new
+      if (donationId) {
+        donation = await this.donationModel.findByIdAndUpdate(
+          donationId,
+          { reference, isPaid: true },
+          { new: true },
+        );
+
+        if (intentId) {
+          await this.paymentIntentsService.markAsSuccessful(intentId, transaction.data);
+        }
+      } else {
+        // Fallback for old payments without intent
+        donation = await this.donationModel.create({
+          reference,
+          totalAmount: amount / 100,
+          currency,
+          isPaid: true,
+          recurring: recurring && frequency ? true : false,
+          ...(frequency ? { frequency } : {}),
+          areasOfNeed,
+          user: user._id,
+          source: 'PAYSTACK',
+        });
+      }
     }
 
     const res = await this.emailService.sendDonationConfirmedEmail({
@@ -326,7 +387,7 @@ export class DonationsService {
     const currentPage = Number(page) || 1;
     const searchCriteria: any = {
       user: id,
-      isPaid: true,
+      // Include both paid and unpaid (intents) donations
     };
     if (searchBy) {
       const searchNumber = Number(searchBy);

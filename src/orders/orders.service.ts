@@ -13,6 +13,11 @@ import { UpdateOrderDto } from './dto/update-order.dto';
 import { PaypalService } from '../paypal/paypal.service';
 import { Product } from '../products/products.schema';
 import ShortUniqueId from 'short-unique-id';
+import { PaymentIntentsService } from '../payment-intents/payment-intents.service';
+import {
+  PaymentIntentContext,
+  PaymentIntentProvider,
+} from '../payment-intents/payment-intent.schema';
 
 @Injectable()
 export class OrdersService {
@@ -22,6 +27,7 @@ export class OrdersService {
     private paystackService: PaystackService,
     private paypalService: PaypalService,
     private configService: ConfigService,
+    private paymentIntentsService: PaymentIntentsService,
   ) {}
 
   async init(id: string, initOrderDto: InitOrderDto): Promise<ISuccessResponse> {
@@ -72,21 +78,64 @@ export class OrdersService {
         items,
       });
     } else {
+      // STUDENT AND DOCTORS - Create payment intent
+      const intent = await this.paymentIntentsService.createIntent({
+        email: shippingContactEmail,
+        userId: id,
+        amount: totalAmount,
+        currency: 'NGN',
+        provider: PaymentIntentProvider.PAYSTACK,
+        context: PaymentIntentContext.ORDER,
+        contextData: {
+          products,
+          shippingAddress,
+          shippingContactName,
+          shippingContactPhone,
+        },
+      });
+
+      const order = await this.orderModel.create({
+        paymentReference: intent.intentCode,
+        isPaid: false,
+        totalAmount,
+        source: 'PAYSTACK',
+        currency: 'NGN',
+        products,
+        shippingAddress,
+        shippingContactEmail,
+        shippingContactName,
+        shippingContactPhone,
+        user: id,
+      });
+
+      await this.paymentIntentsService.linkContextEntity(intent.id, order._id.toString());
+
       transaction = await this.paystackService.initializeTransaction({
         amount: totalAmount * 100,
         email: shippingContactEmail,
         callback_url: this.configService.get('ORDER_SUCCESS_URL'),
         metadata: JSON.stringify({
+          intentId: intent.id,
           products,
           shippingAddress,
           shippingContactEmail,
           shippingContactName,
           shippingContactPhone,
+          orderId: order._id.toString(),
         }),
       });
       if (!transaction.status) {
         throw new Error(transaction.message);
       }
+
+      await this.paymentIntentsService.attachCheckoutData(
+        intent.id,
+        transaction.data.authorization_url,
+      );
+      await this.paymentIntentsService.updateProviderReference(
+        intent.id,
+        transaction.data.reference,
+      );
 
       transaction = { checkout_url: transaction.data.authorization_url };
     }
@@ -143,21 +192,41 @@ export class OrdersService {
             shippingContactEmail,
             shippingContactName,
             shippingContactPhone,
+            orderId,
+            intentId,
           },
         } = transaction.data;
 
-        order = await this.orderModel.create({
-          paymentReference: reference,
-          paymentDate: paidAt,
-          isPaid: true,
-          totalAmount: amount / 100,
-          products,
-          shippingAddress,
-          shippingContactEmail,
-          shippingContactName,
-          shippingContactPhone,
-          user: id,
-        });
+        // Update existing intent if it exists, otherwise create new
+        if (orderId) {
+          order = await this.orderModel.findByIdAndUpdate(
+            orderId,
+            {
+              isPaid: true,
+              paymentReference: reference,
+              paymentDate: paidAt || new Date().toISOString(),
+            },
+            { new: true },
+          );
+
+          if (intentId) {
+            await this.paymentIntentsService.markAsSuccessful(intentId, transaction.data);
+          }
+        } else {
+          // Fallback for old payments without intent
+          order = await this.orderModel.create({
+            paymentReference: reference,
+            paymentDate: paidAt,
+            isPaid: true,
+            totalAmount: amount / 100,
+            products,
+            shippingAddress,
+            shippingContactEmail,
+            shippingContactName,
+            shippingContactPhone,
+            user: id,
+          });
+        }
       }
 
       return {
@@ -216,6 +285,7 @@ export class OrdersService {
     const currentPage = Number(page) || 1;
     const searchCriteria = {
       user: id,
+      // Include both paid and unpaid (intents) orders
       ...(searchBy
         ? {
             $or: [
@@ -228,7 +298,7 @@ export class OrdersService {
     };
 
     const orders = await this.orderModel
-      .find({ ...searchCriteria, isPaid: true })
+      .find(searchCriteria)
       .sort({ createdAt: -1 })
       .limit(perPage)
       .skip(perPage * (currentPage - 1));

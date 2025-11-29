@@ -7,6 +7,7 @@ import { User, UserSchema } from '../users/schema/users.schema';
 import { PaystackModule } from '../paystack/paystack.module';
 import { EmailModule } from '../email/email.module';
 import { PaypalModule } from '../paypal/paypal.module';
+import { PaymentIntentsModule } from '../payment-intents/payment-intents.module';
 
 @Module({
   imports: [
@@ -17,6 +18,7 @@ import { PaypalModule } from '../paypal/paypal.module';
     forwardRef(() => PaystackModule),
     EmailModule,
     PaypalModule,
+    forwardRef(() => PaymentIntentsModule),
   ],
   controllers: [DonationsController],
   providers: [DonationsService],

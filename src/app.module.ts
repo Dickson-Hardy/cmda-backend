@@ -25,6 +25,7 @@ import { OrdersModule } from './orders/orders.module';
 import { TrainingModule } from './training/training.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { PaypalModule } from './paypal/paypal.module';
+import { PaymentIntentsModule } from './payment-intents/payment-intents.module';
 
 @Module({
   imports: [
@@ -55,6 +56,7 @@ import { PaypalModule } from './paypal/paypal.module';
     TrainingModule,
     NotificationsModule,
     PaypalModule,
+    PaymentIntentsModule,
   ],
   controllers: [AppController],
   providers: [

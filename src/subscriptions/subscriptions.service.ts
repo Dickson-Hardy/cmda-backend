@@ -24,6 +24,11 @@ import { EmailService } from '../email/email.service';
 import { UserRole } from '../users/user.constant';
 import { PaypalService } from '../paypal/paypal.service';
 import { PipelineStage } from 'mongoose';
+import { PaymentIntentsService } from '../payment-intents/payment-intents.service';
+import {
+  PaymentIntentContext,
+  PaymentIntentProvider,
+} from '../payment-intents/payment-intent.schema';
 
 @Injectable()
 export class SubscriptionsService {
@@ -34,6 +39,7 @@ export class SubscriptionsService {
     private paypalService: PaypalService,
     private configService: ConfigService,
     private emailService: EmailService,
+    private paymentIntentsService: PaymentIntentsService,
   ) {}
 
   async init(id: string, subscriptionData?: any): Promise<ISuccessResponse> {
@@ -106,20 +112,60 @@ export class SubscriptionsService {
 
       transaction = await this.paypalService.createOrder(orderData);
     } else {
+      // STUDENT AND DOCTORS - Create payment intent
+      const intent = await this.paymentIntentsService.createIntent({
+        email: user.email,
+        userId: user._id.toString(),
+        amount,
+        currency: 'NGN',
+        provider: PaymentIntentProvider.PAYSTACK,
+        context: PaymentIntentContext.SUBSCRIPTION,
+        contextData: {
+          memId: user.membershipId,
+          frequency,
+        },
+      });
+
+      const expiryDate = new Date(new Date().setFullYear(new Date().getFullYear() + 1));
+
+      const subscription = await this.subscriptionModel.create({
+        reference: intent.intentCode,
+        amount,
+        expiryDate,
+        user: user._id,
+        currency: 'NGN',
+        source: 'PAYSTACK',
+        frequency,
+        isPaid: false,
+      });
+
+      await this.paymentIntentsService.linkContextEntity(intent.id, subscription._id.toString());
+
       transaction = await this.paystackService.initializeTransaction({
         amount: amount * 100,
         email: user.email,
         callback_url: this.configService.get('PAYMENT_SUCCESS_URL') + '?type=subscription',
         metadata: JSON.stringify({
           desc: 'SUBSCRIPTION',
+          intentId: intent.id,
           name: user.fullName,
           memId: user.membershipId,
           currency: 'NGN',
+          subscriptionId: subscription._id.toString(),
         }),
       });
       if (!transaction.status) {
         throw new Error(transaction.message);
       }
+
+      await this.paymentIntentsService.attachCheckoutData(
+        intent.id,
+        transaction.data.authorization_url,
+      );
+      await this.paymentIntentsService.updateProviderReference(
+        intent.id,
+        transaction.data.reference,
+      );
     }
     return {
       success: true,
@@ -182,6 +228,7 @@ export class SubscriptionsService {
         isLifetime: isLifetime || false,
         lifetimeType,
         isVisionPartner: selectedTab === 'donations',
+        isPaid: true,
       });
 
       // Update user fields for Global Network members
@@ -216,20 +263,35 @@ export class SubscriptionsService {
 
       const {
         amount,
-        metadata: { memId, currency },
+        metadata: { memId, currency, subscriptionId, intentId },
       } = transaction.data;
 
       user = await this.userModel.findOne({ membershipId: memId });
       expiryDate = new Date(new Date().setFullYear(new Date().getFullYear() + 1));
 
-      subscription = await this.subscriptionModel.create({
-        reference,
-        amount: amount / 100,
-        expiryDate,
-        user: user._id,
-        currency,
-        source: 'PAYSTACK',
-      });
+      // Update existing intent if it exists, otherwise create new
+      if (subscriptionId) {
+        subscription = await this.subscriptionModel.findByIdAndUpdate(
+          subscriptionId,
+          { reference, isPaid: true },
+          { new: true },
+        );
+
+        if (intentId) {
+          await this.paymentIntentsService.markAsSuccessful(intentId, transaction.data);
+        }
+      } else {
+        // Fallback for old payments without intent
+        subscription = await this.subscriptionModel.create({
+          reference,
+          amount: amount / 100,
+          expiryDate,
+          user: user._id,
+          currency,
+          source: 'PAYSTACK',
+          isPaid: true,
+        });
+      }
 
       user = await this.userModel.findByIdAndUpdate(
         user._id,
@@ -425,6 +487,7 @@ export class SubscriptionsService {
     const currentPage = Number(page) || 1;
     const searchCriteria = {
       user: id,
+      // Include both paid and unpaid (intents) subscriptions
       ...(searchBy
         ? {
             $or: [{ reference: new RegExp(searchBy, 'i') }, { amount: new RegExp(searchBy, 'i') }],

@@ -1,7 +1,7 @@
 export const SUBSCRIPTION_PRICES = {
   Student: 1000,
-  Doctor: 5000,
-  DoctorSenior: 10000,
+  Doctor: 10000,
+  DoctorSenior: 20000,
   GlobalNetwork: 100,
 };
 

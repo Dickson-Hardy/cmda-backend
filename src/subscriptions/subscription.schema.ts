@@ -10,6 +10,9 @@ export class Subscription extends Document {
   @Prop()
   reference: string;
 
+  @Prop({ default: false })
+  isPaid: boolean;
+
   @Prop({ default: 'Annually ' })
   frequency?: string;
 
