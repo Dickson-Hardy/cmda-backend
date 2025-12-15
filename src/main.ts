@@ -69,7 +69,7 @@ async function bootstrap() {
   // Use PORT from environment (Digital Ocean sets this) or default to 3000
   const port = process.env.PORT || 3000;
   await app.listen(port, '0.0.0.0');
-  
+
   console.log(`Application is running on: http://localhost:${port}`);
   console.log(`Swagger documentation is available at: http://localhost:${port}/apidocs`);
 }
