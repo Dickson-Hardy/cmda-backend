@@ -15,6 +15,7 @@ import { PaystackService } from '../paystack/paystack.service';
 import { BulkEmailService } from './bulk-email.service';
 import { SendBulkEmailDto } from './dto/send-bulk-email.dto';
 import { GetEmailLogsDto } from './dto/get-email-logs.dto';
+import { CreateMemberByAdminDto } from './dto/create-member-by-admin.dto';
 
 @ApiTags('Admin')
 @Controller('admin')
@@ -157,5 +158,38 @@ export class AdminController {
   @ApiOperation({ summary: 'Get email queue status' })
   getQueueStatus() {
     return this.bulkEmailService.getQueueStatus();
+  }
+
+  @Post('members/create')
+  @Roles([AdminRole.SUPERADMIN, AdminRole.MEMBER_MANAGER])
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Create a new member with temporary password' })
+  @ApiBody({ type: CreateMemberByAdminDto })
+  createMember(@Body() createMemberDto: CreateMemberByAdminDto) {
+    return this.adminService.createMemberByAdmin(createMemberDto);
+  }
+
+  @Get('members/analytics')
+  @Roles(AllAdminRoles)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get analytics for admin-created members' })
+  getMemberAnalytics() {
+    return this.adminService.getMemberAnalytics();
+  }
+
+  @Get('members/track-email/:userId')
+  @ApiOperation({ summary: 'Track email open for member credential email' })
+  trackEmailOpen(@Param('userId') userId: string) {
+    return this.adminService.trackEmailOpen(userId);
+  }
+
+  @Post('members/send-reminders')
+  @Roles([AdminRole.SUPERADMIN, AdminRole.MEMBER_MANAGER])
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: "Send password change reminder emails to members who haven't changed password",
+  })
+  sendPasswordChangeReminders() {
+    return this.adminService.sendPasswordChangeReminders();
   }
 }

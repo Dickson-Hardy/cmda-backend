@@ -7,8 +7,10 @@ import { FollowUp } from './schemas/follow-up.schema';
 import { Ticket } from './schemas/ticket.schema';
 import { EmailTemplate } from './schemas/email-template.schema';
 import { Task } from './schemas/task.schema';
+import { ModerationLog } from './schemas/moderation-log.schema';
+import { Announcement } from './schemas/announcement.schema';
 import { User } from '../users/schema/users.schema';
-import { UserService } from '../users/users.service';
+import { UsersService } from '../users/users.service';
 import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 import { EmailService } from '../email/email.service';
 
@@ -21,8 +23,10 @@ export class MemberManagerService {
     @InjectModel(Ticket.name) private ticketModel: Model<Ticket>,
     @InjectModel(EmailTemplate.name) private emailTemplateModel: Model<EmailTemplate>,
     @InjectModel(Task.name) private taskModel: Model<Task>,
+    @InjectModel(ModerationLog.name) private moderationLogModel: Model<ModerationLog>,
+    @InjectModel(Announcement.name) private announcementModel: Model<Announcement>,
     @InjectModel(User.name) private userModel: Model<User>,
-    private readonly userService: UserService,
+    private readonly userService: UsersService,
     private readonly subscriptionsService: SubscriptionsService,
     private readonly emailService: EmailService,
   ) {}
@@ -30,7 +34,6 @@ export class MemberManagerService {
   // Members
   async getAllMembers(query: any) {
     const { page = 1, limit = 20, searchBy = '', role = '', region = '', subscribed = '' } = query;
-    const skip = (page - 1) * limit;
 
     const filter: any = {};
     if (searchBy) {
@@ -44,16 +47,18 @@ export class MemberManagerService {
     if (region) filter.region = region;
     if (subscribed !== '') filter.subscribed = subscribed === 'true';
 
-    const [items, totalItems] = await Promise.all([
-      this.userService.findAll(filter, { skip, limit }),
-      this.userService.count(filter),
-    ]);
+    const result = await this.userService.findAll({
+      ...filter,
+      limit: String(limit),
+      page: String(page),
+    });
+    const totalItems = await this.userModel.countDocuments(filter);
 
     return {
       success: true,
       message: 'Members retrieved successfully',
       data: {
-        items,
+        items: (result.data as any).items,
         meta: {
           totalItems,
           totalPages: Math.ceil(totalItems / limit),
@@ -65,7 +70,7 @@ export class MemberManagerService {
   }
 
   async getMemberById(id: string) {
-    const member = await this.userService.findById(id);
+    const member = await this.userModel.findById(id);
     if (!member) {
       throw new NotFoundException('Member not found');
     }
@@ -101,10 +106,10 @@ export class MemberManagerService {
   async getMemberStats() {
     const [totalMembers, activeSubscribers, inactiveSubscribers, lifetimeMembers] =
       await Promise.all([
-        this.userService.count({}),
-        this.userService.count({ subscribed: true, hasLifetimeMembership: false }),
-        this.userService.count({ subscribed: false }),
-        this.userService.count({ hasLifetimeMembership: true }),
+        this.userModel.countDocuments({}),
+        this.userModel.countDocuments({ subscribed: true, hasLifetimeMembership: false }),
+        this.userModel.countDocuments({ subscribed: false }),
+        this.userModel.countDocuments({ hasLifetimeMembership: true }),
       ]);
 
     return {
@@ -425,8 +430,9 @@ export class MemberManagerService {
   }
 
   // Subscriptions
-  async activateSubscription(userId: string, subDate: string) {
-    return this.subscriptionsService.activateUserSubscription(userId, subDate);
+  async activateSubscription() {
+    // TODO: Implement subscription activation
+    throw new Error('Method not implemented: activateUserSubscription');
   }
 
   async activateLifetimeMembership(userId: string, body: any) {
@@ -520,19 +526,19 @@ export class MemberManagerService {
 
     // Get recipients based on filters or specific IDs
     if (body.sendToAll) {
-      const result = await this.userService.findAll({ limit: 10000, page: 1 });
-      recipients = result.data.items;
+      const result = await this.userService.findAll({ limit: '10000', page: '1' });
+      recipients = (result.data as any).items;
     } else if (body.recipientIds && body.recipientIds.length > 0) {
       // Find users by IDs
       recipients = await this.userModel.find({ _id: { $in: body.recipientIds } }).lean();
     } else {
       // Build filter based on provided criteria
-      const query: any = { limit: 10000, page: 1 };
+      const query: any = { limit: '10000', page: '1' };
       if (body.role) query.role = body.role;
       if (body.region) query.region = body.region;
 
       const result = await this.userService.findAll(query);
-      recipients = result.data.items;
+      recipients = (result.data as any).items;
 
       // Additional filtering for subscription status
       if (body.isSubscribed !== undefined) {
@@ -907,7 +913,7 @@ export class MemberManagerService {
     if (region) queryObj.region = region;
 
     const result = await this.userService.findAll(queryObj);
-    let members = result.data.items;
+    let members = (result.data as any).items;
 
     // Additional filtering
     if (subscribed !== '') {
@@ -936,6 +942,390 @@ export class MemberManagerService {
       success: true,
       data: csvData,
       count: csvData.length,
+    };
+  }
+
+  // Manual Member Creation
+  async createMemberManually(body: any, createdBy: string) {
+    const result = await this.userService.createMember(body);
+    const newMember = result.data as any;
+
+    // Log the creation
+    await this.communicationLogModel.create({
+      memberId: newMember._id,
+      managerId: createdBy,
+      type: 'manual_creation',
+      subject: 'Member Manually Created',
+      content: 'Member account was manually created by member manager',
+      status: 'sent',
+    });
+
+    return {
+      success: true,
+      message: 'Member created successfully',
+      data: newMember,
+    };
+  }
+
+  // Ban/Deactivate Member
+  async banMember(memberId: string, body: any, bannedBy: string) {
+    const member = await this.userModel.findByIdAndUpdate(
+      memberId,
+      {
+        isBanned: body.isBanned,
+        bannedReason: body.reason,
+        bannedBy: bannedBy,
+        bannedAt: body.isBanned ? new Date() : null,
+        isActive: !body.isBanned,
+      },
+      { new: true },
+    );
+
+    if (!member) {
+      throw new NotFoundException('Member not found');
+    }
+
+    // Log the action
+    await this.communicationLogModel.create({
+      memberId,
+      managerId: bannedBy,
+      type: 'moderation',
+      subject: body.isBanned ? 'Member Banned' : 'Member Unbanned',
+      content: body.reason,
+      status: 'sent',
+    });
+
+    // Send email notification to member
+    if (body.isBanned) {
+      await this.emailService.sendEmail({
+        to: member.email,
+        subject: 'Account Status Update',
+        html: `
+          <p>Dear ${member.fullName},</p>
+          <p>Your account has been temporarily suspended.</p>
+          <p><strong>Reason:</strong> ${body.reason}</p>
+          <p>If you believe this is an error, please contact support.</p>
+        `,
+      });
+    }
+
+    return {
+      success: true,
+      message: body.isBanned ? 'Member banned successfully' : 'Member unbanned successfully',
+      data: member,
+    };
+  }
+
+  async deactivateMember(memberId: string, body: any) {
+    const member = await this.userModel.findByIdAndUpdate(
+      memberId,
+      {
+        isActive: body.isActive,
+      },
+      { new: true },
+    );
+
+    if (!member) {
+      throw new NotFoundException('Member not found');
+    }
+
+    return {
+      success: true,
+      message: body.isActive ? 'Member activated successfully' : 'Member deactivated successfully',
+      data: member,
+    };
+  }
+
+  // Member Verification
+  async verifyMember(memberId: string, body: any, verifiedBy: string) {
+    const member = await this.userModel.findByIdAndUpdate(
+      memberId,
+      {
+        isVerified: body.isVerified,
+        verificationDate: body.isVerified ? new Date() : null,
+        verifiedBy: body.isVerified ? verifiedBy : null,
+      },
+      { new: true },
+    );
+
+    if (!member) {
+      throw new NotFoundException('Member not found');
+    }
+
+    // Log verification
+    await this.communicationLogModel.create({
+      memberId,
+      managerId: verifiedBy,
+      type: 'verification',
+      subject: body.isVerified ? 'Member Verified' : 'Verification Revoked',
+      content: body.notes || 'Member verification status updated',
+      status: 'sent',
+    });
+
+    // Send welcome email if verified
+    if (body.isVerified) {
+      // Send email with instructions to update profile and download materials
+      await this.emailService.sendEmail({
+        to: member.email,
+        subject: 'Welcome to CMDA - Complete Your Profile',
+        html: `
+          <p>Dear ${member.fullName},</p>
+          <p>Congratulations! Your membership has been verified.</p>
+          <p>Please complete the following steps:</p>
+          <ol>
+            <li>Update your profile with complete information</li>
+            <li>Download welcome materials from the member portal</li>
+            <li>Connect with your chapter leaders</li>
+          </ol>
+          <p>Welcome to the CMDA family!</p>
+        `,
+      });
+    }
+
+    return {
+      success: true,
+      message: body.isVerified ? 'Member verified successfully' : 'Verification revoked',
+      data: member,
+    };
+  }
+
+  async getPendingVerifications(query: any) {
+    const { page = 1, limit = 20 } = query;
+    const skip = (page - 1) * limit;
+
+    const filter = { isVerified: false, emailVerified: true };
+
+    const [items, totalItems] = await Promise.all([
+      this.userModel
+        .find(filter)
+        .select('fullName email phone role region referee refereeEmail createdAt')
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit),
+      this.userModel.countDocuments(filter),
+    ]);
+
+    return {
+      success: true,
+      data: {
+        items,
+        meta: {
+          totalItems,
+          totalPages: Math.ceil(totalItems / limit),
+          currentPage: page,
+          perPage: limit,
+        },
+      },
+    };
+  }
+
+  // Content Moderation - Placeholder methods that will interact with content modules
+  async getReportedContent(_query: any) {
+    // This would need implementation based on reporting system
+    return {
+      success: true,
+      data: {
+        items: [],
+        meta: { totalItems: 0 },
+      },
+    };
+  }
+
+  async moderateContent(body: any, moderatedBy: string) {
+    const moderationLog = await this.moderationLogModel.create({
+      ...body,
+      moderatedBy,
+    });
+
+    // Perform the actual moderation action on the content
+    // This would require implementing hide/remove logic in respective modules
+
+    return {
+      success: true,
+      message: 'Content moderated successfully',
+      data: moderationLog,
+    };
+  }
+
+  async getModerationLogs(query: any) {
+    const { page = 1, limit = 20, contentType = '' } = query;
+    const skip = (page - 1) * limit;
+
+    const filter: any = {};
+    if (contentType) filter.contentType = contentType;
+
+    const [items, totalItems] = await Promise.all([
+      this.moderationLogModel
+        .find(filter)
+        .populate('moderatedBy', 'fullName email')
+        .populate('contentOwnerId', 'fullName email')
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit),
+      this.moderationLogModel.countDocuments(filter),
+    ]);
+
+    return {
+      success: true,
+      data: {
+        items,
+        meta: {
+          totalItems,
+          totalPages: Math.ceil(totalItems / limit),
+          currentPage: page,
+          perPage: limit,
+        },
+      },
+    };
+  }
+
+  // Announcements/Pop-ups
+  async getAllAnnouncements(query: any) {
+    const { page = 1, limit = 20, isActive = '' } = query;
+    const skip = (page - 1) * limit;
+
+    const filter: any = {};
+    if (isActive !== '') filter.isActive = isActive === 'true';
+
+    const [items, totalItems] = await Promise.all([
+      this.announcementModel
+        .find(filter)
+        .populate('createdBy', 'fullName email')
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit),
+      this.announcementModel.countDocuments(filter),
+    ]);
+
+    return {
+      success: true,
+      data: {
+        items,
+        meta: {
+          totalItems,
+          totalPages: Math.ceil(totalItems / limit),
+          currentPage: page,
+          perPage: limit,
+        },
+      },
+    };
+  }
+
+  async getAnnouncementById(id: string) {
+    const announcement = await this.announcementModel
+      .findById(id)
+      .populate('createdBy', 'fullName email');
+
+    if (!announcement) {
+      throw new NotFoundException('Announcement not found');
+    }
+
+    return {
+      success: true,
+      data: announcement,
+    };
+  }
+
+  async createAnnouncement(body: any, createdBy: string) {
+    const announcement = await this.announcementModel.create({
+      ...body,
+      createdBy,
+    });
+
+    await announcement.populate('createdBy', 'fullName email');
+
+    return {
+      success: true,
+      message: 'Announcement created successfully',
+      data: announcement,
+    };
+  }
+
+  async updateAnnouncement(id: string, body: any) {
+    const announcement = await this.announcementModel
+      .findByIdAndUpdate(id, body, { new: true })
+      .populate('createdBy', 'fullName email');
+
+    if (!announcement) {
+      throw new NotFoundException('Announcement not found');
+    }
+
+    return {
+      success: true,
+      message: 'Announcement updated successfully',
+      data: announcement,
+    };
+  }
+
+  async deleteAnnouncement(id: string) {
+    const announcement = await this.announcementModel.findByIdAndDelete(id);
+
+    if (!announcement) {
+      throw new NotFoundException('Announcement not found');
+    }
+
+    return {
+      success: true,
+      message: 'Announcement deleted successfully',
+    };
+  }
+
+  // Financial Reports - Comprehensive transaction history
+  async getFinancialReports(query: any) {
+    const { page = 1, limit = 20, startDate = '', endDate = '' } = query;
+
+    const dateFilter: any = {};
+
+    if (startDate) dateFilter.$gte = new Date(startDate);
+    if (endDate) dateFilter.$lte = new Date(endDate);
+
+    // This would aggregate data from subscriptions, donations, events, orders
+    // For now, returning subscriptions as example
+    const subscriptions = await this.subscriptionsService.findAll({
+      page,
+      limit,
+      ...(Object.keys(dateFilter).length && { createdAt: dateFilter }),
+    });
+
+    return {
+      success: true,
+      data: subscriptions,
+    };
+  }
+
+  async exportFinancialData(query: any) {
+    // Aggregate financial data from all sources
+    const reports = await this.getFinancialReports({ ...query, limit: 10000 });
+
+    const csvData = Array.isArray(reports.data)
+      ? reports.data.map((item: any) => ({
+          Date: new Date(item.createdAt).toLocaleDateString(),
+          'Member ID': item.user?.membershipId || '',
+          'Member Name': item.user?.fullName || '',
+          Type: item.type || 'Subscription',
+          Amount: item.amount || 0,
+          Status: item.status || 'completed',
+          Reference: item.reference || '',
+        }))
+      : [];
+
+    return {
+      success: true,
+      data: csvData,
+      count: csvData.length,
+    };
+  }
+
+  // Member Communications (Private Messages)
+  async getMemberChats() {
+    // This would integrate with ChatsModule
+    // Placeholder implementation
+    return {
+      success: true,
+      data: {
+        items: [],
+        meta: { totalItems: 0 },
+      },
     };
   }
 }

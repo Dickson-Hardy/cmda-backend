@@ -132,12 +132,29 @@ export const MEMBER_CREDENTIALS_TEMPLATE = `
                 Email: [Email]<br /> <br />
                 Password: [Password]
             </p>
-            <p style="color: #666666; font-size: 16px; line-height: 1.5; margin: 20px 0">
-                Please log in and change your password immediately.
+            <div style="text-align: center; margin: 30px 0">
+                <a
+                href="https://cmdanigeria.net/login"
+                style="
+                    display: inline-block;
+                    background-color: #994279;
+                    color: #ffffff;
+                    padding: 14px 32px;
+                    text-decoration: none;
+                    border-radius: 5px;
+                    font-size: 16px;
+                    font-weight: bold;
+                "
+                >
+                Log In to Your Account
+                </a>
+            </div>
+            <p style="color: #ff6b6b; font-size: 16px; line-height: 1.5; margin: 20px 0; font-weight: bold;">
+                ⚠️ You will be prompted to change your password upon first login for security reasons.
             </p>
             <p style="color: #666666; font-size: 16px; line-height: 1.5; margin: 20px 0">
                 If you have any questions or are having trouble with the platform, feel free to
-                <a href="mailto:support@cmdanigeria.net" style="color: #994279">contact us</a>.
+                <a href="mailto:office@cmdanigeria.org" style="color: #994279; text-decoration: none">contact us</a>.
             </p>
             <p style="color: #666666; font-size: 16px; line-height: 1.5; margin: 40px 0 0 0">
                 Best regards,<br />
@@ -153,10 +170,10 @@ export const MEMBER_CREDENTIALS_TEMPLATE = `
                 &copy; 2024 CMDA Nigeria. All rights reserved.
             </p>
             <p style="color: #666666; font-size: 14px; margin: 4px 0">
-                3 Negroe Crescent, Maitama, Abuja, FCT, Nigeria.
+                Wholeness House Gwagwalada, FCT, Nigeria.
             </p>
             <p style="color: #666666; font-size: 14px; margin: 0">
-                <a href="#" style="color: #994279">Unsubscribe</a>
+                <a href="#" style="color: #994279; text-decoration: none">Unsubscribe</a>
             </p>
             </td>
         </tr>

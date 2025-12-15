@@ -8,16 +8,17 @@ import {
   Param,
   Query,
   UseGuards,
+  Req,
 } from '@nestjs/common';
 import { MemberManagerService } from './member-manager.service';
-import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { RolesGuard } from '../auth/roles.guard';
-import { Roles } from '../auth/roles.decorator';
-import { CurrentUser } from '../auth/current-user.decorator';
+import { AuthGuard } from '../auth/guards/auth.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
+import { Roles } from '../auth/decorators/roles.decorator';
+import { UserRole } from '../users/user.constant';
 
 @Controller('member-manager')
-@UseGuards(JwtAuthGuard, RolesGuard)
-@Roles('MemberManager', 'Admin')
+@UseGuards(AuthGuard, RolesGuard)
+@Roles([UserRole.MEMBERMANAGER, UserRole.ADMIN])
 export class MemberManagerController {
   constructor(private readonly memberManagerService: MemberManagerService) {}
 
@@ -49,12 +50,8 @@ export class MemberManagerController {
   }
 
   @Post('notes/:memberId')
-  async createNote(
-    @Param('memberId') memberId: string,
-    @Body() body: any,
-    @CurrentUser() user: any,
-  ) {
-    return this.memberManagerService.createNote(memberId, body, user._id);
+  async createNote(@Param('memberId') memberId: string, @Body() body: any, @Req() req: any) {
+    return this.memberManagerService.createNote(memberId, body, req.user._id);
   }
 
   @Patch('notes/:noteId')
@@ -79,8 +76,8 @@ export class MemberManagerController {
   }
 
   @Post('communications')
-  async logCommunication(@Body() body: any, @CurrentUser() user: any) {
-    return this.memberManagerService.logCommunication(body, user._id);
+  async logCommunication(@Body() body: any, @Req() req: any) {
+    return this.memberManagerService.logCommunication(body, req.user._id);
   }
 
   // Follow-ups
@@ -95,8 +92,8 @@ export class MemberManagerController {
   }
 
   @Post('follow-ups')
-  async createFollowUp(@Body() body: any, @CurrentUser() user: any) {
-    return this.memberManagerService.createFollowUp(body, user._id);
+  async createFollowUp(@Body() body: any, @Req() req: any) {
+    return this.memberManagerService.createFollowUp(body, req.user._id);
   }
 
   @Patch('follow-ups/:id')
@@ -121,8 +118,8 @@ export class MemberManagerController {
   }
 
   @Post('tickets')
-  async createTicket(@Body() body: any, @CurrentUser() user: any) {
-    return this.memberManagerService.createTicket(body, user._id);
+  async createTicket(@Body() body: any, @Req() req: any) {
+    return this.memberManagerService.createTicket(body, req.user._id);
   }
 
   @Patch('tickets/:id')
@@ -131,18 +128,14 @@ export class MemberManagerController {
   }
 
   @Post('tickets/:ticketId/comments')
-  async addTicketComment(
-    @Param('ticketId') ticketId: string,
-    @Body() body: any,
-    @CurrentUser() user: any,
-  ) {
-    return this.memberManagerService.addTicketComment(ticketId, body, user._id);
+  async addTicketComment(@Param('ticketId') ticketId: string, @Body() body: any, @Req() req: any) {
+    return this.memberManagerService.addTicketComment(ticketId, body, req.user._id);
   }
 
   // Subscriptions
   @Post('subscriptions/activate/:userId/:subDate')
-  async activateSubscription(@Param('userId') userId: string, @Param('subDate') subDate: string) {
-    return this.memberManagerService.activateSubscription(userId, subDate);
+  async activateSubscription(@Param('userId') _userId: string, @Param('subDate') _subDate: string) {
+    return this.memberManagerService.activateSubscription();
   }
 
   @Post('subscriptions/activate-lifetime/:userId')
@@ -162,13 +155,13 @@ export class MemberManagerController {
   }
 
   @Post('email-templates')
-  async createEmailTemplate(@Body() body: any, @CurrentUser() user: any) {
-    return this.memberManagerService.createEmailTemplate(body, user._id);
+  async createEmailTemplate(@Body() body: any, @Req() req: any) {
+    return this.memberManagerService.createEmailTemplate(body, req.user._id);
   }
 
   @Patch('email-templates/:id')
-  async updateEmailTemplate(@Param('id') id: string, @Body() body: any, @CurrentUser() user: any) {
-    return this.memberManagerService.updateEmailTemplate(id, body, user._id);
+  async updateEmailTemplate(@Param('id') id: string, @Body() body: any, @Req() req: any) {
+    return this.memberManagerService.updateEmailTemplate(id, body, req.user._id);
   }
 
   @Delete('email-templates/:id')
@@ -178,8 +171,8 @@ export class MemberManagerController {
 
   // Bulk Email
   @Post('bulk-email')
-  async sendBulkEmail(@Body() body: any, @CurrentUser() user: any) {
-    return this.memberManagerService.sendBulkEmail(body, user._id);
+  async sendBulkEmail(@Body() body: any, @Req() req: any) {
+    return this.memberManagerService.sendBulkEmail(body, req.user._id);
   }
 
   // Tasks
@@ -199,8 +192,8 @@ export class MemberManagerController {
   }
 
   @Post('tasks')
-  async createTask(@Body() body: any, @CurrentUser() user: any) {
-    return this.memberManagerService.createTask(body, user._id);
+  async createTask(@Body() body: any, @Req() req: any) {
+    return this.memberManagerService.createTask(body, req.user._id);
   }
 
   @Patch('tasks/:id')
@@ -233,5 +226,92 @@ export class MemberManagerController {
   @Get('export/members/csv')
   async exportMembersToCSV(@Query() query: any) {
     return this.memberManagerService.exportMembersToCSV(query);
+  }
+
+  // Manual Member Creation
+  @Post('members/create')
+  async createMemberManually(@Body() body: any, @Req() req: any) {
+    return this.memberManagerService.createMemberManually(body, req.user._id);
+  }
+
+  // Ban/Deactivate Member
+  @Patch('members/:memberId/ban')
+  async banMember(@Param('memberId') memberId: string, @Body() body: any, @Req() req: any) {
+    return this.memberManagerService.banMember(memberId, body, req.user._id);
+  }
+
+  @Patch('members/:memberId/deactivate')
+  async deactivateMember(@Param('memberId') memberId: string, @Body() body: any) {
+    return this.memberManagerService.deactivateMember(memberId, body);
+  }
+
+  // Member Verification
+  @Patch('members/:memberId/verify')
+  async verifyMember(@Param('memberId') memberId: string, @Body() body: any, @Req() req: any) {
+    return this.memberManagerService.verifyMember(memberId, body, req.user._id);
+  }
+
+  @Get('members/pending-verification')
+  async getPendingVerifications(@Query() query: any) {
+    return this.memberManagerService.getPendingVerifications(query);
+  }
+
+  // Content Moderation
+  @Get('moderation/reported-content')
+  async getReportedContent(@Query() query: any) {
+    return this.memberManagerService.getReportedContent(query);
+  }
+
+  @Post('moderation/moderate')
+  async moderateContent(@Body() body: any, @Req() req: any) {
+    return this.memberManagerService.moderateContent(body, req.user._id);
+  }
+
+  @Get('moderation/logs')
+  async getModerationLogs(@Query() query: any) {
+    return this.memberManagerService.getModerationLogs(query);
+  }
+
+  // Announcements/Pop-ups
+  @Get('announcements')
+  async getAllAnnouncements(@Query() query: any) {
+    return this.memberManagerService.getAllAnnouncements(query);
+  }
+
+  @Get('announcements/:id')
+  async getAnnouncementById(@Param('id') id: string) {
+    return this.memberManagerService.getAnnouncementById(id);
+  }
+
+  @Post('announcements')
+  async createAnnouncement(@Body() body: any, @Req() req: any) {
+    return this.memberManagerService.createAnnouncement(body, req.user._id);
+  }
+
+  @Patch('announcements/:id')
+  async updateAnnouncement(@Param('id') id: string, @Body() body: any) {
+    return this.memberManagerService.updateAnnouncement(id, body);
+  }
+
+  @Delete('announcements/:id')
+  async deleteAnnouncement(@Param('id') id: string) {
+    return this.memberManagerService.deleteAnnouncement(id);
+  }
+
+  // Financial Reports
+  @Get('reports/financial')
+  async getFinancialReports(@Query() query: any) {
+    return this.memberManagerService.getFinancialReports(query);
+  }
+
+  @Get('export/financial/csv')
+  async exportFinancialData(@Query() query: any) {
+    return this.memberManagerService.exportFinancialData(query);
+  }
+
+  // Member Communications
+  @Get('communications/chats/:memberId')
+  async getMemberChats(@Param('memberId') _memberId: string, @Query() _query: any) {
+    return this.memberManagerService.getMemberChats();
   }
 }

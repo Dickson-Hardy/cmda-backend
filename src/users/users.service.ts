@@ -358,12 +358,6 @@ export class UsersService {
       const pass = randomUUID();
       const password = 'Cmda24@' + pass;
 
-      await this.emailService.sendMemberCredentialsEmail({
-        name: createUserDto.firstName,
-        email,
-        password,
-      });
-
       // hash password
       const hashedPassword = await bcrypt.hash(password, 10);
       // create user based on role && ignore non-related fields
@@ -376,6 +370,13 @@ export class UsersService {
         ...(role === UserRole.STUDENT
           ? { admissionYear, yearOfStudy }
           : { licenseNumber, specialty, yearsOfExperience }),
+      });
+
+      await this.emailService.sendMemberCredentialsEmail({
+        name: createUserDto.firstName,
+        email,
+        password,
+        userId: user._id.toString(),
       });
 
       return {

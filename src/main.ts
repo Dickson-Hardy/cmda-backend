@@ -65,7 +65,12 @@ async function bootstrap() {
     ],
     customfavIcon: 'https://cdn.jsdelivr.net/npm/swagger-ui-dist@5.0.0/favicon-32x32.png',
   });
-  //
-  await app.listen(3000);
+
+  // Use PORT from environment (Digital Ocean sets this) or default to 3000
+  const port = process.env.PORT || 3000;
+  await app.listen(port, '0.0.0.0');
+  
+  console.log(`Application is running on: http://localhost:${port}`);
+  console.log(`Swagger documentation is available at: http://localhost:${port}/apidocs`);
 }
 bootstrap();

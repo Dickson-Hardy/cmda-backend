@@ -8,10 +8,18 @@ import { FollowUp, FollowUpSchema } from './schemas/follow-up.schema';
 import { Ticket, TicketSchema } from './schemas/ticket.schema';
 import { EmailTemplate, EmailTemplateSchema } from './schemas/email-template.schema';
 import { Task, TaskSchema } from './schemas/task.schema';
+import { ModerationLog, ModerationLogSchema } from './schemas/moderation-log.schema';
+import { Announcement, AnnouncementSchema } from './schemas/announcement.schema';
 import { User, UserSchema } from '../users/schema/users.schema';
 import { UsersModule } from '../users/users.module';
 import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 import { EmailModule } from '../email/email.module';
+import { ChatsModule } from '../chats/chats.module';
+import { DevotionalsModule } from '../devotionals/devotionals.module';
+import { ResourcesModule } from '../resources/resources.module';
+import { DonationsModule } from '../donations/donations.module';
+import { OrdersModule } from '../orders/orders.module';
+import { AuthModule } from '../auth/auth.module';
 
 @Module({
   imports: [
@@ -22,11 +30,19 @@ import { EmailModule } from '../email/email.module';
       { name: Ticket.name, schema: TicketSchema },
       { name: EmailTemplate.name, schema: EmailTemplateSchema },
       { name: Task.name, schema: TaskSchema },
+      { name: ModerationLog.name, schema: ModerationLogSchema },
+      { name: Announcement.name, schema: AnnouncementSchema },
       { name: User.name, schema: UserSchema },
     ]),
+    AuthModule,
     UsersModule,
     SubscriptionsModule,
     EmailModule,
+    ChatsModule,
+    DevotionalsModule,
+    ResourcesModule,
+    DonationsModule,
+    OrdersModule,
   ],
   controllers: [MemberManagerController],
   providers: [MemberManagerService],

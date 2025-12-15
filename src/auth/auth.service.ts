@@ -126,11 +126,11 @@ export class AuthService {
     if (!isPasswordMatched) throw new UnauthorizedException('Invalid email or password');
     // generate access token
     const accessToken = this.jwtService.sign({ id: user._id, email, role: user.role });
-    // return response
+    // return response with requirePasswordChange flag
     return {
       success: true,
       message: 'Login successful',
-      data: { user, accessToken },
+      data: { user, accessToken, requirePasswordChange: user.requirePasswordChange || false },
     };
   }
 
@@ -331,7 +331,16 @@ export class AuthService {
       throw new BadRequestException('Old password is incorrect');
     }
     const hashedPassword = await bcrypt.hash(newPassword, 10);
-    await user.updateOne({ password: hashedPassword });
+    // Clear requirePasswordChange flag when user successfully changes password
+    const updateData: any = { password: hashedPassword, requirePasswordChange: false };
+
+    // Track initial password change for admin-created accounts
+    if (user.createdByAdmin && !user.initialPasswordChanged) {
+      updateData.initialPasswordChanged = true;
+      updateData.initialPasswordChangedAt = new Date();
+    }
+
+    await user.updateOne(updateData);
     return {
       success: true,
       message: 'Password changed successfully',

@@ -12,6 +12,7 @@ import { TRANSITION_SUCCESS_EMAIL_TEMPLATE } from './templates/transition-succes
 import { CONFERENCE_REGISTRATION_CONFIRMATION_TEMPLATE } from './templates/conference-registration.template';
 import { CONFERENCE_PAYMENT_CONFIRMATION_TEMPLATE } from './templates/conference-payment.template';
 import { CONFERENCE_UPDATE_NOTIFICATION_TEMPLATE } from './templates/conference-update.template';
+import { PASSWORD_CHANGE_REMINDER_TEMPLATE } from './templates/password-reminder.template';
 
 @Injectable()
 export class EmailService {
@@ -258,10 +259,21 @@ Email: office@cmdanigeria.org`;
     }
   }
 
-  async sendMemberCredentialsEmail({ name, email, password }): Promise<{ success: boolean }> {
+  async sendMemberCredentialsEmail({
+    name,
+    email,
+    password,
+    userId,
+  }): Promise<{ success: boolean }> {
+    // Add tracking pixel to email
+    const trackingPixel = userId
+      ? `<img src="https://api.cmdanigeria.net/api/admin/members/track-email/${userId}" width="1" height="1" alt="" style="display:none" />`
+      : '';
+
     const html = MEMBER_CREDENTIALS_TEMPLATE.replace('[Name]', name)
       .replace('[Email]', email)
-      .replace('[Password]', password);
+      .replace('[Password]', password)
+      .replace('</div>', `${trackingPixel}</div>`);
 
     // Try Resend first
     if (this.resendFallback.isAvailable()) {
@@ -587,6 +599,48 @@ Email: office@cmdanigeria.org`;
       return { success: true };
     } catch (error) {
       this.logger.error(`Failed to send email to ${to}: ${error.message}`);
+      return { success: false };
+    }
+  }
+
+  async sendPasswordChangeReminderEmail({
+    name,
+    email,
+    createdDate,
+  }): Promise<{ success: boolean }> {
+    const html = PASSWORD_CHANGE_REMINDER_TEMPLATE.replace('[Name]', name)
+      .replace('[Email]', email)
+      .replace('[CreatedDate]', createdDate);
+
+    // Try Resend first
+    if (this.resendFallback.isAvailable()) {
+      try {
+        const result = await this.resendFallback.sendEmail({
+          to: email,
+          subject: 'Reminder: Please Change Your Temporary Password',
+          html,
+        });
+
+        if (result.success) {
+          this.logger.log('Password change reminder email sent via Resend API');
+          return { success: true };
+        }
+      } catch (error) {
+        this.logger.warn(`Resend failed: ${error.message}. Trying SMTP fallback...`);
+      }
+    }
+
+    // Fallback to SMTP
+    try {
+      await this.mailerService.sendMail({
+        to: email,
+        subject: 'Reminder: Please Change Your Temporary Password',
+        html,
+      });
+      this.logger.log('Password change reminder email sent via SMTP fallback');
+      return { success: true };
+    } catch (error) {
+      this.logger.error('All email services failed for password change reminder email');
       return { success: false };
     }
   }

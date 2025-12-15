@@ -87,3 +87,38 @@ export enum TransitionStatus {
   COMPLETED = 'completed',
   FAILED = 'failed',
 }
+
+export enum MemberCategory {
+  NIGERIA_STUDENT = 'Nigeria Student',
+  NIGERIA_DOCTOR_0_5 = 'Nigeria Doctor (0-5 years)',
+  NIGERIA_DOCTOR_5_PLUS = 'Nigeria Doctor (5+ years)',
+  GLOBAL_AMERICAS = 'Global Americas',
+  GLOBAL_EUROPE = 'Global Europe',
+  GLOBAL_ASIA = 'Global Asia',
+  GLOBAL_AFRICA = 'Global Africa',
+  GLOBAL_OCEANIA = 'Global Oceania',
+  GLOBAL_MIDDLE_EAST = 'Global Middle East',
+}
+
+export const AllMemberCategories = [
+  MemberCategory.NIGERIA_STUDENT,
+  MemberCategory.NIGERIA_DOCTOR_0_5,
+  MemberCategory.NIGERIA_DOCTOR_5_PLUS,
+  MemberCategory.GLOBAL_AMERICAS,
+  MemberCategory.GLOBAL_EUROPE,
+  MemberCategory.GLOBAL_ASIA,
+  MemberCategory.GLOBAL_AFRICA,
+  MemberCategory.GLOBAL_OCEANIA,
+  MemberCategory.GLOBAL_MIDDLE_EAST,
+];
+
+export const isGlobalCategory = (category: MemberCategory): boolean => {
+  return [
+    MemberCategory.GLOBAL_AMERICAS,
+    MemberCategory.GLOBAL_EUROPE,
+    MemberCategory.GLOBAL_ASIA,
+    MemberCategory.GLOBAL_AFRICA,
+    MemberCategory.GLOBAL_OCEANIA,
+    MemberCategory.GLOBAL_MIDDLE_EAST,
+  ].includes(category);
+};

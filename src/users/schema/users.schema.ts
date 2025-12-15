@@ -66,8 +66,38 @@ export class User extends Document {
   @Prop()
   region: string;
 
+  @Prop({ default: false })
+  isGlobal: boolean;
+
+  @Prop()
+  memberCategory: string;
+
   @Prop()
   leadershipPosition: string;
+
+  @Prop({ default: false })
+  requirePasswordChange: boolean;
+
+  @Prop({ default: false })
+  credentialEmailOpened: boolean;
+
+  @Prop()
+  credentialEmailOpenedAt: Date;
+
+  @Prop({ default: false })
+  initialPasswordChanged: boolean;
+
+  @Prop()
+  initialPasswordChangedAt: Date;
+
+  @Prop({ default: false })
+  createdByAdmin: boolean;
+
+  @Prop()
+  createdByAdminId: string;
+
+  @Prop()
+  passwordChangeReminderSentAt: Date;
 
   @Prop()
   admissionYear: number; // student
@@ -123,6 +153,41 @@ export class User extends Document {
 
   @Prop()
   lifetimeMembershipExpiry?: Date;
+
+  // Account status and moderation fields
+  @Prop({ default: true })
+  isActive: boolean;
+
+  @Prop({ default: false })
+  isBanned: boolean;
+
+  @Prop()
+  bannedReason?: string;
+
+  @Prop()
+  bannedBy?: string; // User ID of admin who banned
+
+  @Prop()
+  bannedAt?: Date;
+
+  // Verification and referee fields
+  @Prop({ default: false })
+  isVerified: boolean;
+
+  @Prop()
+  verificationDate?: Date;
+
+  @Prop()
+  referee?: string; // Name of person who referred
+
+  @Prop()
+  refereeEmail?: string;
+
+  @Prop()
+  refereePhone?: string;
+
+  @Prop()
+  verifiedBy?: string; // User ID of member manager who verified
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);
