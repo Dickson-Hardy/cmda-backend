@@ -65,15 +65,15 @@ export class SubscriptionsService {
       if (subscriptionData.selectedTab === 'lifetime') {
         // Lifetime membership
         const validLifetimeTypes = ['gold', 'platinum', 'diamond'];
-        const selectedType = validLifetimeTypes.includes(subscriptionData.lifetimeType) 
-          ? subscriptionData.lifetimeType 
+        const selectedType = validLifetimeTypes.includes(subscriptionData.lifetimeType)
+          ? subscriptionData.lifetimeType
           : 'gold';
         const lifetimePlan = LIFETIME_MEMBERSHIPS[selectedType];
-        
+
         if (!lifetimePlan) {
           throw new BadRequestException('Invalid lifetime membership type');
         }
-        
+
         amount = lifetimePlan.price;
         isLifetime = true;
         lifetimeType = selectedType;
@@ -238,11 +238,11 @@ export class SubscriptionsService {
         const validLifetimeTypes = ['gold', 'platinum', 'diamond'];
         const selectedType = validLifetimeTypes.includes(lifetimeType) ? lifetimeType : 'gold';
         const lifetimePlan = LIFETIME_MEMBERSHIPS[selectedType];
-        
+
         if (!lifetimePlan) {
           throw new BadRequestException('Invalid lifetime membership type');
         }
-        
+
         expiryDate = new Date(
           new Date().setFullYear(new Date().getFullYear() + lifetimePlan.years),
         );
@@ -468,11 +468,11 @@ export class SubscriptionsService {
       const validLifetimeTypes = ['gold', 'platinum', 'diamond'];
       const selectedType = validLifetimeTypes.includes(lifetimeType) ? lifetimeType : 'gold';
       const lifetimePlan = LIFETIME_MEMBERSHIPS[selectedType];
-      
+
       if (!lifetimePlan) {
         throw new BadRequestException('Invalid lifetime membership type');
       }
-      
+
       amount = lifetimePlan.price;
       expiryDate = new Date(new Date().setFullYear(new Date().getFullYear() + lifetimePlan.years));
       currency = 'USD';

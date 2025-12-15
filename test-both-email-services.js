@@ -7,26 +7,26 @@ async function testBothServices() {
   // Show configuration
   console.log('📋 Configuration Status:');
   console.log('─────────────────────────────────────────────────');
-  
+
   // SMTP Configuration
   console.log('\n🔹 SMTP (Gmail):');
   console.log('  HOST:', process.env.EMAIL_HOST || '❌ Not set');
   console.log('  USER:', process.env.EMAIL_USER || '❌ Not set');
   console.log('  PASS:', process.env.EMAIL_PASS ? '✅ Set (hidden)' : '❌ Not set');
   console.log('  FROM:', process.env.EMAIL_FROM || '❌ Not set');
-  
+
   // Resend Configuration
   console.log('\n🔹 Resend API:');
   console.log('  API_KEY:', process.env.RESEND_API_KEY ? '✅ Set (hidden)' : '❌ Not set');
   console.log('  FROM:', process.env.RESEND_FROM_EMAIL || '❌ Not set');
-  
+
   console.log('\n═══════════════════════════════════════════════════');
   console.log('\n📧 Email Service Strategy:');
   console.log('─────────────────────────────────────────────────');
   console.log('  1️⃣  Try Resend first (faster, cloud-optimized)');
   console.log('  2️⃣  Fallback to SMTP if Resend fails');
   console.log('  3️⃣  Return error only if both fail');
-  
+
   console.log('\n═══════════════════════════════════════════════════');
   console.log('\n🎯 Password-Related Email Types Using Both Services:');
   console.log('─────────────────────────────────────────────────');
@@ -35,11 +35,11 @@ async function testBothServices() {
   console.log('  ✉️  Password Change Reminder');
   console.log('  ✉️  Member Credentials Email (new accounts)');
   console.log('  ✉️  Welcome Email (with verification)');
-  
+
   console.log('\n═══════════════════════════════════════════════════');
   console.log('\n🧪 Testing SMTP Connection...');
   console.log('─────────────────────────────────────────────────');
-  
+
   const nodemailer = require('nodemailer');
   const transporter = nodemailer.createTransport({
     host: process.env.EMAIL_HOST,
@@ -61,12 +61,12 @@ async function testBothServices() {
 
   console.log('\n🧪 Testing Resend API...');
   console.log('─────────────────────────────────────────────────');
-  
+
   if (process.env.RESEND_API_KEY) {
     try {
       const { Resend } = require('resend');
       const resend = new Resend(process.env.RESEND_API_KEY);
-      
+
       // Just check if the API key is valid by attempting to list domains
       // This won't send an email but will verify the connection
       console.log('✅ Resend API: CONFIGURED & READY');
@@ -81,9 +81,9 @@ async function testBothServices() {
   console.log('\n═══════════════════════════════════════════════════');
   console.log('\n📨 Sending Test Email via Both Services...');
   console.log('─────────────────────────────────────────────────');
-  
+
   const testEmail = 'dicksonhardy7@gmail.com';
-  
+
   // Test SMTP
   console.log('\n1️⃣  Testing SMTP (Gmail)...');
   try {
@@ -125,7 +125,7 @@ async function testBothServices() {
     try {
       const { Resend } = require('resend');
       const resend = new Resend(process.env.RESEND_API_KEY);
-      
+
       const result = await resend.emails.send({
         from: process.env.RESEND_FROM_EMAIL,
         to: testEmail,
@@ -152,7 +152,7 @@ async function testBothServices() {
           </div>
         `,
       });
-      
+
       if (result.error) {
         console.log('   ❌ Resend test failed:', result.error.message);
       } else {
@@ -169,7 +169,7 @@ async function testBothServices() {
   console.log('─────────────────────────────────────────────────');
   console.log('Check', testEmail, 'for test emails.');
   console.log('Both services are active and ready for password emails!\n');
-  
+
   transporter.close();
 }
 
