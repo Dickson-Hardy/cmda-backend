@@ -41,7 +41,7 @@ async function testEmail() {
     console.log('📧 Sending test email...');
     const info = await transporter.sendMail({
       from: process.env.EMAIL_FROM,
-      to: process.env.EMAIL_USER, // Send to yourself
+      to: 'dicksonhardy7@gmail.com', // Send to specified address
       subject: 'CMDA Email Service Test - ' + new Date().toLocaleString(),
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
