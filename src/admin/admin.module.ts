@@ -8,6 +8,10 @@ import { Admin, AdminSchema } from './admin.schema';
 import { JwtModule } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { EmailModule } from '../email/email.module';
+import { PaystackModule } from '../paystack/paystack.module';
+import { BulkEmailService } from './bulk-email.service';
+import { EmailLog, EmailLogSchema } from '../email/email-log.schema';
+import { User, UserSchema } from '../users/schema/users.schema';
 
 @Module({
   imports: [
@@ -22,10 +26,15 @@ import { EmailModule } from '../email/email.module';
         };
       },
     }),
-    MongooseModule.forFeature([{ name: Admin.name, schema: AdminSchema }]),
+    MongooseModule.forFeature([
+      { name: Admin.name, schema: AdminSchema },
+      { name: EmailLog.name, schema: EmailLogSchema },
+      { name: User.name, schema: UserSchema },
+    ]),
     EmailModule,
+    PaystackModule,
   ],
   controllers: [AdminController, PendingPaymentsController],
-  providers: [AdminService, PendingPaymentsService],
+  providers: [AdminService, PendingPaymentsService, BulkEmailService],
 })
 export class AdminModule {}

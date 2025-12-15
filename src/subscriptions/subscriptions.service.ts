@@ -17,6 +17,7 @@ import {
   SUBSCRIPTION_PRICES,
   GLOBAL_INCOME_BASED_PRICING,
   LIFETIME_MEMBERSHIPS,
+  NIGERIAN_LIFETIME_MEMBERSHIP,
 } from './subscription.constant';
 import { json2csv } from 'json-2-csv';
 import { SubscriptionPaginationQueryDto } from './dto/subscription-pagination.dto';
@@ -49,9 +50,17 @@ export class SubscriptionsService {
     let isLifetime = false;
     let lifetimeType: string | undefined;
     let incomeBracket: string | undefined;
+    let isNigerianLifetime = false;
 
+    // Handle Nigerian lifetime membership
+    if (subscriptionData?.isNigerianLifetime && user.role !== UserRole.GLOBALNETWORK) {
+      amount = NIGERIAN_LIFETIME_MEMBERSHIP.lifetime.price;
+      isLifetime = true;
+      isNigerianLifetime = true;
+      lifetimeType = 'lifetime';
+    }
     // Handle Global Network members with income-based pricing or lifetime memberships
-    if (user.role === UserRole.GLOBALNETWORK && subscriptionData) {
+    else if (user.role === UserRole.GLOBALNETWORK && subscriptionData) {
       if (subscriptionData.selectedTab === 'lifetime') {
         // Lifetime membership
         const lifetimePlan = LIFETIME_MEMBERSHIPS[subscriptionData.lifetimeType];
@@ -123,10 +132,19 @@ export class SubscriptionsService {
         contextData: {
           memId: user.membershipId,
           frequency,
+          isLifetime,
+          isNigerianLifetime,
         },
       });
 
-      const expiryDate = new Date(new Date().setFullYear(new Date().getFullYear() + 1));
+      // Set expiry date based on lifetime or annual subscription
+      const expiryDate = isNigerianLifetime
+        ? new Date(
+            new Date().setFullYear(
+              new Date().getFullYear() + NIGERIAN_LIFETIME_MEMBERSHIP.lifetime.years,
+            ),
+          )
+        : new Date(new Date().setFullYear(new Date().getFullYear() + 1));
 
       const subscription = await this.subscriptionModel.create({
         reference: intent.intentCode,
@@ -135,7 +153,7 @@ export class SubscriptionsService {
         user: user._id,
         currency: 'NGN',
         source: 'PAYSTACK',
-        frequency,
+        frequency: isNigerianLifetime ? 'Lifetime' : frequency,
         isPaid: false,
       });
 
@@ -152,6 +170,7 @@ export class SubscriptionsService {
           memId: user.membershipId,
           currency: 'NGN',
           subscriptionId: subscription._id.toString(),
+          isLifetime: isNigerianLifetime,
         }),
       });
       if (!transaction.status) {
@@ -263,11 +282,20 @@ export class SubscriptionsService {
 
       const {
         amount,
-        metadata: { memId, currency, subscriptionId, intentId },
+        metadata: { memId, currency, subscriptionId, intentId, isLifetime },
       } = transaction.data;
 
       user = await this.userModel.findOne({ membershipId: memId });
-      expiryDate = new Date(new Date().setFullYear(new Date().getFullYear() + 1));
+
+      // Set expiry date based on lifetime or annual subscription
+      const isNigerianLifetime = isLifetime === true || isLifetime === 'true';
+      expiryDate = isNigerianLifetime
+        ? new Date(
+            new Date().setFullYear(
+              new Date().getFullYear() + NIGERIAN_LIFETIME_MEMBERSHIP.lifetime.years,
+            ),
+          )
+        : new Date(new Date().setFullYear(new Date().getFullYear() + 1));
 
       // Update existing intent if it exists, otherwise create new
       if (subscriptionId) {
@@ -290,20 +318,51 @@ export class SubscriptionsService {
           currency,
           source: 'PAYSTACK',
           isPaid: true,
+          frequency: isNigerianLifetime ? 'Lifetime' : 'Annually',
         });
       }
 
-      user = await this.userModel.findByIdAndUpdate(
-        user._id,
-        { subscribed: true, subscriptionExpiry: expiryDate },
-        { new: true },
-      );
+      // Update user with lifetime membership info if applicable
+      const updateData: any = {
+        subscribed: true,
+        subscriptionExpiry: expiryDate,
+      };
+
+      if (isNigerianLifetime) {
+        updateData.hasLifetimeMembership = true;
+        updateData.lifetimeMembershipType = 'lifetime';
+        updateData.lifetimeMembershipExpiry = expiryDate;
+      }
+
+      user = await this.userModel.findByIdAndUpdate(user._id, updateData, { new: true });
     }
 
-    const res = await this.emailService.sendSubscriptionConfirmedEmail({
-      name: user.fullName,
-      email: user.email,
-    });
+    // Send appropriate email based on subscription type
+    let res: { success: boolean };
+    if (user.hasLifetimeMembership && subscription.frequency === 'Lifetime') {
+      res = await this.emailService.sendLifetimeMembershipEmail({
+        name: user.fullName,
+        email: user.email,
+        membershipType:
+          user.lifetimeMembershipType === 'lifetime'
+            ? 'Nigerian Lifetime Membership'
+            : `Lifetime ${user.lifetimeMembershipType.charAt(0).toUpperCase() + user.lifetimeMembershipType.slice(1)}`,
+        years:
+          user.lifetimeMembershipType === 'lifetime'
+            ? NIGERIAN_LIFETIME_MEMBERSHIP.lifetime.years
+            : LIFETIME_MEMBERSHIPS[user.lifetimeMembershipType]?.years || 25,
+        expiryDate: user.lifetimeMembershipExpiry.toLocaleDateString('en-US', {
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric',
+        }),
+      });
+    } else {
+      res = await this.emailService.sendSubscriptionConfirmedEmail({
+        name: user.fullName,
+        email: user.email,
+      });
+    }
 
     if (!res.success) {
       throw new InternalServerErrorException(
@@ -356,6 +415,98 @@ export class SubscriptionsService {
     return {
       success: true,
       message: 'Subscription saved successfully',
+      data: { subscription, user },
+    };
+  }
+
+  async activateLifetime(
+    userId: string,
+    isNigerian?: boolean,
+    lifetimeType?: string,
+  ): Promise<ISuccessResponse> {
+    const user = await this.userModel.findById(userId);
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    let amount: number;
+    let expiryDate: Date;
+    let currency: string;
+    let finalLifetimeType: string;
+
+    if (isNigerian || user.role !== UserRole.GLOBALNETWORK) {
+      // Nigerian lifetime membership
+      amount = NIGERIAN_LIFETIME_MEMBERSHIP.lifetime.price;
+      expiryDate = new Date(
+        new Date().setFullYear(
+          new Date().getFullYear() + NIGERIAN_LIFETIME_MEMBERSHIP.lifetime.years,
+        ),
+      );
+      currency = 'NGN';
+      finalLifetimeType = 'lifetime';
+    } else {
+      // Global Network lifetime membership
+      const lifetimePlan = LIFETIME_MEMBERSHIPS[lifetimeType || 'gold'];
+      amount = lifetimePlan.price;
+      expiryDate = new Date(new Date().setFullYear(new Date().getFullYear() + lifetimePlan.years));
+      currency = 'USD';
+      finalLifetimeType = lifetimeType || 'gold';
+    }
+
+    // Create subscription record
+    const subscription = await this.subscriptionModel.create({
+      reference: 'ADMIN_LIFETIME',
+      amount,
+      expiryDate,
+      user: userId,
+      currency,
+      frequency: 'Lifetime',
+      source: 'ADMIN',
+      isPaid: true,
+      isLifetime: true,
+      lifetimeType: finalLifetimeType,
+    });
+
+    // Update user with lifetime membership info
+    await this.userModel.findByIdAndUpdate(
+      userId,
+      {
+        subscribed: true,
+        subscriptionExpiry: expiryDate,
+        hasLifetimeMembership: true,
+        lifetimeMembershipType: finalLifetimeType,
+        lifetimeMembershipExpiry: expiryDate,
+      },
+      { new: true },
+    );
+
+    // Send email notification
+    const res = await this.emailService.sendLifetimeMembershipEmail({
+      name: user.fullName,
+      email: user.email,
+      membershipType: isNigerian
+        ? 'Nigerian Lifetime Membership'
+        : `Lifetime ${finalLifetimeType.charAt(0).toUpperCase() + finalLifetimeType.slice(1)}`,
+      years: isNigerian
+        ? NIGERIAN_LIFETIME_MEMBERSHIP.lifetime.years
+        : LIFETIME_MEMBERSHIPS[finalLifetimeType].years,
+      expiryDate: expiryDate.toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+      }),
+    });
+
+    if (!res.success) {
+      throw new InternalServerErrorException(
+        'Lifetime membership activated. Error occurred while sending email',
+      );
+    }
+
+    return {
+      success: true,
+      message: 'Lifetime membership activated successfully',
       data: { subscription, user },
     };
   }

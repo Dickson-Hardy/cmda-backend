@@ -324,6 +324,73 @@ Email: office@cmdanigeria.org`;
     }
   }
 
+  async sendLifetimeMembershipEmail({
+    name,
+    email,
+    membershipType,
+    years,
+    expiryDate,
+  }): Promise<{ success: boolean }> {
+    try {
+      const html = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <style>
+            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+            .header { background-color: #0066cc; color: white; padding: 20px; text-align: center; }
+            .content { padding: 20px; background-color: #f9f9f9; }
+            .highlight { background-color: #ffffcc; padding: 10px; margin: 15px 0; border-left: 4px solid #0066cc; }
+            .footer { text-align: center; padding: 20px; font-size: 12px; color: #666; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="header">
+              <h1>🎉 Lifetime Membership Activated!</h1>
+            </div>
+            <div class="content">
+              <p>Dear ${name},</p>
+              
+              <p>Congratulations! Your <strong>${membershipType}</strong> has been successfully activated.</p>
+              
+              <div class="highlight">
+                <h3>Membership Details:</h3>
+                <ul>
+                  <li><strong>Membership Type:</strong> ${membershipType}</li>
+                  <li><strong>Coverage Period:</strong> ${years} Years</li>
+                  <li><strong>Expiry Date:</strong> ${expiryDate}</li>
+                </ul>
+              </div>
+              
+              <p>As a lifetime member, you now have access to all CMDA benefits and services for the next ${years} years!</p>
+              
+              <p>Thank you for your commitment to CMDA. We look forward to serving you.</p>
+              
+              <p>Best regards,<br>
+              <strong>CMDA Team</strong></p>
+            </div>
+            <div class="footer">
+              <p>© ${new Date().getFullYear()} CMDA Nigeria. All rights reserved.</p>
+            </div>
+          </div>
+        </body>
+        </html>
+      `;
+
+      await this.mailerService.sendMail({
+        to: email,
+        subject: `Lifetime Membership Activated - ${membershipType}`,
+        html,
+      });
+      return { success: true };
+    } catch (error) {
+      this.logger.error(`Failed to send lifetime membership email: ${error.message}`);
+      return { success: false };
+    }
+  }
+
   async sendTransitionSuccessEmal({
     name,
     email,
@@ -471,6 +538,55 @@ Email: office@cmdanigeria.org`;
       });
       return { success: true };
     } catch (error) {
+      return { success: false };
+    }
+  }
+
+  async sendEmail({
+    to,
+    subject,
+    html,
+  }: {
+    to: string;
+    subject: string;
+    html: string;
+  }): Promise<{ success: boolean; messageId?: string }> {
+    // Try Resend first (faster, more reliable on cloud)
+    if (this.resendFallback.isAvailable()) {
+      try {
+        const result = await this.resendFallback.sendEmail({
+          to,
+          subject,
+          html,
+        });
+
+        if (result.success) {
+          this.logger.log(`Email sent to ${to} via Resend API`);
+          return { success: true, messageId: (result as any).data?.id };
+        }
+      } catch (error) {
+        this.logger.warn(`Resend failed: ${error.message}. Trying SMTP fallback...`);
+      }
+    }
+
+    // Fallback to SMTP
+    try {
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Email send timeout')), 45000),
+      );
+
+      const sendPromise = this.mailerService.sendMail({
+        to,
+        subject,
+        html,
+      });
+
+      await Promise.race([sendPromise, timeoutPromise]);
+
+      this.logger.log(`Email sent to ${to} via SMTP`);
+      return { success: true };
+    } catch (error) {
+      this.logger.error(`Failed to send email to ${to}: ${error.message}`);
       return { success: false };
     }
   }

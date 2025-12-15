@@ -26,6 +26,7 @@ import { TrainingModule } from './training/training.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { PaypalModule } from './paypal/paypal.module';
 import { PaymentIntentsModule } from './payment-intents/payment-intents.module';
+import { MemberManagerModule } from './member-manager/member-manager.module';
 
 @Module({
   imports: [
@@ -57,6 +58,7 @@ import { PaymentIntentsModule } from './payment-intents/payment-intents.module';
     NotificationsModule,
     PaypalModule,
     PaymentIntentsModule,
+    MemberManagerModule,
   ],
   controllers: [AppController],
   providers: [

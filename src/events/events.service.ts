@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -397,6 +398,15 @@ export class EventsService {
       throw new NotFoundException('No event with such slug');
     }
 
+    const user = await this.userModel.findById(userId);
+
+    // Check if user has an active subscription
+    if (!user.subscribed) {
+      throw new ForbiddenException(
+        'You must have an active subscription to register for events. Please subscribe first.',
+      );
+    }
+
     // Check if user is already registered
     const isRegistered = event.registeredUsers.some((user) => user.toString() === userId);
     if (isRegistered) {
@@ -404,8 +414,6 @@ export class EventsService {
     }
 
     let transaction: any;
-
-    const user = await this.userModel.findById(userId);
 
     // Determine current registration period for conferences
     const currentRegistrationPeriod = this.getCurrentRegistrationPeriod(event);
@@ -715,6 +723,15 @@ export class EventsService {
 
     if (!event) {
       throw new NotFoundException('No event with such slug');
+    }
+
+    const user = await this.userModel.findById(userId);
+
+    // Check if user has an active subscription
+    if (!user.subscribed) {
+      throw new ForbiddenException(
+        'You must have an active subscription to register for events. Please subscribe first.',
+      );
     }
 
     const userObjectId = new mongoose.Types.ObjectId(

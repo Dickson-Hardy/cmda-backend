@@ -60,4 +60,36 @@ export class PaystackService {
       throw error;
     }
   }
+
+  async searchTransactionsByEmail(email: string, page: number = 1, perPage: number = 50) {
+    try {
+      const apiUrl = this.configService.get('PAYSTACK_API_URL');
+      const apiKey = this.configService.get('PAYSTACK_API_KEY');
+
+      console.log('Searching Paystack transactions for email:', email);
+
+      const response = await axios.get(`${apiUrl}/transaction`, {
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        params: {
+          customer: email,
+          perPage,
+          page,
+        },
+      });
+
+      return response.data;
+    } catch (error) {
+      console.error('Paystack Search Error:', {
+        message: error.message,
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        data: error.response?.data,
+        url: error.config?.url,
+      });
+      throw error;
+    }
+  }
 }

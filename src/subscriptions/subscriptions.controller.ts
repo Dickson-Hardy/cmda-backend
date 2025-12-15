@@ -72,6 +72,17 @@ export class SubscriptionsController {
     return this.subscriptionsService.activate(userId, subDate);
   }
 
+  @Post('activate-lifetime/:userId')
+  @Roles(AllAdminRoles)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Activate lifetime membership for a user (Admin only)' })
+  activateLifetime(
+    @Param('userId') userId: string,
+    @Body() body: { isNigerian?: boolean; lifetimeType?: string },
+  ) {
+    return this.subscriptionsService.activateLifetime(userId, body.isNigerian, body.lifetimeType);
+  }
+
   @Get('stats')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Returns total count for subscriptions' })

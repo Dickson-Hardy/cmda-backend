@@ -2,6 +2,8 @@ export enum UserRole {
   STUDENT = 'Student',
   DOCTOR = 'Doctor',
   GLOBALNETWORK = 'GlobalNetwork',
+  MEMBERMANAGER = 'MemberManager',
+  ADMIN = 'Admin',
 }
 
 export enum UserGender {
@@ -9,7 +11,13 @@ export enum UserGender {
   FEMALE = 'Female',
 }
 
-export const AllUserRoles = [UserRole.STUDENT, UserRole.DOCTOR, UserRole.GLOBALNETWORK];
+export const AllUserRoles = [
+  UserRole.STUDENT,
+  UserRole.DOCTOR,
+  UserRole.GLOBALNETWORK,
+  UserRole.MEMBERMANAGER,
+  UserRole.ADMIN,
+];
 
 // Import EventAudience for categorization
 import { EventAudience } from '../events/events.constant';

@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Req } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Req } from '@nestjs/common';
 import { ApiBearerAuth, ApiBody, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { CreateAdminDto } from './dto/create-admin.dto';
 import { AdminService } from './admin.service';
@@ -11,11 +11,19 @@ import { IJwtPayload } from '../_global/interface/jwt-payload';
 import { ChangeAdminPasswordDto } from './dto/change-admin-password.dto';
 import { ForgotPasswordDto } from '../auth/dto/forgot-password.dto';
 import { ResetPasswordDto } from '../auth/dto/reset-password.dto';
+import { PaystackService } from '../paystack/paystack.service';
+import { BulkEmailService } from './bulk-email.service';
+import { SendBulkEmailDto } from './dto/send-bulk-email.dto';
+import { GetEmailLogsDto } from './dto/get-email-logs.dto';
 
 @ApiTags('Admin')
 @Controller('admin')
 export class AdminController {
-  constructor(private adminService: AdminService) {}
+  constructor(
+    private adminService: AdminService,
+    private paystackService: PaystackService,
+    private bulkEmailService: BulkEmailService,
+  ) {}
 
   @Get()
   @Roles(AllAdminRoles)
@@ -100,5 +108,54 @@ export class AdminController {
   @ApiOperation({ summary: 'Delete an admin by id' })
   remove(@Param('id') id: string) {
     return this.adminService.remove(id);
+  }
+
+  @Get('paystack/search')
+  @Roles(AllAdminRoles)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Search Paystack transactions by email' })
+  async searchPaystackTransactions(
+    @Query('email') email: string,
+    @Query('page') page?: number,
+    @Query('perPage') perPage?: number,
+  ) {
+    return this.paystackService.searchTransactionsByEmail(
+      email,
+      page ? Number(page) : 1,
+      perPage ? Number(perPage) : 50,
+    );
+  }
+
+  @Post('emails/bulk-send')
+  @Roles(AllAdminRoles)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Send bulk emails to users' })
+  @ApiBody({ type: SendBulkEmailDto })
+  sendBulkEmails(@Body() dto: SendBulkEmailDto) {
+    return this.bulkEmailService.sendBulkEmails(dto);
+  }
+
+  @Post('emails/subscription-reminders')
+  @Roles(AllAdminRoles)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Send subscription renewal reminders' })
+  sendSubscriptionReminders() {
+    return this.bulkEmailService.sendSubscriptionReminders();
+  }
+
+  @Get('emails/logs')
+  @Roles(AllAdminRoles)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get email logs with filters' })
+  getEmailLogs(@Query() query: GetEmailLogsDto) {
+    return this.bulkEmailService.getEmailLogs(query);
+  }
+
+  @Get('emails/queue-status')
+  @Roles(AllAdminRoles)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get email queue status' })
+  getQueueStatus() {
+    return this.bulkEmailService.getQueueStatus();
   }
 }
