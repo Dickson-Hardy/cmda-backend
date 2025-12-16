@@ -41,7 +41,8 @@ export class DonationReceiptPdfService {
     });
 
     // Determine if payment is global or Nigerian
-    const isGlobal = donation.currency === 'USD' || donation.currency === '$';
+    const currency = (donation.currency || 'NGN').toUpperCase();
+    const isGlobal = currency === 'USD' || currency === '$';
     const currencySymbol = isGlobal ? '$' : '₦';
 
     const address = isGlobal
@@ -65,7 +66,8 @@ export class DonationReceiptPdfService {
         };
 
     // Payment status
-    const status = donation.isPaid ? 'PAID' : 'PENDING';
+    // Only completed payments can download receipts, so status is always PAID
+    const status = 'PAID';
 
     return new Promise((resolve, reject) => {
       try {
