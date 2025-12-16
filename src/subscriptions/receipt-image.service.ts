@@ -10,9 +10,24 @@ export class ReceiptImageService implements OnModuleInit, OnModuleDestroy {
 
   async onModuleInit() {
     // Launch browser once when the module initializes
+    // Use system Chromium in production/containerized environments
+    const executablePath = process.env.PUPPETEER_EXECUTABLE_PATH || 
+                           process.env.CHROME_PATH || 
+                           '/usr/bin/chromium' || 
+                           undefined;
+    
     this.browser = await puppeteer.launch({
       headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox'],
+      executablePath,
+      args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-accelerated-2d-canvas',
+        '--disable-gpu',
+        '--single-process',
+        '--no-zygote',
+      ],
     });
   }
 

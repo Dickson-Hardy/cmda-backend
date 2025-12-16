@@ -1,81 +1,86 @@
-import { Injectable } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
-import { Donation } from './donation.schema';
-import { User } from '../users/schema/users.schema';
+const fs = require('fs');
+const path = require('path');
 
-@Injectable()
-export class DonationReceiptHtmlService {
-  constructor(
-    @InjectModel(Donation.name) private donationModel: Model<Donation>,
-    @InjectModel(User.name) private userModel: Model<User>,
-  ) {}
+// Mock donation data - Nigerian version
+const mockDonation = {
+  _id: '507f1f77bcf86cd799439011',
+  reference: 'DON-2024-002',
+  totalAmount: 150000,
+  currency: 'NGN', // Nigerian Naira
+  isPaid: true,
+  source: 'Paystack',
+  recurring: false,
+  frequency: null,
+  areasOfNeed: [
+    { name: 'Donations', amount: 100000 },
+    { name: 'Dues', amount: 30000 },
+    { name: '6JNC', amount: 20000 },
+  ],
+  createdAt: '2024-02-01T10:00:00Z',
+};
 
-  async generateReceiptHtml(donationId: string): Promise<string> {
-    const donation = await this.donationModel.findById(donationId).populate('user').exec();
+// Mock user data
+const mockUser = {
+  firstName: 'Chidi',
+  lastName: 'Okafor',
+  fullName: 'Chidi Okafor',
+  email: 'chidi.okafor@example.com',
+  role: 'Member',
+  membershipId: 'CMDA-NG-2024-001',
+  region: 'Lagos',
+};
 
-    if (!donation) {
-      throw new Error('Donation not found');
+// Format date
+const transactionDate = new Date(mockDonation.createdAt).toLocaleDateString('en-GB', {
+  day: '2-digit',
+  month: '2-digit',
+  year: 'numeric',
+});
+
+const shortDate = new Date(mockDonation.createdAt).toLocaleDateString('en-GB', {
+  day: '2-digit',
+  month: '2-digit',
+  year: '2-digit',
+});
+
+const status = mockDonation.isPaid ? 'PAID' : 'PENDING';
+const statusColor = mockDonation.isPaid ? '#10B981' : '#F59E0B';
+const statusBg = mockDonation.isPaid ? '#D1FAE5' : '#FEF3C7';
+
+// Determine if payment is global or Nigerian
+const isGlobal = mockDonation.currency === 'USD' || mockDonation.currency === '$';
+
+// Set receipt title based on payment type
+const receiptTitle = 'DONATION RECIEPT';
+
+// Set address and contact based on location
+const address = isGlobal
+  ? {
+      street: '1928 Woodlawn Drive,',
+      city: 'Woodlawn, Maryland, 21207.',
+      phone: '+1 (443) 557 4199',
+      email: 'give@cmdanigeriaglobal.org,',
+      email2: 'info@cmdanigeriaglobal.org',
+      orgName:
+        'CHRISTIAN MEDICAL<br>ANDDENTAL ASSOCIATION<br>OF NIGERIA GLOBAL NETWORK<br>(CMDA NIGERIA-GLOBAL NETWORK)',
     }
-
-    const user = (donation.user as any) || {};
-    const userData = {
-      fullName: user.fullName || `${user.firstName || ''} ${user.lastName || ''}`.trim() || 'N/A',
-      email: user.email || 'N/A',
-      role: user.role || 'N/A',
-      membershipId: user.membershipId || 'N/A',
-      region: user.region || 'N/A',
+  : {
+      street: 'Wholeness House Gwagwalada,',
+      city: 'FCT, Nigeria.',
+      phone: '+234 803 304 3290',
+      email: 'office@cmdanigeria.org,',
+      email2: 'info@cmdanigeria.org',
+      orgName: 'CHRISTIAN MEDICAL<br>AND DENTAL ASSOCIATION<br>OF NIGERIA<br>(CMDA NIGERIA)',
     };
 
-    const transactionDate = new Date((donation as any).createdAt).toLocaleDateString('en-GB', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-    });
-
-    const shortDate = new Date((donation as any).createdAt).toLocaleDateString('en-GB', {
-      day: '2-digit',
-      month: '2-digit',
-      year: '2-digit',
-    });
-
-    const status = donation.isPaid ? 'PAID' : 'PENDING';
-    const statusColor = donation.isPaid ? '#10B981' : '#F59E0B';
-    const statusBg = donation.isPaid ? '#D1FAE5' : '#FEF3C7';
-
-    // Determine if payment is global or Nigerian
-    const isGlobal = donation.currency === 'USD' || donation.currency === '$';
-
-    // Set receipt title based on payment type
-    const receiptTitle = 'DONATION RECIEPT';
-
-    // Set address and contact based on location
-    const address = isGlobal
-      ? {
-          street: '1928 Woodlawn Drive,',
-          city: 'Woodlawn, Maryland, 21207.',
-          phone: '+1 (443) 557 4199',
-          email: 'give@cmdanigeriaglobal.org,',
-          email2: 'info@cmdanigeriaglobal.org',
-          orgName:
-            'CHRISTIAN MEDICAL<br>ANDDENTAL ASSOCIATION<br>OF NIGERIA GLOBAL NETWORK<br>(CMDA NIGERIA-GLOBAL NETWORK)',
-        }
-      : {
-          street: 'Wholeness House Gwagwalada,',
-          city: 'FCT, Nigeria.',
-          phone: '+234 803 304 3290',
-          email: 'office@cmdanigeria.org,',
-          email2: 'info@cmdanigeria.org',
-          orgName: 'CHRISTIAN MEDICAL<br>AND DENTAL ASSOCIATION<br>OF NIGERIA<br>(CMDA NIGERIA)',
-        };
-
-    return `
+// Generate HTML
+const html = `
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>CMDA Donation Receipt - ${donation.reference || donationId}</title>
+  <title>CMDA Donation Receipt - ${mockDonation.reference}</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
@@ -279,7 +284,7 @@ export class DonationReceiptHtmlService {
       <div class="header-left">
         <h1>${receiptTitle}</h1>
         <div class="date">Date:${transactionDate}</div>
-        <div class="invoice">No. Invoice : ${donation.reference || donation._id.toString().substring(0, 8).toUpperCase()}</div>
+        <div class="invoice">No. Invoice : ${mockDonation.reference}</div>
       </div>
       <div class="header-right">
         <div class="org-name">
@@ -293,8 +298,8 @@ export class DonationReceiptHtmlService {
 
     <div class="payee-section">
       <div class="payee-title">PAYEE DETAILS</div>
-      <div class="payee-name">${userData.fullName}</div>
-      <div class="payee-email">${userData.email}</div>
+      <div class="payee-name">${mockUser.fullName}</div>
+      <div class="payee-email">${mockUser.email}</div>
     </div>
 
     <table>
@@ -306,27 +311,17 @@ export class DonationReceiptHtmlService {
         </tr>
       </thead>
       <tbody>
-        ${
-          donation.areasOfNeed && donation.areasOfNeed.length > 0
-            ? donation.areasOfNeed
-                .map(
-                  (area) => `
+        ${mockDonation.areasOfNeed
+          .map(
+            (area) => `
         <tr>
           <td>${shortDate}</td>
           <td>${area.name}</td>
-          <td>${donation.currency || '$'} ${area.amount.toLocaleString()}</td>
+          <td>${mockDonation.currency} ${area.amount.toLocaleString()}</td>
         </tr>
         `,
-                )
-                .join('')
-            : `
-        <tr>
-          <td>${shortDate}</td>
-          <td>Donations</td>
-          <td>${donation.currency || '$'} ${donation.totalAmount.toLocaleString()}</td>
-        </tr>
-        `
-        }
+          )
+          .join('')}
         <tr>
           <td></td>
           <td></td>
@@ -348,7 +343,7 @@ export class DonationReceiptHtmlService {
       </div>
       <div class="total-box">
         <div class="total-label">Total:</div>
-        <div class="total-amount">${donation.currency || '$'} ${donation.totalAmount.toLocaleString()}</div>
+        <div class="total-amount">${mockDonation.currency} ${mockDonation.totalAmount.toLocaleString()}</div>
       </div>
     </div>
 
@@ -361,6 +356,17 @@ export class DonationReceiptHtmlService {
   </div>
 </body>
 </html>
-    `.trim();
-  }
-}
+`;
+
+// Write to file
+const outputPath = path.join(__dirname, 'test-nigerian-receipt.html');
+fs.writeFileSync(outputPath, html, 'utf8');
+
+console.log('✅ Nigerian Receipt generated successfully!');
+console.log('📄 File saved to:', outputPath);
+console.log('🌐 Open the file in your browser to view the Nigerian version');
+console.log('');
+console.log('📋 Details:');
+console.log('   Currency: NGN');
+console.log('   Address: Wholeness House Gwagwalada, FCT, Nigeria');
+console.log('   Organization: CMDA NIGERIA');
