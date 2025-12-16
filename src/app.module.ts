@@ -27,10 +27,14 @@ import { NotificationsModule } from './notifications/notifications.module';
 import { PaypalModule } from './paypal/paypal.module';
 import { PaymentIntentsModule } from './payment-intents/payment-intents.module';
 import { MemberManagerModule } from './member-manager/member-manager.module';
+import { BackupModule } from './backup/backup.module';
+import { ScheduleModule } from '@nestjs/schedule';
+import { ScheduledEmailsModule } from './scheduled-emails/scheduled-emails.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
+    ScheduleModule.forRoot(),
     MongooseModule.forRootAsync({
       imports: [ConfigModule],
       useFactory: async (configService: ConfigService) => ({
@@ -59,6 +63,8 @@ import { MemberManagerModule } from './member-manager/member-manager.module';
     PaypalModule,
     PaymentIntentsModule,
     MemberManagerModule,
+    BackupModule,
+    ScheduledEmailsModule,
   ],
   controllers: [AppController],
   providers: [

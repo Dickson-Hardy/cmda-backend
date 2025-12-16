@@ -39,6 +39,27 @@ class RegisteredUser {
   registrationPeriod?: RegistrationPeriod; // Track when user registered
 }
 
+// Virtual meeting configuration
+class VirtualMeetingInfo {
+  @Prop()
+  platform?: string; // Zoom, Google Meet, Microsoft Teams, etc.
+
+  @Prop()
+  meetingLink?: string; // Direct meeting link
+
+  @Prop()
+  meetingId?: string; // Meeting ID for platforms like Zoom
+
+  @Prop()
+  passcode?: string; // Meeting passcode/password
+
+  @Prop()
+  dialInNumbers?: string; // Phone dial-in numbers if available
+
+  @Prop()
+  additionalInstructions?: string; // Any additional instructions for joining
+}
+
 // Conference-specific configuration
 class ConferenceConfig {
   @Prop()
@@ -124,6 +145,12 @@ export class Event extends Document {
 
   @Prop({ default: false })
   isConference: boolean;
+
+  @Prop({ default: true })
+  requiresSubscription: boolean;
+
+  @Prop({ type: VirtualMeetingInfo })
+  virtualMeetingInfo?: VirtualMeetingInfo;
 }
 
 export const EventSchema = SchemaFactory.createForClass(Event);

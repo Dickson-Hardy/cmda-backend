@@ -1,5 +1,8 @@
-import { Controller, Get, Post, Body, Req, Query, Param } from '@nestjs/common';
+import { Controller, Get, Post, Body, Req, Query, Param, Res } from '@nestjs/common';
+import { Response } from 'express';
 import { SubscriptionsService } from './subscriptions.service';
+import { ReceiptService } from './receipt.service';
+import { ReceiptImageService } from './receipt-image.service';
 import { CreateSubscriptionDto } from './dto/create-subscription.dto';
 import { ApiBearerAuth, ApiBody, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { IJwtPayload } from '../_global/interface/jwt-payload';
@@ -12,7 +15,11 @@ import { SubscriptionPaginationQueryDto } from './dto/subscription-pagination.dt
 @ApiTags('Subscriptions')
 @Controller('subscriptions')
 export class SubscriptionsController {
-  constructor(private readonly subscriptionsService: SubscriptionsService) {}
+  constructor(
+    private readonly subscriptionsService: SubscriptionsService,
+    private readonly receiptService: ReceiptService,
+    private readonly receiptImageService: ReceiptImageService,
+  ) {}
 
   @Get()
   @Roles(AllAdminRoles)
@@ -95,5 +102,31 @@ export class SubscriptionsController {
   @ApiOperation({ summary: 'Get a subscription by id' })
   findOne(@Param('id') id: string) {
     return this.subscriptionsService.findOne(id);
+  }
+
+  @Get(':id/receipt')
+  @Roles([...AllUserRoles, ...AllAdminRoles])
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Download receipt for a subscription as image (PNG)' })
+  async downloadReceipt(@Param('id') id: string, @Res() res: Response) {
+    try {
+      const imageBuffer = await this.receiptImageService.generateReceiptImage(id);
+
+      // Set proper headers for PNG image delivery
+      res.setHeader('Content-Type', 'image/png');
+      res.setHeader('Content-Disposition', `inline; filename="receipt-${id}.png"`);
+      res.setHeader('Content-Length', imageBuffer.length.toString());
+      res.setHeader('Cache-Control', 'private, no-cache, no-store, must-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
+
+      res.send(imageBuffer);
+    } catch (error) {
+      console.error('Receipt generation error:', error);
+      res.status(error.message === 'Subscription not found' ? 404 : 500).json({
+        success: false,
+        message: error.message || 'Failed to generate receipt',
+      });
+    }
   }
 }

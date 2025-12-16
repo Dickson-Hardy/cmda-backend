@@ -76,6 +76,19 @@ export class EventsService {
         };
       }
 
+      // Prepare virtual meeting info if provided
+      let virtualMeetingInfo = undefined;
+      if (createEventDto.virtualMeetingPlatform || createEventDto.virtualMeetingLink) {
+        virtualMeetingInfo = {
+          platform: createEventDto.virtualMeetingPlatform,
+          meetingLink: createEventDto.virtualMeetingLink,
+          meetingId: createEventDto.virtualMeetingId,
+          passcode: createEventDto.virtualMeetingPasscode,
+          dialInNumbers: createEventDto.virtualMeetingDialIn,
+          additionalInstructions: createEventDto.virtualMeetingInstructions,
+        };
+      }
+
       const event = await this.eventModel.create({
         ...createEventDto,
         paymentPlans: createEventDto.paymentPlans ? JSON.parse(createEventDto.paymentPlans) : [],
@@ -87,6 +100,8 @@ export class EventsService {
         registeredUsers: [],
         isConference: createEventDto.isConference || false,
         conferenceConfig,
+        requiresSubscription: createEventDto.requiresSubscription !== false,
+        virtualMeetingInfo,
       });
 
       return {
@@ -185,7 +200,7 @@ export class EventsService {
     const userMemberGroup = this.usersService.getUserMemberGroup(user);
 
     // Filter payment plans for the user's member group
-    const userPaymentPlans = event.paymentPlans.filter(
+    const userPaymentPlans = (event.paymentPlans || []).filter(
       (plan: any) => plan.role === userMemberGroup,
     );
 
@@ -400,10 +415,10 @@ export class EventsService {
 
     const user = await this.userModel.findById(userId);
 
-    // Check if user has an active subscription
-    if (!user.subscribed) {
+    // Check if user has an active subscription (only if event requires it)
+    if (event.requiresSubscription && !user.subscribed) {
       throw new ForbiddenException(
-        'You must have an active subscription to register for events. Please subscribe first.',
+        'You must have an active subscription to register for this event. Please subscribe first.',
       );
     }
 
@@ -727,10 +742,10 @@ export class EventsService {
 
     const user = await this.userModel.findById(userId);
 
-    // Check if user has an active subscription
-    if (!user.subscribed) {
+    // Check if user has an active subscription (only if event requires it)
+    if (event.requiresSubscription && !user.subscribed) {
       throw new ForbiddenException(
-        'You must have an active subscription to register for events. Please subscribe first.',
+        'You must have an active subscription to register for this event. Please subscribe first.',
       );
     }
 

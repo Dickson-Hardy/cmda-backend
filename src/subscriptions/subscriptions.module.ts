@@ -1,5 +1,8 @@
 import { forwardRef, Module } from '@nestjs/common';
 import { SubscriptionsService } from './subscriptions.service';
+import { ReceiptService } from './receipt.service';
+import { ReceiptHtmlService } from './receipt-html.service';
+import { ReceiptImageService } from './receipt-image.service';
 import { SubscriptionsController } from './subscriptions.controller';
 import { PaystackModule } from '../paystack/paystack.module';
 import { MongooseModule } from '@nestjs/mongoose';
@@ -22,7 +25,7 @@ import { PaymentIntentsModule } from '../payment-intents/payment-intents.module'
     forwardRef(() => PaymentIntentsModule),
   ],
   controllers: [SubscriptionsController],
-  providers: [SubscriptionsService],
+  providers: [SubscriptionsService, ReceiptService, ReceiptHtmlService, ReceiptImageService],
   exports: [SubscriptionsService],
 })
 export class SubscriptionsModule {}

@@ -230,6 +230,7 @@ export class AdminService {
         requirePasswordChange: true,
         createdByAdmin: true,
         createdByAdminId: 'admin',
+        isVerified: true, // Auto-verify admin-created members
       });
 
       // Send credentials email to the member with tracking

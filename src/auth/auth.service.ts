@@ -338,6 +338,7 @@ export class AuthService {
     if (user.createdByAdmin && !user.initialPasswordChanged) {
       updateData.initialPasswordChanged = true;
       updateData.initialPasswordChangedAt = new Date();
+      updateData.isVerified = true; // Auto-verify when admin-created user changes password
     }
 
     await user.updateOne(updateData);

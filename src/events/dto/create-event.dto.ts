@@ -178,4 +178,68 @@ export class CreateEventDto {
   @IsBooleanString()
   @IsOptional()
   usePayPalForGlobal?: boolean;
+
+  @ApiProperty({
+    example: true,
+    description: 'Whether users need an active subscription to register for this event',
+    required: false,
+  })
+  @IsBooleanString()
+  @IsOptional()
+  requiresSubscription?: boolean;
+
+  // Virtual meeting fields
+  @ApiProperty({
+    example: 'Zoom',
+    description: 'Virtual meeting platform (Zoom, Google Meet, Microsoft Teams, etc.)',
+    required: false,
+  })
+  @IsString()
+  @IsOptional()
+  virtualMeetingPlatform?: string;
+
+  @ApiProperty({
+    example: 'https://zoom.us/j/123456789',
+    description: 'Direct link to join the virtual meeting',
+    required: false,
+  })
+  @IsString()
+  @IsOptional()
+  virtualMeetingLink?: string;
+
+  @ApiProperty({
+    example: '123 456 789',
+    description: 'Meeting ID for platforms like Zoom',
+    required: false,
+  })
+  @IsString()
+  @IsOptional()
+  virtualMeetingId?: string;
+
+  @ApiProperty({
+    example: 'pass123',
+    description: 'Meeting passcode or password',
+    required: false,
+  })
+  @IsString()
+  @IsOptional()
+  virtualMeetingPasscode?: string;
+
+  @ApiProperty({
+    example: '+1 234 567 8900',
+    description: 'Dial-in phone numbers if available',
+    required: false,
+  })
+  @IsString()
+  @IsOptional()
+  virtualMeetingDialIn?: string;
+
+  @ApiProperty({
+    example: 'Please join 5 minutes early',
+    description: 'Additional instructions for joining the virtual meeting',
+    required: false,
+  })
+  @IsString()
+  @IsOptional()
+  virtualMeetingInstructions?: string;
 }
