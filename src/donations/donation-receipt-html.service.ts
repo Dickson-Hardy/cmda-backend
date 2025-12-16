@@ -76,73 +76,85 @@ export class DonationReceiptHtmlService {
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>CMDA Donation Receipt - ${donation.reference || donationId}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700;800;900&family=Nunito:wght@400;600;700&display=swap" rel="stylesheet">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
-      font-family: 'Arial Black', 'Arial Bold', 'Arial', sans-serif;
-      background: white;
-      padding: 20px;
-      line-height: 1.2;
+      font-family: 'Montserrat', 'Nunito', Arial, sans-serif;
+      background: #fff;
+      padding: 24px;
+      line-height: 1.35;
     }
     .receipt-container {
-      max-width: 768px;
+      max-width: 820px;
       margin: 0 auto;
-      background: white;
+      background: #fff;
       padding: 0;
+      border: 1px solid #e0e0e0;
     }
-    .purple-bar {
-      background: #7B2869;
-      height: 20px;
-      margin-bottom: 40px;
+    .top-bar {
+      height: 24px;
+      background: #6f1d46;
+      width: 100%;
     }
     .header {
       display: flex;
       justify-content: space-between;
       align-items: flex-start;
-      margin-bottom: 40px;
-      padding: 0 20px;
+      padding: 32px 34px 18px 34px;
+      gap: 24px;
     }
     .header-left h1 {
-      font-size: 52px;
+      font-size: 46px;
       font-weight: 900;
-      color: #000;
-      margin-bottom: 28px;
+      color: #111;
       letter-spacing: 0px;
-      line-height: 0.95;
+      margin-bottom: 26px;
+      line-height: 1;
     }
-    .header-left .date,
-    .header-left .invoice {
-      font-size: 22px;
+    .field-row {
+      font-size: 20px;
       font-weight: 700;
-      color: #000;
+      color: #111;
       margin-bottom: 10px;
-      line-height: 1.2;
+    }
+    .field-label {
+      font-weight: 800;
+      margin-right: 8px;
+    }
+    .underline {
+      display: inline-block;
+      min-width: 220px;
+      border-bottom: 2px solid #000;
+      padding-bottom: 4px;
     }
     .header-right {
       text-align: right;
       display: flex;
       flex-direction: column;
       align-items: flex-end;
+      gap: 12px;
     }
     .org-name {
-      font-size: 10px;
-      font-weight: 700;
-      color: #000;
-      line-height: 1.35;
-      margin-bottom: 10px;
-      text-align: right;
-      max-width: 185px;
+      font-size: 11px;
+      font-weight: 800;
+      color: #111;
+      line-height: 1.45;
+      max-width: 210px;
+      text-align: center;
     }
     .logo-container {
-      width: 95px;
-      height: 95px;
+      width: 82px;
+      height: 82px;
       display: flex;
       align-items: center;
       justify-content: center;
-      background: #f8f8f8;
-      border: 1.5px solid #ccc;
-      border-radius: 3px;
-      padding: 10px;
+      border: 1.5px solid #b5b5b5;
+      border-radius: 4px;
+      padding: 8px;
+      background: #fafafa;
     }
     .logo-container img {
       max-width: 100%;
@@ -150,141 +162,143 @@ export class DonationReceiptHtmlService {
       object-fit: contain;
     }
     .payee-section {
-      margin-bottom: 32px;
-      padding: 0 20px;
+      padding: 0 34px 8px 34px;
     }
     .payee-title {
       font-size: 28px;
       font-weight: 900;
-      color: #000;
-      margin-bottom: 16px;
-      letter-spacing: 0.5px;
+      color: #111;
+      margin-bottom: 8px;
+      letter-spacing: 0.4px;
     }
     .payee-name {
-      font-size: 23px;
-      font-weight: 700;
-      color: #000;
+      font-size: 22px;
+      font-weight: 800;
+      color: #111;
       margin-bottom: 6px;
     }
     .payee-email {
-      font-size: 23px;
-      font-weight: 700;
-      color: #000;
+      font-size: 22px;
+      font-weight: 800;
+      color: #111;
     }
     table {
       width: 100%;
       border-collapse: collapse;
-      margin-bottom: 45px;
+      margin: 30px auto 16px auto;
     }
     thead {
-      background: #2D8A5B;
+      background: #009246;
     }
     thead th {
-      color: white;
-      padding: 16px 20px;
-      text-align: left;
-      font-weight: 700;
-      font-size: 19px;
+      color: #fff;
+      padding: 14px 12px;
+      text-align: center;
+      font-weight: 800;
+      font-size: 17px;
     }
     tbody td {
-      padding: 16px 20px;
-      border: 1px solid #c8c8c8;
-      font-size: 21px;
-      font-weight: 600;
-      color: #000;
+      padding: 16px 14px;
+      border: 1px solid #c1c1c1;
+      font-size: 19px;
+      font-weight: 700;
+      color: #111;
+      text-align: center;
     }
-    tbody tr:last-child td {
-      border-bottom: 1px solid #c8c8c8;
+    .table-wrapper {
+      padding: 0 24px;
     }
-    .footer-section {
+    .footer {
       display: flex;
       justify-content: space-between;
       align-items: flex-start;
-      margin-top: 55px;
-      padding: 0 20px;
-      gap: 50px;
-    }
-    .footer-left {
-      flex: 1;
+      padding: 26px 34px 12px 34px;
+      gap: 32px;
     }
     .thank-you {
-      font-size: 50px;
+      font-size: 42px;
       font-weight: 900;
-      color: #000;
-      margin-bottom: 22px;
-      letter-spacing: -0.3px;
+      color: #111;
+      margin-bottom: 18px;
+      letter-spacing: 0.2px;
     }
     .contact-info {
-      font-size: 13.5px;
-      color: #000;
+      font-size: 14px;
+      color: #111;
       line-height: 1.85;
-      font-weight: 600;
-    }
-    .contact-info strong {
-      font-weight: 800;
+      font-weight: 700;
+      max-width: 360px;
     }
     .total-box {
-      border: 2.5px solid #000;
-      padding: 22px 40px;
+      border: 1.8px solid #2c2c2c;
+      background: #efebe7;
+      padding: 16px 24px;
+      min-width: 260px;
       text-align: center;
-      min-width: 310px;
       align-self: flex-start;
     }
     .total-label {
-      font-size: 24px;
-      font-weight: 700;
-      color: #000;
-      margin-bottom: 10px;
+      font-size: 22px;
+      font-weight: 800;
+      color: #111;
+      margin-bottom: 6px;
     }
     .total-amount {
-      font-size: 52px;
+      font-size: 40px;
       font-weight: 900;
-      color: #000;
-      letter-spacing: -0.8px;
+      color: #111;
+      letter-spacing: -0.4px;
     }
-    .signature-section {
-      text-align: right;
-      margin-top: 48px;
-      padding: 0 40px;
+    .signature-block {
+      display: flex;
+      justify-content: flex-end;
+      padding: 14px 34px 6px 34px;
+      margin-top: 10px;
+    }
+    .signature-inner {
+      width: 340px;
+      text-align: center;
     }
     .signature-line {
-      border-bottom: 2.5px solid #000;
-      width: 330px;
-      margin: 0 0 10px auto;
-      padding-top: 48px;
+      border-bottom: 1.8px solid #2c2c2c;
+      padding-top: 38px;
+      margin-bottom: 8px;
     }
     .signature-name {
-      font-size: 21px;
-      font-weight: 400;
-      color: #000;
+      font-size: 19px;
+      font-weight: 800;
+      color: #111;
       font-style: italic;
-      font-family: 'Brush Script MT', cursive, 'Arial';
     }
-    .purple-bar-bottom {
-      background: #7B2869;
-      height: 20px;
-      margin-top: 50px;
+    .bottom-bars {
+      margin-top: 20px;
+    }
+    .bottom-green {
+      height: 24px;
+      background: #009246;
+    }
+    .bottom-purple {
+      height: 24px;
+      background: #6f1d46;
     }
     @media print {
-      body { padding: 0; background: white; }
-      .receipt-container { padding: 0; }
+      body { padding: 0; background: #fff; }
+      .receipt-container { border: none; }
     }
   </style>
 </head>
 <body>
   <div class="receipt-container">
-    <div class="purple-bar"></div>
-    
+    <div class="top-bar"></div>
+
     <div class="header">
       <div class="header-left">
         <h1>${receiptTitle}</h1>
-        <div class="date">Date:${transactionDate}</div>
-        <div class="invoice">No. Invoice : ${donation.reference || donation._id.toString().substring(0, 8).toUpperCase()}</div>
+        <div class="field-row"><span class="field-label">Date:</span><span class="underline">${transactionDate}</span></div>
+        <div class="field-row"><span class="field-label">No. Invoice :</span><span class="underline">${donation.reference || donation._id.toString().substring(0, 8).toUpperCase()}</span></div>
       </div>
       <div class="header-right">
-        <div class="org-name">
-          ${address.orgName}
-        </div>
+        <div class="org-name">${address.orgName}</div>
         <div class="logo-container">
           <img src="https://cmdanigeria.net/CMDALogo.svg" alt="CMDA Logo">
         </div>
@@ -297,52 +311,54 @@ export class DonationReceiptHtmlService {
       <div class="payee-email">${userData.email}</div>
     </div>
 
-    <table>
-      <thead>
-        <tr>
-          <th>Date</th>
-          <th>Item Description</th>
-          <th>Amount</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${
-          donation.areasOfNeed && donation.areasOfNeed.length > 0
-            ? donation.areasOfNeed
-                .map(
-                  (area) => `
-        <tr>
-          <td>${shortDate}</td>
-          <td>${area.name}</td>
-          <td>${donation.currency || '$'} ${area.amount.toLocaleString()}</td>
-        </tr>
-        `,
-                )
-                .join('')
-            : `
-        <tr>
-          <td>${shortDate}</td>
-          <td>Donations</td>
-          <td>${donation.currency || '$'} ${donation.totalAmount.toLocaleString()}</td>
-        </tr>
-        `
-        }
-        <tr>
-          <td></td>
-          <td></td>
-          <td></td>
-        </tr>
-      </tbody>
-    </table>
+    <div class="table-wrapper">
+      <table>
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Item Description</th>
+            <th>Amount</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${
+            donation.areasOfNeed && donation.areasOfNeed.length > 0
+              ? donation.areasOfNeed
+                  .map(
+                    (area) => `
+          <tr>
+            <td>${shortDate}</td>
+            <td style="text-align:left; padding-left:24px;">${area.name}</td>
+            <td style="text-align:right; padding-right:28px;">${donation.currency || '$'} ${area.amount.toLocaleString()}</td>
+          </tr>
+          `,
+                  )
+                  .join('')
+              : `
+          <tr>
+            <td>${shortDate}</td>
+            <td style="text-align:left; padding-left:24px;">Donations</td>
+            <td style="text-align:right; padding-right:28px;">${donation.currency || '$'} ${donation.totalAmount.toLocaleString()}</td>
+          </tr>
+          `
+          }
+          <tr>
+            <td>&nbsp;</td>
+            <td>&nbsp;</td>
+            <td>&nbsp;</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
 
-    <div class="footer-section">
-      <div class="footer-left">
+    <div class="footer">
+      <div>
         <div class="thank-you">THANK YOU!</div>
         <div class="contact-info">
-          <strong>Address</strong> - ${address.street}<br>
+          Address - ${address.street}<br>
           ${address.city}<br>
-          <strong>Phone</strong> -${address.phone}<br>
-          <strong>Email</strong>- ${address.email}<br>
+          Phone - ${address.phone}<br>
+          Email- ${address.email}<br>
           ${address.email2}
         </div>
       </div>
@@ -352,12 +368,17 @@ export class DonationReceiptHtmlService {
       </div>
     </div>
 
-    <div class="signature-section">
-      <div class="signature-line"></div>
-      <div class="signature-name">Dr. Jane Uche-Ejekwu</div>
+    <div class="signature-block">
+      <div class="signature-inner">
+        <div class="signature-line"></div>
+        <div class="signature-name">Dr. Jane Uche-Ejekwu</div>
+      </div>
     </div>
 
-    <div class="purple-bar-bottom"></div>
+    <div class="bottom-bars">
+      <div class="bottom-green"></div>
+      <div class="bottom-purple"></div>
+    </div>
   </div>
 </body>
 </html>

@@ -3,7 +3,7 @@ import { DonationsService } from './donations.service';
 import { DonationsController } from './donations.controller';
 import { DonationReceiptService } from './receipt.service';
 import { DonationReceiptHtmlService } from './donation-receipt-html.service';
-import { DonationReceiptImageService } from './donation-receipt-image.service';
+import { DonationReceiptPdfService } from './donation-receipt-pdf.service';
 import { MongooseModule } from '@nestjs/mongoose';
 import { Donation, DonationShema } from './donation.schema';
 import { User, UserSchema } from '../users/schema/users.schema';
@@ -28,7 +28,7 @@ import { PaymentIntentsModule } from '../payment-intents/payment-intents.module'
     DonationsService,
     DonationReceiptService,
     DonationReceiptHtmlService,
-    DonationReceiptImageService,
+    DonationReceiptPdfService,
   ],
   exports: [DonationsService, DonationReceiptService],
 })
