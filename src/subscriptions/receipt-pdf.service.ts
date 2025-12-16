@@ -15,7 +15,10 @@ export class ReceiptPdfService {
   ) {}
 
   async generateReceiptPdf(subscriptionId: string): Promise<Buffer> {
-    const subscription = await this.subscriptionModel.findById(subscriptionId).populate('user').exec();
+    const subscription = await this.subscriptionModel
+      .findById(subscriptionId)
+      .populate('user')
+      .exec();
 
     if (!subscription) {
       throw new Error('Subscription not found');
@@ -72,7 +75,10 @@ export class ReceiptPdfService {
         let y = 160;
         doc.fontSize(14).font('Helvetica-Bold').fillColor(purple);
         doc.text('Transaction Information', 50, y);
-        doc.moveTo(50, y + 18).lineTo(545, y + 18).stroke('#E8D4E0');
+        doc
+          .moveTo(50, y + 18)
+          .lineTo(545, y + 18)
+          .stroke('#E8D4E0');
 
         y += 30;
         doc.fontSize(11).font('Helvetica').fillColor('#333333');
@@ -92,7 +98,10 @@ export class ReceiptPdfService {
         y += 15;
         doc.fontSize(14).font('Helvetica-Bold').fillColor(purple);
         doc.text('Member Information', 50, y);
-        doc.moveTo(50, y + 18).lineTo(545, y + 18).stroke('#E8D4E0');
+        doc
+          .moveTo(50, y + 18)
+          .lineTo(545, y + 18)
+          .stroke('#E8D4E0');
 
         y += 30;
         doc.fontSize(11).fillColor('#333333');
@@ -107,7 +116,10 @@ export class ReceiptPdfService {
         y += 15;
         doc.fontSize(14).font('Helvetica-Bold').fillColor(purple);
         doc.text('Payment Details', 50, y);
-        doc.moveTo(50, y + 18).lineTo(545, y + 18).stroke('#E8D4E0');
+        doc
+          .moveTo(50, y + 18)
+          .lineTo(545, y + 18)
+          .stroke('#E8D4E0');
 
         y += 30;
         doc.fontSize(11).fillColor('#333333');
