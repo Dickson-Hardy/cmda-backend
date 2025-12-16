@@ -110,7 +110,7 @@ export const MEMBER_CREDENTIALS_TEMPLATE = `
               height="56"
               style="display: block"
             />
-            <h1 style="color: #ffffff; font-size: 24px; margin-top: 16px">Member Account Created!</h1>
+            <h1 style="color: #ffffff; font-size: 24px; margin-top: 16px">Your CMDA Nigeria Member Account Has Been Created</h1>
             </td>
         </tr>
         <!-- Body -->
@@ -118,8 +118,10 @@ export const MEMBER_CREDENTIALS_TEMPLATE = `
             <td style="padding: 40px 30px">
             <h2 style="color: #333333; font-size: 22px; margin: 0">Hello [Name],</h2>
             <p style="color: #666666; font-size: 16px; line-height: 1.5; margin: 20px 0">
-                A member account has been created for you on CMDA Nigeria. You can log in using the
-                credentials below:
+                We are pleased to inform you that a member account has been successfully created for you on the CMDA Nigeria Membership platform.
+            </p>
+            <p style="color: #666666; font-size: 16px; line-height: 1.5; margin: 20px 0">
+                You may log in using the credentials below:
             </p>
             <p
                 style="
@@ -130,7 +132,7 @@ export const MEMBER_CREDENTIALS_TEMPLATE = `
                 "
             >
                 Email: [Email]<br /> <br />
-                Password: [Password]
+                Temporary Password: [Password]
             </p>
             <div style="text-align: center; margin: 30px 0">
                 <a
@@ -149,12 +151,11 @@ export const MEMBER_CREDENTIALS_TEMPLATE = `
                 Log In to Your Account
                 </a>
             </div>
-            <p style="color: #ff6b6b; font-size: 16px; line-height: 1.5; margin: 20px 0; font-weight: bold;">
-                ⚠️ You will be prompted to change your password upon first login for security reasons.
+            <p style="color: #666666; font-size: 16px; line-height: 1.5; margin: 20px 0">
+                Please note that you will be prompted to change your password upon your first login for security purposes.
             </p>
             <p style="color: #666666; font-size: 16px; line-height: 1.5; margin: 20px 0">
-                If you have any questions or are having trouble with the platform, feel free to
-                <a href="mailto:office@cmdanigeria.org" style="color: #994279; text-decoration: none">contact us</a>.
+                If you experience any issues accessing your account or have questions about the platform, do not hesitate to contact us for assistance.
             </p>
             <p style="color: #666666; font-size: 16px; line-height: 1.5; margin: 40px 0 0 0">
                 Best regards,<br />

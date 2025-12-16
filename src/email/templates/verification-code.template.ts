@@ -69,7 +69,7 @@ export const VERIFICATION_CODE_EMAIL_TEMPLATE = `
             </p>
             <p style="color: #666666; font-size: 16px; line-height: 1.5; margin: 40px 0 0 0">
               Best regards,<br />
-              <strong>The CMDA Nigeria Team</strong>
+              CMDA Nigeria Team
             </p>
           </td>
         </tr>
