@@ -50,7 +50,8 @@ export class ReceiptPdfService {
       : 'N/A';
 
     // Determine if payment is global or Nigerian
-    const isGlobal = subscription.currency === 'USD' || subscription.currency === '$';
+    const currency = (subscription.currency || 'NGN').toUpperCase();
+    const isGlobal = currency === 'USD' || currency === '$';
     const currencySymbol = isGlobal ? '$' : '₦';
 
     const address = isGlobal
@@ -73,7 +74,8 @@ export class ReceiptPdfService {
           orgShort: '(CMDA NIGERIA)',
         };
 
-    const status = subscription.isPaid ? 'PAID' : 'PENDING';
+    // Only completed payments can download receipts, so status is always PAID
+    const status = 'PAID';
     const description = this.getSubscriptionDescription(subscription);
 
     return new Promise((resolve, reject) => {
