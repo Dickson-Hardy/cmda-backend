@@ -107,7 +107,9 @@ export class ReceiptPdfService {
         // Organization info (right side)
         doc.fontSize(8).font('Helvetica-Bold');
         doc.text(address.orgName, pageWidth - 220, y, { width: 170, align: 'right' });
-        doc.fontSize(7).text(address.orgShort, pageWidth - 220, y + 35, { width: 170, align: 'right' });
+        doc
+          .fontSize(7)
+          .text(address.orgShort, pageWidth - 220, y + 35, { width: 170, align: 'right' });
 
         // ===== DATE AND INVOICE =====
         y = 95;
@@ -115,27 +117,41 @@ export class ReceiptPdfService {
         doc.text('Date:', margin, y);
         doc.font('Helvetica').text(transactionDate, margin + 35, y);
         // Underline
-        doc.moveTo(margin + 35, y + 14).lineTo(margin + 150, y + 14).stroke('#000000');
+        doc
+          .moveTo(margin + 35, y + 14)
+          .lineTo(margin + 150, y + 14)
+          .stroke('#000000');
 
         y += 25;
         doc.font('Helvetica-Bold').text('No. Invoice :', margin, y);
-        const invoiceNo = subscription.reference || subscription._id.toString().substring(0, 12).toUpperCase();
+        const invoiceNo =
+          subscription.reference || subscription._id.toString().substring(0, 12).toUpperCase();
         doc.font('Helvetica').text(invoiceNo, margin + 70, y);
         // Underline
-        doc.moveTo(margin + 70, y + 14).lineTo(margin + 220, y + 14).stroke('#000000');
+        doc
+          .moveTo(margin + 70, y + 14)
+          .lineTo(margin + 220, y + 14)
+          .stroke('#000000');
 
         // ===== PAYEE DETAILS SECTION =====
         y = 170;
         doc.fontSize(16).font('Helvetica-Bold').text('MEMBER DETAILS', margin, y);
-        
+
         y += 25;
         doc.fontSize(13).font('Helvetica-Bold').text(userData.fullName, margin, y);
-        
+
         y += 20;
         doc.fontSize(13).font('Helvetica').text(userData.email, margin, y);
 
         y += 20;
-        doc.fontSize(11).font('Helvetica').text(`Member ID: ${userData.membershipId}  |  ${userData.role}  |  ${userData.region}`, margin, y);
+        doc
+          .fontSize(11)
+          .font('Helvetica')
+          .text(
+            `Member ID: ${userData.membershipId}  |  ${userData.role}  |  ${userData.region}`,
+            margin,
+            y,
+          );
 
         // ===== STATUS BADGE =====
         const statusX = pageWidth - 150;
@@ -150,7 +166,7 @@ export class ReceiptPdfService {
         // ===== TABLE =====
         y = 260;
         const tableLeft = margin;
-        const tableWidth = pageWidth - (margin * 2);
+        const tableWidth = pageWidth - margin * 2;
         const col1Width = 100;
         const col2Width = tableWidth - col1Width - 120;
         const col3Width = 120;
@@ -161,7 +177,10 @@ export class ReceiptPdfService {
         doc.fillColor('#FFFFFF').fontSize(12).font('Helvetica-Bold');
         doc.text('Date', tableLeft + 15, y + 12);
         doc.text('Item Description', tableLeft + col1Width + 20, y + 12);
-        doc.text('Amount', tableLeft + col1Width + col2Width + 10, y + 12, { width: col3Width - 20, align: 'right' });
+        doc.text('Amount', tableLeft + col1Width + col2Width + 10, y + 12, {
+          width: col3Width - 20,
+          align: 'right',
+        });
 
         // Table row
         y += rowHeight;
@@ -175,8 +194,16 @@ export class ReceiptPdfService {
         // Row content
         doc.fillColor('#000000');
         doc.text(shortDate, tableLeft + 15, y + 12);
-        doc.text(description, tableLeft + col1Width + 20, y + 12, { width: col2Width - 40, align: 'center' });
-        doc.text(`${currencySymbol} ${subscription.amount.toLocaleString()}`, tableLeft + col1Width + col2Width + 10, y + 12, { width: col3Width - 20, align: 'right' });
+        doc.text(description, tableLeft + col1Width + 20, y + 12, {
+          width: col2Width - 40,
+          align: 'center',
+        });
+        doc.text(
+          `${currencySymbol} ${subscription.amount.toLocaleString()}`,
+          tableLeft + col1Width + col2Width + 10,
+          y + 12,
+          { width: col3Width - 20, align: 'right' },
+        );
 
         y += rowHeight;
 
@@ -187,8 +214,16 @@ export class ReceiptPdfService {
 
         doc.fontSize(10).font('Helvetica');
         doc.text('Expiry:', tableLeft + 15, y + 12);
-        doc.text(expiryDate, tableLeft + col1Width + 20, y + 12, { width: col2Width - 40, align: 'center' });
-        doc.text(subscription.frequency || 'Annual', tableLeft + col1Width + col2Width + 10, y + 12, { width: col3Width - 20, align: 'right' });
+        doc.text(expiryDate, tableLeft + col1Width + 20, y + 12, {
+          width: col2Width - 40,
+          align: 'center',
+        });
+        doc.text(
+          subscription.frequency || 'Annual',
+          tableLeft + col1Width + col2Width + 10,
+          y + 12,
+          { width: col3Width - 20, align: 'right' },
+        );
 
         y += rowHeight;
 
@@ -224,19 +259,28 @@ export class ReceiptPdfService {
         const totalBoxWidth = 150;
         const totalBoxHeight = 60;
 
-        doc.rect(totalBoxX, totalBoxY, totalBoxWidth, totalBoxHeight).fillAndStroke('#efebe7', '#2c2c2c');
+        doc
+          .rect(totalBoxX, totalBoxY, totalBoxWidth, totalBoxHeight)
+          .fillAndStroke('#efebe7', '#2c2c2c');
         doc.fillColor('#000000').fontSize(14).font('Helvetica-Bold');
         doc.text('Total:', totalBoxX + 15, totalBoxY + 12);
         doc.fontSize(24).font('Helvetica-Bold');
-        doc.text(`${currencySymbol} ${subscription.amount.toLocaleString()}`, totalBoxX + 15, totalBoxY + 32);
+        doc.text(
+          `${currencySymbol} ${subscription.amount.toLocaleString()}`,
+          totalBoxX + 15,
+          totalBoxY + 32,
+        );
 
         // ===== SIGNATURE =====
         const sigY = thankYouY + 130;
         const sigX = pageWidth - 220;
 
         // Signature line
-        doc.moveTo(sigX, sigY).lineTo(sigX + 170, sigY).stroke('#2c2c2c');
-        
+        doc
+          .moveTo(sigX, sigY)
+          .lineTo(sigX + 170, sigY)
+          .stroke('#2c2c2c');
+
         // Signature name
         doc.fontSize(14).font('Helvetica-Oblique').fillColor('#000000');
         doc.text('Dr. Jane Uche-Ejekwu', sigX, sigY + 8, { width: 170, align: 'center' });
