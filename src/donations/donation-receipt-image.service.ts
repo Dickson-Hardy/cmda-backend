@@ -11,11 +11,12 @@ export class DonationReceiptImageService implements OnModuleInit, OnModuleDestro
   async onModuleInit() {
     // Launch browser once when the module initializes
     // Use system Chromium in production/containerized environments
-    const executablePath = process.env.PUPPETEER_EXECUTABLE_PATH || 
-                           process.env.CHROME_PATH || 
-                           '/usr/bin/chromium' || 
-                           undefined;
-    
+    const executablePath =
+      process.env.PUPPETEER_EXECUTABLE_PATH ||
+      process.env.CHROME_PATH ||
+      '/usr/bin/chromium' ||
+      undefined;
+
     this.browser = await puppeteer.launch({
       headless: true,
       executablePath,
