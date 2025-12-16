@@ -32,8 +32,14 @@ export class ReceiptHtmlService {
 
     const transactionDate = new Date((subscription as any).createdAt).toLocaleDateString('en-GB', {
       day: '2-digit',
-      month: 'long',
+      month: '2-digit',
       year: 'numeric',
+    });
+
+    const shortDate = new Date((subscription as any).createdAt).toLocaleDateString('en-GB', {
+      day: '2-digit',
+      month: '2-digit',
+      year: '2-digit',
     });
 
     const expiryDate = subscription.expiryDate
@@ -45,6 +51,32 @@ export class ReceiptHtmlService {
     const statusBg = subscription.isPaid ? '#D1FAE5' : '#FEF3C7';
 
     const description = this.getSubscriptionDescription(subscription);
+
+    // Determine if payment is global or Nigerian
+    const isGlobal = subscription.currency === 'USD' || subscription.currency === '$';
+
+    // Set receipt title based on payment type
+    const receiptTitle = 'SUBSCRIPTION RECEIPT';
+
+    // Set address and contact based on location
+    const address = isGlobal
+      ? {
+          street: '1928 Woodlawn Drive,',
+          city: 'Woodlawn, Maryland, 21207.',
+          phone: '+1 (443) 557 4199',
+          email: 'give@cmdanigeriaglobal.org,',
+          email2: 'info@cmdanigeriaglobal.org',
+          orgName:
+            'CHRISTIAN MEDICAL<br>ANDDENTAL ASSOCIATION<br>OF NIGERIA GLOBAL NETWORK<br>(CMDA NIGERIA-GLOBAL NETWORK)',
+        }
+      : {
+          street: 'Wholeness House Gwagwalada,',
+          city: 'FCT, Nigeria.',
+          phone: '+234 803 304 3290',
+          email: 'office@cmdanigeria.org,',
+          email2: 'info@cmdanigeria.org',
+          orgName: 'CHRISTIAN MEDICAL<br>AND DENTAL ASSOCIATION<br>OF NIGERIA<br>(CMDA NIGERIA)',
+        };
 
     return `
 <!DOCTYPE html>

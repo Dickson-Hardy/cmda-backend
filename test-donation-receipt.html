@@ -1,81 +1,10 @@
-import { Injectable } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
-import { Donation } from './donation.schema';
-import { User } from '../users/schema/users.schema';
 
-@Injectable()
-export class DonationReceiptHtmlService {
-  constructor(
-    @InjectModel(Donation.name) private donationModel: Model<Donation>,
-    @InjectModel(User.name) private userModel: Model<User>,
-  ) {}
-
-  async generateReceiptHtml(donationId: string): Promise<string> {
-    const donation = await this.donationModel.findById(donationId).populate('user').exec();
-
-    if (!donation) {
-      throw new Error('Donation not found');
-    }
-
-    const user = (donation.user as any) || {};
-    const userData = {
-      fullName: user.fullName || `${user.firstName || ''} ${user.lastName || ''}`.trim() || 'N/A',
-      email: user.email || 'N/A',
-      role: user.role || 'N/A',
-      membershipId: user.membershipId || 'N/A',
-      region: user.region || 'N/A',
-    };
-
-    const transactionDate = new Date((donation as any).createdAt).toLocaleDateString('en-GB', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-    });
-
-    const shortDate = new Date((donation as any).createdAt).toLocaleDateString('en-GB', {
-      day: '2-digit',
-      month: '2-digit',
-      year: '2-digit',
-    });
-
-    const status = donation.isPaid ? 'PAID' : 'PENDING';
-    const statusColor = donation.isPaid ? '#10B981' : '#F59E0B';
-    const statusBg = donation.isPaid ? '#D1FAE5' : '#FEF3C7';
-
-    // Determine if payment is global or Nigerian
-    const isGlobal = donation.currency === 'USD' || donation.currency === '$';
-
-    // Set receipt title based on payment type
-    const receiptTitle = 'DONATION RECIEPT';
-
-    // Set address and contact based on location
-    const address = isGlobal
-      ? {
-          street: '1928 Woodlawn Drive,',
-          city: 'Woodlawn, Maryland, 21207.',
-          phone: '+1 (443) 557 4199',
-          email: 'give@cmdanigeriaglobal.org,',
-          email2: 'info@cmdanigeriaglobal.org',
-          orgName:
-            'CHRISTIAN MEDICAL<br>ANDDENTAL ASSOCIATION<br>OF NIGERIA GLOBAL NETWORK<br>(CMDA NIGERIA-GLOBAL NETWORK)',
-        }
-      : {
-          street: 'Wholeness House Gwagwalada,',
-          city: 'FCT, Nigeria.',
-          phone: '+234 803 304 3290',
-          email: 'office@cmdanigeria.org,',
-          email2: 'info@cmdanigeria.org',
-          orgName: 'CHRISTIAN MEDICAL<br>AND DENTAL ASSOCIATION<br>OF NIGERIA<br>(CMDA NIGERIA)',
-        };
-
-    return `
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>CMDA Donation Receipt - ${donation.reference || donationId}</title>
+  <title>CMDA Donation Receipt - DON-2024-001</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
@@ -277,13 +206,13 @@ export class DonationReceiptHtmlService {
     
     <div class="header">
       <div class="header-left">
-        <h1>${receiptTitle}</h1>
-        <div class="date">Date:${transactionDate}</div>
-        <div class="invoice">No. Invoice : ${donation.reference || donation._id.toString().substring(0, 8).toUpperCase()}</div>
+        <h1>DONATION RECIEPT</h1>
+        <div class="date">Date:01/02/2024</div>
+        <div class="invoice">No. Invoice : DON-2024-001</div>
       </div>
       <div class="header-right">
         <div class="org-name">
-          ${address.orgName}
+          CHRISTIAN MEDICAL<br>ANDDENTAL ASSOCIATION<br>OF NIGERIA GLOBAL NETWORK<br>(CMDA NIGERIA-GLOBAL NETWORK)
         </div>
         <div class="logo-container">
           <img src="https://cmdanigeria.net/CMDALogo.svg" alt="CMDA Logo">
@@ -293,8 +222,8 @@ export class DonationReceiptHtmlService {
 
     <div class="payee-section">
       <div class="payee-title">PAYEE DETAILS</div>
-      <div class="payee-name">${userData.fullName}</div>
-      <div class="payee-email">${userData.email}</div>
+      <div class="payee-name">Angela Onime</div>
+      <div class="payee-email">angelaonime@gmail.com</div>
     </div>
 
     <table>
@@ -306,27 +235,25 @@ export class DonationReceiptHtmlService {
         </tr>
       </thead>
       <tbody>
-        ${
-          donation.areasOfNeed && donation.areasOfNeed.length > 0
-            ? donation.areasOfNeed
-                .map(
-                  (area) => `
+        
         <tr>
-          <td>${shortDate}</td>
-          <td>${area.name}</td>
-          <td>${donation.currency || '$'} ${area.amount.toLocaleString()}</td>
-        </tr>
-        `,
-                )
-                .join('')
-            : `
-        <tr>
-          <td>${shortDate}</td>
+          <td>01/02/24</td>
           <td>Donations</td>
-          <td>${donation.currency || '$'} ${donation.totalAmount.toLocaleString()}</td>
+          <td>$ 300</td>
         </tr>
-        `
-        }
+        
+        <tr>
+          <td>01/02/24</td>
+          <td>Dues</td>
+          <td>$ 100</td>
+        </tr>
+        
+        <tr>
+          <td>01/02/24</td>
+          <td>6JNC</td>
+          <td>$ 100</td>
+        </tr>
+        
         <tr>
           <td></td>
           <td></td>
@@ -339,16 +266,16 @@ export class DonationReceiptHtmlService {
       <div class="footer-left">
         <div class="thank-you">THANK YOU!</div>
         <div class="contact-info">
-          <strong>Address</strong> - ${address.street}<br>
-          ${address.city}<br>
-          <strong>Phone</strong> -${address.phone}<br>
-          <strong>Email</strong>- ${address.email}<br>
-          ${address.email2}
-        </div>
-      </div>
-      <div class="total-box">
+          <strong>Address</strong> - 1928 Woodlawn Drive,<br>
+          Woodlawn, Maryland, 21207.<br>
+          <strong>Phone</strong> -+1 (443) 557 4199<br>
+          <strong>Email</strong>- giv1928 Woodlawn Drive,<br>
+          Woodlawn, Maryland, 21207.<br>
+          <strong>Phone</strong> -+1 (443) 557 4199<br>
+          <strong>Email</strong>- give@cmdanigeriaglobal.org,<br>
+          info@cmdanigeriaglobal.org
         <div class="total-label">Total:</div>
-        <div class="total-amount">${donation.currency || '$'} ${donation.totalAmount.toLocaleString()}</div>
+        <div class="total-amount">$ 500</div>
       </div>
     </div>
 
@@ -361,6 +288,3 @@ export class DonationReceiptHtmlService {
   </div>
 </body>
 </html>
-    `.trim();
-  }
-}

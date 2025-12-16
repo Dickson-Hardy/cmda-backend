@@ -1,0 +1,47 @@
+name: cmda-backend
+region: nyc
+
+services:
+  - name: api
+    dockerfile_path: Dockerfile
+    github:
+      repo: Dickson-Hardy/cmda-backend
+      branch: main
+      deploy_on_push: true
+    
+    envs:
+      # Application
+      - key: NODE_ENV
+        value: "production"
+      - key: PORT
+        value: "8080"
+      
+      # Puppeteer Configuration
+      - key: PUPPETEER_SKIP_CHROMIUM_DOWNLOAD
+        value: "true"
+      - key: PUPPETEER_EXECUTABLE_PATH
+        value: "/usr/bin/chromium"
+      - key: CHROME_PATH
+        value: "/usr/bin/chromium"
+      
+      # Database - Add your MongoDB URL
+      # - key: DATABASE_URL
+      #   value: "${DATABASE_URL}"
+      
+      # Add other environment variables as needed
+      # JWT, SMTP, Cloudinary, PayPal, Paystack, etc.
+    
+    health_check:
+      http_path: /
+      initial_delay_seconds: 90  # Increased for Chromium initialization
+      period_seconds: 10
+      timeout_seconds: 5
+      success_threshold: 1
+      failure_threshold: 3
+    
+    http_port: 8080
+    instance_count: 1
+    instance_size_slug: professional-xs  # Minimum required for Puppeteer
+    
+    routes:
+      - path: /
