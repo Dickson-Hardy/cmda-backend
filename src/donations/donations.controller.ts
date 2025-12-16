@@ -2,7 +2,7 @@ import { Controller, Get, Post, Body, Req, Query, Param, Res } from '@nestjs/com
 import { Response } from 'express';
 import { DonationsService } from './donations.service';
 import { DonationReceiptService } from './receipt.service';
-import { DonationReceiptImageService } from './donation-receipt-image.service';
+import { DonationReceiptPdfService } from './donation-receipt-pdf.service';
 import { CreateDonationDto } from './dto/create-donation.dto';
 import { ApiBearerAuth, ApiBody, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { IJwtPayload } from '../_global/interface/jwt-payload';
@@ -19,7 +19,7 @@ export class DonationsController {
   constructor(
     private readonly donationsService: DonationsService,
     private readonly donationReceiptService: DonationReceiptService,
-    private readonly donationReceiptImageService: DonationReceiptImageService,
+    private readonly donationReceiptPdfService: DonationReceiptPdfService,
   ) {}
 
   @Get()
@@ -90,20 +90,20 @@ export class DonationsController {
   @Get(':id/receipt')
   @Roles([...AllUserRoles, ...AllAdminRoles])
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Download receipt for a donation as image (PNG)' })
+  @ApiOperation({ summary: 'Download receipt for a donation as PDF' })
   async downloadReceipt(@Param('id') id: string, @Res() res: Response) {
     try {
-      const imageBuffer = await this.donationReceiptImageService.generateReceiptImage(id);
+      const pdfBuffer = await this.donationReceiptPdfService.generateReceiptPdf(id);
 
-      // Set proper headers for PNG image delivery
-      res.setHeader('Content-Type', 'image/png');
-      res.setHeader('Content-Disposition', `inline; filename="donation-receipt-${id}.png"`);
-      res.setHeader('Content-Length', imageBuffer.length.toString());
+      // Set proper headers for PDF delivery
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `inline; filename="donation-receipt-${id}.pdf"`);
+      res.setHeader('Content-Length', pdfBuffer.length.toString());
       res.setHeader('Cache-Control', 'private, no-cache, no-store, must-revalidate');
       res.setHeader('Pragma', 'no-cache');
       res.setHeader('Expires', '0');
 
-      res.send(imageBuffer);
+      res.send(pdfBuffer);
     } catch (error) {
       console.error('Donation receipt error:', error);
       res.status(error.message === 'Donation not found' ? 404 : 500).json({
