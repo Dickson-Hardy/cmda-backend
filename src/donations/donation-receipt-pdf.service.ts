@@ -119,7 +119,10 @@ export class DonationReceiptPdfService {
               width: 100,
               align: 'right',
             });
-            doc.moveTo(50, rowY + 20).lineTo(545, rowY + 20).stroke('#c1c1c1');
+            doc
+              .moveTo(50, rowY + 20)
+              .lineTo(545, rowY + 20)
+              .stroke('#c1c1c1');
             rowY += 25;
           }
         } else {
@@ -131,12 +134,18 @@ export class DonationReceiptPdfService {
             rowY,
             { width: 100, align: 'right' },
           );
-          doc.moveTo(50, rowY + 20).lineTo(545, rowY + 20).stroke('#c1c1c1');
+          doc
+            .moveTo(50, rowY + 20)
+            .lineTo(545, rowY + 20)
+            .stroke('#c1c1c1');
           rowY += 25;
         }
 
         // Empty row for table spacing
-        doc.moveTo(50, rowY + 20).lineTo(545, rowY + 20).stroke('#c1c1c1');
+        doc
+          .moveTo(50, rowY + 20)
+          .lineTo(545, rowY + 20)
+          .stroke('#c1c1c1');
 
         // Thank you section
         const footerY = rowY + 60;
@@ -153,7 +162,11 @@ export class DonationReceiptPdfService {
         doc.fillColor('#000000').fontSize(14).font('Helvetica-Bold');
         doc.text('Total:', 400, footerY + 15);
         doc.fontSize(22);
-        doc.text(`${donation.currency || '$'} ${donation.totalAmount.toLocaleString()}`, 400, footerY + 35);
+        doc.text(
+          `${donation.currency || '$'} ${donation.totalAmount.toLocaleString()}`,
+          400,
+          footerY + 35,
+        );
 
         // Signature line
         const sigY = footerY + 130;
