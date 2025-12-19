@@ -42,18 +42,13 @@ export class ReceiptHtmlService {
       year: '2-digit',
     });
 
-    const expiryDate = subscription.expiryDate
-      ? new Date(subscription.expiryDate).toLocaleDateString('en-GB')
-      : 'N/A';
-
-    const status = subscription.isPaid ? 'PAID' : 'PENDING';
-    const statusColor = subscription.isPaid ? '#10B981' : '#F59E0B';
-    const statusBg = subscription.isPaid ? '#D1FAE5' : '#FEF3C7';
-
     const description = this.getSubscriptionDescription(subscription);
 
     // Determine if payment is global or Nigerian
     const isGlobal = subscription.currency === 'USD' || subscription.currency === '$';
+
+    // Get currency symbol
+    const currencySymbol = isGlobal ? '$' : '₦';
 
     // Set receipt title based on payment type
     const receiptTitle = 'SUBSCRIPTION RECEIPT';
@@ -84,235 +79,293 @@ export class ReceiptHtmlService {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>CMDA Receipt - ${subscription.reference || subscriptionId}</title>
+  <title>CMDA Subscription Receipt - ${subscription.reference || subscriptionId}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700;800;900&family=Nunito:wght@400;600;700&display=swap" rel="stylesheet">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      background: #f3f4f6;
-      padding: 20px;
-      line-height: 1.6;
+      font-family: 'Montserrat', 'Nunito', Arial, sans-serif;
+      background: #fff;
+      padding: 24px;
+      line-height: 1.35;
     }
     .receipt-container {
-      max-width: 800px;
+      max-width: 820px;
       margin: 0 auto;
-      background: white;
-      border: 3px solid #994279;
-      border-radius: 8px;
-      padding: 40px;
-      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+      background: #fff;
+      padding: 0;
+      border: 1px solid #e0e0e0;
+    }
+    .top-bar {
+      height: 24px;
+      background: #6f1d46;
+      width: 100%;
     }
     .header {
-      text-align: center;
-      border-bottom: 3px solid #994279;
-      padding-bottom: 20px;
-      margin-bottom: 30px;
-    }
-    .header h1 {
-      color: #994279;
-      font-size: 32px;
-      font-weight: bold;
-      margin-bottom: 10px;
-    }
-    .header p {
-      color: #666;
-      font-size: 14px;
-      margin: 5px 0;
-    }
-    .receipt-title {
-      text-align: center;
-      font-size: 28px;
-      font-weight: bold;
-      color: #000;
-      margin: 20px 0;
-    }
-    .section {
-      margin: 25px 0;
-    }
-    .section-title {
-      font-size: 18px;
-      font-weight: bold;
-      color: #994279;
-      margin-bottom: 15px;
-      padding-bottom: 8px;
-      border-bottom: 2px solid #E8D4E0;
-    }
-    .detail-row {
       display: flex;
-      padding: 10px 0;
-      border-bottom: 1px solid #f0f0f0;
+      justify-content: space-between;
+      align-items: flex-start;
+      padding: 32px 34px 18px 34px;
+      gap: 24px;
     }
-    .detail-label {
-      font-weight: 600;
-      color: #333;
-      min-width: 180px;
+    .header-left h1 {
+      font-size: 46px;
+      font-weight: 900;
+      color: #111;
+      letter-spacing: 0px;
+      margin-bottom: 26px;
+      line-height: 1;
     }
-    .detail-value {
-      color: #666;
-      flex: 1;
-    }
-    .status-badge {
-      display: inline-block;
-      padding: 6px 16px;
-      border-radius: 20px;
-      font-weight: bold;
-      font-size: 12px;
-      background: ${statusBg};
-      color: ${statusColor};
-    }
-    .amount-box {
-      background: #994279;
-      color: white;
-      padding: 25px;
-      border-radius: 8px;
-      text-align: center;
-      margin: 30px 0;
-    }
-    .amount-box .label {
-      font-size: 16px;
-      margin-bottom: 10px;
-    }
-    .amount-box .amount {
-      font-size: 36px;
-      font-weight: bold;
-    }
-    .thank-you {
-      text-align: center;
-      margin: 30px 0;
-    }
-    .thank-you h3 {
-      color: #994279;
+    .field-row {
       font-size: 20px;
+      font-weight: 700;
+      color: #111;
       margin-bottom: 10px;
     }
-    .thank-you p {
-      color: #666;
-      font-size: 14px;
+    .field-label {
+      font-weight: 800;
+      margin-right: 8px;
+    }
+    .underline {
+      display: inline-block;
+      min-width: 220px;
+      border-bottom: 2px solid #000;
+      padding-bottom: 4px;
+    }
+    .header-right {
+      text-align: right;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 12px;
+    }
+    .org-name {
+      font-size: 11px;
+      font-weight: 800;
+      color: #111;
+      line-height: 1.45;
+      max-width: 210px;
+      text-align: center;
+    }
+    .logo-container {
+      width: 82px;
+      height: 82px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 1.5px solid #b5b5b5;
+      border-radius: 4px;
+      padding: 8px;
+      background: #fafafa;
+    }
+    .logo-container img {
+      max-width: 100%;
+      max-height: 100%;
+      object-fit: contain;
+    }
+    .payee-section {
+      padding: 0 34px 8px 34px;
+    }
+    .payee-title {
+      font-size: 28px;
+      font-weight: 900;
+      color: #111;
+      margin-bottom: 8px;
+      letter-spacing: 0.4px;
+    }
+    .payee-name {
+      font-size: 22px;
+      font-weight: 800;
+      color: #111;
+      margin-bottom: 6px;
+    }
+    .payee-email {
+      font-size: 22px;
+      font-weight: 800;
+      color: #111;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 30px auto 16px auto;
+    }
+    thead {
+      background: #009246;
+    }
+    thead th {
+      color: #fff;
+      padding: 14px 12px;
+      text-align: center;
+      font-weight: 800;
+      font-size: 17px;
+    }
+    tbody td {
+      padding: 16px 14px;
+      border: 1px solid #c1c1c1;
+      font-size: 19px;
+      font-weight: 700;
+      color: #111;
+      text-align: center;
+    }
+    .table-wrapper {
+      padding: 0 24px;
     }
     .footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      padding: 26px 34px 12px 34px;
+      gap: 32px;
+    }
+    .thank-you {
+      font-size: 42px;
+      font-weight: 900;
+      color: #111;
+      margin-bottom: 18px;
+      letter-spacing: 0.2px;
+    }
+    .contact-info {
+      font-size: 14px;
+      color: #111;
+      line-height: 1.85;
+      font-weight: 700;
+      max-width: 360px;
+    }
+    .total-box {
+      border: 1.8px solid #2c2c2c;
+      background: #efebe7;
+      padding: 16px 24px;
+      min-width: 260px;
       text-align: center;
-      border-top: 2px solid #e5e7eb;
-      padding-top: 20px;
-      margin-top: 30px;
-      color: #6b7280;
-      font-size: 12px;
+      align-self: flex-start;
     }
-    .footer p {
-      margin: 8px 0;
+    .total-label {
+      font-size: 22px;
+      font-weight: 800;
+      color: #111;
+      margin-bottom: 6px;
     }
-    .print-button {
+    .total-amount {
+      font-size: 40px;
+      font-weight: 900;
+      color: #111;
+      letter-spacing: -0.4px;
+    }
+    .signature-block {
+      display: flex;
+      justify-content: flex-end;
+      padding: 14px 34px 6px 34px;
+      margin-top: 10px;
+    }
+    .signature-inner {
+      width: 340px;
       text-align: center;
-      margin: 20px 0;
     }
-    .print-button button {
-      background: #994279;
-      color: white;
-      border: none;
-      padding: 12px 30px;
-      border-radius: 6px;
-      font-size: 16px;
-      cursor: pointer;
-      font-weight: 600;
+    .signature-line {
+      border-bottom: 1.8px solid #2c2c2c;
+      padding-top: 38px;
+      margin-bottom: 8px;
     }
-    .print-button button:hover {
-      background: #7a345f;
+    .signature-name {
+      font-size: 19px;
+      font-weight: 800;
+      color: #111;
+      font-style: italic;
+    }
+    .bottom-bars {
+      margin-top: 20px;
+    }
+    .bottom-green {
+      height: 24px;
+      background: #009246;
+    }
+    .bottom-purple {
+      height: 24px;
+      background: #6f1d46;
     }
     @media print {
-      body { background: white; padding: 0; }
-      .receipt-container { border: 2px solid #994279; box-shadow: none; }
-      .print-button { display: none; }
+      body { padding: 0; background: #fff; }
+      .receipt-container { border: none; }
     }
   </style>
 </head>
 <body>
   <div class="receipt-container">
+    <div class="top-bar"></div>
+
     <div class="header">
-      <h1>CMDA NIGERIA</h1>
-      <p>Christian Medical & Dental Association of Nigeria</p>
-      <p>Website: www.cmdanigeria.net</p>
-      <p>Email: office@cmdanigeria.org | Phone: +234 803 304 3290</p>
-    </div>
-
-    <div class="receipt-title">PAYMENT RECEIPT</div>
-
-    <div class="section">
-      <div class="section-title">Transaction Information</div>
-      <div class="detail-row">
-        <div class="detail-label">Receipt Number:</div>
-        <div class="detail-value">${subscription.reference || subscription._id.toString()}</div>
+      <div class="header-left">
+        <h1>${receiptTitle}</h1>
+        <div class="field-row"><span class="field-label">Date:</span><span class="underline">${transactionDate}</span></div>
+        <div class="field-row"><span class="field-label">No. Invoice :</span><span class="underline">${subscription.reference || subscription._id.toString().substring(0, 8).toUpperCase()}</span></div>
       </div>
-      <div class="detail-row">
-        <div class="detail-label">Transaction Date:</div>
-        <div class="detail-value">${transactionDate}</div>
-      </div>
-      <div class="detail-row">
-        <div class="detail-label">Payment Method:</div>
-        <div class="detail-value">${subscription.source || 'Online Payment'}</div>
-      </div>
-      <div class="detail-row">
-        <div class="detail-label">Payment Status:</div>
-        <div class="detail-value"><span class="status-badge">${status}</span></div>
+      <div class="header-right">
+        <div class="org-name">${address.orgName}</div>
+        <div class="logo-container">
+          <img src="https://cmdanigeria.net/CMDALogo.svg" alt="CMDA Logo">
+        </div>
       </div>
     </div>
 
-    <div class="section">
-      <div class="section-title">Member Information</div>
-      <div class="detail-row">
-        <div class="detail-label">Full Name:</div>
-        <div class="detail-value">${userData.fullName}</div>
-      </div>
-      <div class="detail-row">
-        <div class="detail-label">Member ID:</div>
-        <div class="detail-value">${userData.membershipId}</div>
-      </div>
-      <div class="detail-row">
-        <div class="detail-label">Email:</div>
-        <div class="detail-value">${userData.email}</div>
-      </div>
-      <div class="detail-row">
-        <div class="detail-label">Member Type:</div>
-        <div class="detail-value">${userData.role}</div>
-      </div>
-      <div class="detail-row">
-        <div class="detail-label">Region/Chapter:</div>
-        <div class="detail-value">${userData.region}</div>
-      </div>
+    <div class="payee-section">
+      <div class="payee-title">PAYEE DETAILS</div>
+      <div class="payee-name">${userData.fullName}</div>
+      <div class="payee-email">${userData.email}</div>
     </div>
 
-    <div class="section">
-      <div class="section-title">Payment Details</div>
-      <div class="detail-row">
-        <div class="detail-label">Description:</div>
-        <div class="detail-value">${description}</div>
-      </div>
-      <div class="detail-row">
-        <div class="detail-label">Subscription Period:</div>
-        <div class="detail-value">${subscription.frequency}</div>
-      </div>
-      <div class="detail-row">
-        <div class="detail-label">Expiry Date:</div>
-        <div class="detail-value">${expiryDate}</div>
-      </div>
-    </div>
-
-    <div class="amount-box">
-      <div class="label">TOTAL AMOUNT PAID</div>
-      <div class="amount">${subscription.currency} ${subscription.amount.toLocaleString()}</div>
-    </div>
-
-    <div class="thank-you">
-      <h3>Thank you for your payment!</h3>
-      <p>Your support helps CMDA Nigeria fulfill its mission of serving God through healthcare ministry.</p>
-    </div>
-
-    <div class="print-button">
-      <button onclick="window.print()">Print / Save as PDF</button>
+    <div class="table-wrapper">
+      <table>
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Item Description</th>
+            <th>Amount</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>${shortDate}</td>
+            <td style="text-align:left; padding-left:24px;">${description}</td>
+            <td style="text-align:right; padding-right:28px;">${currencySymbol} ${subscription.amount.toLocaleString()}</td>
+          </tr>
+          <tr>
+            <td>&nbsp;</td>
+            <td>&nbsp;</td>
+            <td>&nbsp;</td>
+          </tr>
+        </tbody>
+      </table>
     </div>
 
     <div class="footer">
-      <p><strong>This is a computer-generated receipt and does not require a signature.</strong></p>
-      <p>For inquiries, please contact: office@cmdanigeria.org or call +234 803 304 3290</p>
-      <p>Receipt generated on: ${new Date().toLocaleString('en-GB', { dateStyle: 'long', timeStyle: 'short' })}</p>
+      <div>
+        <div class="thank-you">THANK YOU!</div>
+        <div class="contact-info">
+          Address - ${address.street}<br>
+          ${address.city}<br>
+          Phone - ${address.phone}<br>
+          Email- ${address.email}<br>
+          ${address.email2}
+        </div>
+      </div>
+      <div class="total-box">
+        <div class="total-label">Total:</div>
+        <div class="total-amount">${currencySymbol} ${subscription.amount.toLocaleString()}</div>
+      </div>
+    </div>
+
+    <div class="signature-block">
+      <div class="signature-inner">
+        <div class="signature-line"></div>
+        <div class="signature-name">Dr. Jane Uche-Ejekwu</div>
+      </div>
+    </div>
+
+    <div class="bottom-bars">
+      <div class="bottom-green"></div>
+      <div class="bottom-purple"></div>
     </div>
   </div>
 </body>
