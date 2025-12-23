@@ -47,8 +47,8 @@ export class ReceiptHtmlService {
     // Determine if payment is global or Nigerian
     const isGlobal = subscription.currency === 'USD' || subscription.currency === '$';
 
-    // Get currency symbol
-    const currencySymbol = isGlobal ? '$' : '₦';
+    // Get currency symbol - using HTML entity for Naira to avoid encoding issues
+    const currencySymbol = isGlobal ? '$' : '&#8358;';
 
     // Set receipt title based on payment type
     const receiptTitle = 'SUBSCRIPTION RECEIPT';
@@ -62,7 +62,7 @@ export class ReceiptHtmlService {
           email: 'give@cmdanigeriaglobal.org,',
           email2: 'info@cmdanigeriaglobal.org',
           orgName:
-            'CHRISTIAN MEDICAL<br>ANDDENTAL ASSOCIATION<br>OF NIGERIA GLOBAL NETWORK<br>(CMDA NIGERIA-GLOBAL NETWORK)',
+            'CHRISTIAN MEDICAL<br>AND DENTAL ASSOCIATION<br>OF NIGERIA GLOBAL NETWORK<br>(CMDA NIGERIA-GLOBAL NETWORK)',
         }
       : {
           street: 'Wholeness House Gwagwalada,',

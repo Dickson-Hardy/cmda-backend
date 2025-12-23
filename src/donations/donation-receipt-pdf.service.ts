@@ -4,7 +4,6 @@ import { Model } from 'mongoose';
 import * as PDFDocument from 'pdfkit';
 import { Donation } from './donation.schema';
 import { User } from '../users/schema/users.schema';
-import * as path from 'path';
 
 @Injectable()
 export class DonationReceiptPdfService {
@@ -43,7 +42,8 @@ export class DonationReceiptPdfService {
     // Determine if payment is global or Nigerian
     const currency = (donation.currency || 'NGN').toUpperCase();
     const isGlobal = currency === 'USD' || currency === '$';
-    const currencySymbol = isGlobal ? '$' : '₦';
+    // Use Unicode escape for Naira symbol to avoid encoding issues
+    const currencySymbol = isGlobal ? '$' : '\u20A6';
 
     const address = isGlobal
       ? {
@@ -52,7 +52,7 @@ export class DonationReceiptPdfService {
           phone: '+1 (443) 557 4199',
           email: 'give@cmdanigeriaglobal.org,',
           email2: 'info@cmdanigeriaglobal.org',
-          orgName: 'CHRISTIAN MEDICAL\nANDDENTAL ASSOCIATION\nOF NIGERIA GLOBAL NETWORK',
+          orgName: 'CHRISTIAN MEDICAL\nAND DENTAL ASSOCIATION\nOF NIGERIA GLOBAL NETWORK',
           orgShort: '(CMDA NIGERIA-GLOBAL NETWORK)',
         }
       : {
@@ -95,7 +95,7 @@ export class DonationReceiptPdfService {
 
         // Title - DONATION RECEIPT
         doc.fillColor('#000000');
-        doc.fontSize(28).font('Helvetica-Bold').text('DONATION RECIEPT', margin, y);
+        doc.fontSize(28).font('Helvetica-Bold').text('DONATION RECEIPT', margin, y);
 
         // Organization info (right side)
         doc.fontSize(8).font('Helvetica-Bold');

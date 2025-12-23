@@ -52,7 +52,8 @@ export class ReceiptPdfService {
     // Determine if payment is global or Nigerian
     const currency = (subscription.currency || 'NGN').toUpperCase();
     const isGlobal = currency === 'USD' || currency === '$';
-    const currencySymbol = isGlobal ? '$' : '₦';
+    // Use Unicode escape for Naira symbol to avoid encoding issues
+    const currencySymbol = isGlobal ? '$' : '\u20A6';
 
     const address = isGlobal
       ? {
@@ -61,7 +62,7 @@ export class ReceiptPdfService {
           phone: '+1 (443) 557 4199',
           email: 'give@cmdanigeriaglobal.org,',
           email2: 'info@cmdanigeriaglobal.org',
-          orgName: 'CHRISTIAN MEDICAL\nANDDENTAL ASSOCIATION\nOF NIGERIA GLOBAL NETWORK',
+          orgName: 'CHRISTIAN MEDICAL\nAND DENTAL ASSOCIATION\nOF NIGERIA GLOBAL NETWORK',
           orgShort: '(CMDA NIGERIA-GLOBAL NETWORK)',
         }
       : {

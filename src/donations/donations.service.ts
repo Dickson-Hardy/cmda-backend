@@ -232,18 +232,32 @@ export class DonationsService {
     const perPage = Number(limit) || 10;
     const currentPage = Number(page) || 1;
 
-    const searchCriteria: any = { isPaid: true };
+    // Filter: isPaid is true OR doesn't exist (for old records before isPaid field was added)
+    const searchCriteria: any = {
+      $or: [{ isPaid: true }, { isPaid: { $exists: false } }],
+    };
 
     if (searchBy) {
       const searchNumber = Number(searchBy);
-      searchCriteria.$or = [
+      const searchConditions = [
         { reference: { $regex: searchBy, $options: 'i' } },
         !isNaN(searchNumber) ? { totalAmount: searchNumber } : false,
       ].filter(Boolean);
+      
+      // Combine isPaid filter with search conditions
+      searchCriteria.$and = [
+        { $or: [{ isPaid: true }, { isPaid: { $exists: false } }] },
+        { $or: searchConditions },
+      ];
+      delete searchCriteria.$or;
     }
 
     if (areasOfNeed) {
-      searchCriteria.areasOfNeed = { $elemMatch: { name: areasOfNeed } };
+      if (searchCriteria.$and) {
+        searchCriteria.$and.push({ areasOfNeed: { $elemMatch: { name: areasOfNeed } } });
+      } else {
+        searchCriteria.areasOfNeed = { $elemMatch: { name: areasOfNeed } };
+      }
     }
 
     const pipeline: PipelineStage[] = [
@@ -293,22 +307,40 @@ export class DonationsService {
   async exportAll(query: DonationPaginationQueryDto): Promise<any> {
     const { searchBy, role, region, areasOfNeed, userId } = query;
 
-    const searchCriteria: any = { isPaid: true };
+    // Filter: isPaid is true OR doesn't exist (for old records before isPaid field was added)
+    const searchCriteria: any = {
+      $or: [{ isPaid: true }, { isPaid: { $exists: false } }],
+    };
 
     if (searchBy) {
       const searchNumber = Number(searchBy);
-      searchCriteria.$or = [
+      const searchConditions = [
         { reference: { $regex: searchBy, $options: 'i' } },
         !isNaN(searchNumber) ? { totalAmount: searchNumber } : false,
       ].filter(Boolean);
+      
+      // Combine isPaid filter with search conditions
+      searchCriteria.$and = [
+        { $or: [{ isPaid: true }, { isPaid: { $exists: false } }] },
+        { $or: searchConditions },
+      ];
+      delete searchCriteria.$or;
     }
 
     if (areasOfNeed) {
-      searchCriteria.areasOfNeed = { $elemMatch: { name: areasOfNeed } };
+      if (searchCriteria.$and) {
+        searchCriteria.$and.push({ areasOfNeed: { $elemMatch: { name: areasOfNeed } } });
+      } else {
+        searchCriteria.areasOfNeed = { $elemMatch: { name: areasOfNeed } };
+      }
     }
 
     if (userId) {
-      searchCriteria.user = new Types.ObjectId(userId);
+      if (searchCriteria.$and) {
+        searchCriteria.$and.push({ user: new Types.ObjectId(userId) });
+      } else {
+        searchCriteria.user = new Types.ObjectId(userId);
+      }
     }
 
     const pipeline: PipelineStage[] = [
