@@ -47,8 +47,8 @@ export class ReceiptHtmlService {
     // Determine if payment is global or Nigerian
     const isGlobal = subscription.currency === 'USD' || subscription.currency === '$';
 
-    // Get currency symbol - using HTML entity for Naira to avoid encoding issues
-    const currencySymbol = isGlobal ? '$' : '&#8358;';
+    // Get currency symbol - using NGN text for Naira for better compatibility
+    const currencySymbol = isGlobal ? '$' : 'NGN';
 
     // Set receipt title based on payment type
     const receiptTitle = 'SUBSCRIPTION RECEIPT';
