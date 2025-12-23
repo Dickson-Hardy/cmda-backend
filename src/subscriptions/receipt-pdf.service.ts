@@ -52,8 +52,8 @@ export class ReceiptPdfService {
     // Determine if payment is global or Nigerian
     const currency = (subscription.currency || 'NGN').toUpperCase();
     const isGlobal = currency === 'USD' || currency === '$';
-    // Use Unicode escape for Naira symbol to avoid encoding issues
-    const currencySymbol = isGlobal ? '$' : '\u20A6';
+    // Use NGN text for Naira as PDFKit's default fonts don't support the Naira symbol
+    const currencySymbol = isGlobal ? '$' : 'NGN';
 
     const address = isGlobal
       ? {
