@@ -231,6 +231,7 @@ export class AdminService {
         createdByAdmin: true,
         createdByAdminId: 'admin',
         isVerified: true, // Auto-verify admin-created members
+        emailVerified: true, // Skip email verification for admin-created members
       });
 
       // Send credentials email to the member with tracking

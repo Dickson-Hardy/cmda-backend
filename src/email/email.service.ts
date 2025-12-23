@@ -388,6 +388,14 @@ Email: office@cmdanigeria.org`;
                 <p style="color: #666666; font-size: 16px; line-height: 1.8; margin: 5px 0">
                     <strong>Membership Type:</strong> ${membershipType}
                 </p>
+                ${membershipType.includes('Nigerian') ? '' : `
+                <p style="color: #666666; font-size: 16px; line-height: 1.8; margin: 5px 0">
+                    <strong>Duration:</strong> ${years} years
+                </p>
+                <p style="color: #666666; font-size: 16px; line-height: 1.8; margin: 5px 0">
+                    <strong>Expiry Date:</strong> ${expiryDate}
+                </p>
+                `}
             </div>
             
             <p style="color: #666666; font-size: 16px; line-height: 1.5; margin: 20px 0">

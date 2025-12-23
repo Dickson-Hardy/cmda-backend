@@ -42,8 +42,8 @@ export class DonationReceiptHtmlService {
     // Determine if payment is global or Nigerian
     const isGlobal = donation.currency === 'USD' || donation.currency === '$';
 
-    // Get currency symbol
-    const currencySymbol = isGlobal ? '$' : '₦';
+    // Get currency symbol - using HTML entity for Naira to avoid encoding issues
+    const currencySymbol = isGlobal ? '$' : '&#8358;';
 
     // Set receipt title based on payment type
     const receiptTitle = 'DONATION RECEIPT';

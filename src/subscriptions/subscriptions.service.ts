@@ -541,14 +541,24 @@ export class SubscriptionsService {
     const perPage = Number(limit) || 10;
     const currentPage = Number(page) || 1;
 
-    const searchCriteria: any = {};
+    // Filter: isPaid is true OR doesn't exist (for old records before isPaid field was added)
+    const searchCriteria: any = {
+      $or: [{ isPaid: true }, { isPaid: { $exists: false } }],
+    };
 
     if (searchBy) {
       const searchNumber = Number(searchBy);
-      searchCriteria.$or = [
+      const searchConditions = [
         { reference: { $regex: searchBy, $options: 'i' } },
         !isNaN(searchNumber) ? { amount: searchNumber } : false,
       ].filter(Boolean);
+      
+      // Combine isPaid filter with search conditions
+      searchCriteria.$and = [
+        { $or: [{ isPaid: true }, { isPaid: { $exists: false } }] },
+        { $or: searchConditions },
+      ];
+      delete searchCriteria.$or;
     }
 
     const pipeline: PipelineStage[] = [
@@ -598,18 +608,32 @@ export class SubscriptionsService {
   async exportAll(query: SubscriptionPaginationQueryDto): Promise<any> {
     const { searchBy, role, region, userId } = query;
 
-    const searchCriteria: any = {};
+    // Filter: isPaid is true OR doesn't exist (for old records before isPaid field was added)
+    const searchCriteria: any = {
+      $or: [{ isPaid: true }, { isPaid: { $exists: false } }],
+    };
 
     if (searchBy) {
       const searchNumber = Number(searchBy);
-      searchCriteria.$or = [
+      const searchConditions = [
         { reference: { $regex: searchBy, $options: 'i' } },
         !isNaN(searchNumber) ? { amount: searchNumber } : false,
       ].filter(Boolean);
+      
+      // Combine isPaid filter with search conditions
+      searchCriteria.$and = [
+        { $or: [{ isPaid: true }, { isPaid: { $exists: false } }] },
+        { $or: searchConditions },
+      ];
+      delete searchCriteria.$or;
     }
 
     if (userId) {
-      searchCriteria.user = new Types.ObjectId(userId);
+      if (searchCriteria.$and) {
+        searchCriteria.$and.push({ user: new Types.ObjectId(userId) });
+      } else {
+        searchCriteria.user = new Types.ObjectId(userId);
+      }
     }
 
     const pipeline: PipelineStage[] = [

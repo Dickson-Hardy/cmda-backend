@@ -56,7 +56,7 @@ export const LIFETIME_MEMBERSHIPS = {
 // Nigerian Lifetime membership option (NGN)
 export const NIGERIAN_LIFETIME_MEMBERSHIP = {
   lifetime: {
-    label: 'Lifetime Membership (25 years)',
+    label: 'Lifetime Membership',
     price: 250000,
     years: 25,
   },
