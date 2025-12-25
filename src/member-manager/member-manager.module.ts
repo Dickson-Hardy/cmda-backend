@@ -11,6 +11,8 @@ import { Task, TaskSchema } from './schemas/task.schema';
 import { ModerationLog, ModerationLogSchema } from './schemas/moderation-log.schema';
 import { Announcement, AnnouncementSchema } from './schemas/announcement.schema';
 import { User, UserSchema } from '../users/schema/users.schema';
+import { ChatLog, ChatLogSchema } from '../chats/schema/chat-log.schema';
+import { Message, MessageSchema } from '../chats/schema/message.schema';
 import { UsersModule } from '../users/users.module';
 import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 import { EmailModule } from '../email/email.module';
@@ -33,6 +35,8 @@ import { AuthModule } from '../auth/auth.module';
       { name: ModerationLog.name, schema: ModerationLogSchema },
       { name: Announcement.name, schema: AnnouncementSchema },
       { name: User.name, schema: UserSchema },
+      { name: ChatLog.name, schema: ChatLogSchema },
+      { name: Message.name, schema: MessageSchema },
     ]),
     AuthModule,
     UsersModule,

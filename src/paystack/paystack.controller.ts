@@ -5,6 +5,7 @@ import { Public } from '../auth/decorators/public.decorator';
 import { DonationsService } from '../donations/donations.service';
 import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 import { EventsService } from '../events/events.service';
+import { OrdersService } from '../orders/orders.service';
 
 @Controller('paystack')
 export class PaystackController {
@@ -15,6 +16,7 @@ export class PaystackController {
     private donationsService: DonationsService,
     private subscriptionsService: SubscriptionsService,
     private eventsService: EventsService,
+    private ordersService: OrdersService,
   ) {
     this.secret = this.configService.get<string>('PAYSTACK_API_KEY') || '';
   }
@@ -49,8 +51,11 @@ export class PaystackController {
         if (desc === 'EVENT') {
           await this.eventsService.confirmEventPayment({ reference, source: 'PAYSTACK' });
         }
-
-        // TODO: orders
+        if (desc === 'ORDER') {
+          // Extract user ID from metadata if available, otherwise use null
+          const userId = payload.data.metadata.userId || null;
+          await this.ordersService.create(userId, { reference, source: 'PAYSTACK' });
+        }
       }
 
       return { success: true };

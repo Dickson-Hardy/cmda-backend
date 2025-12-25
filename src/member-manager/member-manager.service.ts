@@ -13,6 +13,8 @@ import { User } from '../users/schema/users.schema';
 import { UsersService } from '../users/users.service';
 import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 import { EmailService } from '../email/email.service';
+import { ChatLog } from '../chats/schema/chat-log.schema';
+import { Message } from '../chats/schema/message.schema';
 
 @Injectable()
 export class MemberManagerService {
@@ -26,6 +28,8 @@ export class MemberManagerService {
     @InjectModel(ModerationLog.name) private moderationLogModel: Model<ModerationLog>,
     @InjectModel(Announcement.name) private announcementModel: Model<Announcement>,
     @InjectModel(User.name) private userModel: Model<User>,
+    @InjectModel(ChatLog.name) private chatLogModel: Model<ChatLog>,
+    @InjectModel(Message.name) private messageModel: Model<Message>,
     private readonly userService: UsersService,
     private readonly subscriptionsService: SubscriptionsService,
     private readonly emailService: EmailService,
@@ -431,8 +435,9 @@ export class MemberManagerService {
 
   // Subscriptions
   async activateSubscription() {
-    // TODO: Implement subscription activation
-    throw new Error('Method not implemented: activateUserSubscription');
+    throw new Error(
+      'Method not implemented: activateUserSubscription. Use activateLifetimeMembership instead.',
+    );
   }
 
   async activateLifetimeMembership(userId: string, body: any) {
@@ -1318,14 +1323,52 @@ export class MemberManagerService {
 
   // Member Communications (Private Messages)
   async getMemberChats() {
-    // This would integrate with ChatsModule
-    // Placeholder implementation
-    return {
-      success: true,
-      data: {
-        items: [],
-        meta: { totalItems: 0 },
-      },
-    };
+    try {
+      // Get all chat logs with admin
+      const chatLogs = await this.chatLogModel
+        .find({ chatWith: 'admin' })
+        .sort({ updatedAt: -1 })
+        .populate({
+          path: 'user',
+          model: this.userModel,
+          select: 'fullName email membershipId role region',
+        })
+        .lean();
+
+      // Get unread message counts for each chat
+      const unreadCounts = await this.messageModel.aggregate([
+        { $match: { receiver: 'admin', read: false } },
+        { $group: { _id: '$sender', count: { $sum: 1 } } },
+      ]);
+
+      const unreadCountMap = unreadCounts.reduce((acc, item) => {
+        acc[item._id.toString()] = item.count;
+        return acc;
+      }, {});
+
+      // Format chat data with unread counts
+      const items = chatLogs.map((chat: any) => ({
+        chatId: chat._id,
+        userId: chat.user?._id,
+        userName: chat.user?.fullName || 'Unknown',
+        userEmail: chat.user?.email || 'Unknown',
+        membershipId: chat.user?.membershipId,
+        userRole: chat.user?.role,
+        userRegion: chat.user?.region,
+        lastMessage: chat.lastMessage,
+        unreadCount: unreadCountMap[chat.user?._id?.toString()] || 0,
+        updatedAt: chat.updatedAt,
+      }));
+
+      return {
+        success: true,
+        data: {
+          items,
+          meta: { totalItems: items.length },
+        },
+      };
+    } catch (error) {
+      throw new Error(`Failed to fetch member chats: ${error.message}`);
+    }
   }
 }
