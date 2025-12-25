@@ -9,9 +9,13 @@ import { JwtModule } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { EmailModule } from '../email/email.module';
 import { PaystackModule } from '../paystack/paystack.module';
+import { PaypalModule } from '../paypal/paypal.module';
 import { BulkEmailService } from './bulk-email.service';
 import { EmailLog, EmailLogSchema } from '../email/email-log.schema';
 import { User, UserSchema } from '../users/schema/users.schema';
+import { Event, EventSchema } from '../events/events.schema';
+import { Subscription, SubscriptionShema } from '../subscriptions/subscription.schema';
+import { Donation, DonationShema } from '../donations/donation.schema';
 
 @Module({
   imports: [
@@ -30,9 +34,13 @@ import { User, UserSchema } from '../users/schema/users.schema';
       { name: Admin.name, schema: AdminSchema },
       { name: EmailLog.name, schema: EmailLogSchema },
       { name: User.name, schema: UserSchema },
+      { name: Event.name, schema: EventSchema },
+      { name: Subscription.name, schema: SubscriptionShema },
+      { name: Donation.name, schema: DonationShema },
     ]),
     EmailModule,
     PaystackModule,
+    PaypalModule,
   ],
   controllers: [AdminController, PendingPaymentsController],
   providers: [AdminService, PendingPaymentsService, BulkEmailService],
