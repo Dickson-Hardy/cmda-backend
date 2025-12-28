@@ -202,6 +202,28 @@ export class User extends Document {
 
   @Prop()
   tutorialCompletedAt?: Date;
+
+  // Notification preferences
+  @Prop(
+    raw({
+      pushNotifications: { type: Boolean, default: true },
+      emailNotifications: { type: Boolean, default: true },
+      events: { type: Boolean, default: true },
+      payments: { type: Boolean, default: true },
+      announcements: { type: Boolean, default: true },
+      reminders: { type: Boolean, default: true },
+      marketing: { type: Boolean, default: false },
+    }),
+  )
+  notificationPreferences: {
+    pushNotifications: boolean;
+    emailNotifications: boolean;
+    events: boolean;
+    payments: boolean;
+    announcements: boolean;
+    reminders: boolean;
+    marketing: boolean;
+  };
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);

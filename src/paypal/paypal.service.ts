@@ -113,15 +113,20 @@ export class PaypalService {
 
   // Method to get order details
   async getOrderDetails(orderId: string) {
+    if (!orderId || orderId === 'null' || orderId === 'undefined') {
+      console.error('ERR: Invalid orderId provided to getOrderDetails:', orderId);
+      return null;
+    }
+    
     try {
       const accessToken = await this.getAccessToken();
       const response = await axios.get(`${this.baseUrl}/v2/checkout/orders/${orderId}`, {
         headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
       });
-      // console.log('RES', response.data);
       return response.data; // Returns order details
     } catch (error) {
       console.error('ERR', error);
+      return null;
     }
   }
 }

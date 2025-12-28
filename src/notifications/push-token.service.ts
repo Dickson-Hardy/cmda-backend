@@ -134,18 +134,17 @@ export class PushTokenService {
 
   /**
    * Get all active push tokens for targeted users based on target type
+   * Only includes users who have push notifications enabled in their preferences
    */
   async getTokensForTarget(
     targetType: 'all' | 'role' | 'region' | 'user',
     targetValue?: string,
   ): Promise<{ userId: string; tokens: string[] }[]> {
-    let userIds: string[] = [];
+    let userQuery: any = { isActive: true };
 
     switch (targetType) {
       case 'all':
-        // Get all users
-        const allUsers = await this.userModel.find({ isActive: true }).select('_id');
-        userIds = allUsers.map((u) => u._id.toString());
+        // No additional filters for all users
         break;
 
       case 'role':
@@ -162,10 +161,7 @@ export class PushTokenService {
         if (!role) {
           throw new Error(`Invalid role: ${targetValue}`);
         }
-        const roleUsers = await this.userModel
-          .find({ role, isActive: true })
-          .select('_id');
-        userIds = roleUsers.map((u) => u._id.toString());
+        userQuery.role = role;
         break;
 
       case 'region':
@@ -173,10 +169,7 @@ export class PushTokenService {
         if (!targetValue) {
           throw new Error('Target value (region) is required');
         }
-        const regionUsers = await this.userModel
-          .find({ region: targetValue, isActive: true })
-          .select('_id');
-        userIds = regionUsers.map((u) => u._id.toString());
+        userQuery.region = targetValue;
         break;
 
       case 'user':
@@ -184,12 +177,22 @@ export class PushTokenService {
         if (!targetValue) {
           throw new Error('Target value (userId) is required');
         }
-        userIds = [targetValue];
+        userQuery._id = targetValue;
         break;
 
       default:
         throw new Error(`Invalid target type: ${targetType}`);
     }
+
+    // Only include users who have push notifications enabled
+    // Handle both new users (with preferences) and legacy users (without preferences)
+    userQuery.$or = [
+      { 'notificationPreferences.pushNotifications': true },
+      { notificationPreferences: { $exists: false } }, // Legacy users - assume they want notifications
+    ];
+
+    const users = await this.userModel.find(userQuery).select('_id');
+    const userIds = users.map((u) => u._id.toString());
 
     // Get tokens for all targeted users
     const tokens = await this.pushTokenModel.find({

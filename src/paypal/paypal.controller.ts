@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Param, Get } from '@nestjs/common';
+import { Controller, Post, Body, Param, Get, BadRequestException } from '@nestjs/common';
 import { PaypalService } from './paypal.service';
 import { Public } from '../auth/decorators/public.decorator';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
@@ -22,6 +22,9 @@ export class PaypalController {
   @Public()
   @ApiOperation({ summary: 'Paypal capture order' })
   async captureOrder(@Param('orderId') orderId: string) {
+    if (!orderId || orderId === 'null' || orderId === 'undefined') {
+      throw new BadRequestException('Invalid order ID provided');
+    }
     return await this.paypalService.captureOrder(orderId);
   }
 
@@ -29,6 +32,9 @@ export class PaypalController {
   @Public()
   @ApiOperation({ summary: 'Get paypal order details' })
   async getOrderDetails(@Param('orderId') orderId: string) {
+    if (!orderId || orderId === 'null' || orderId === 'undefined') {
+      throw new BadRequestException('Invalid order ID provided');
+    }
     return await this.paypalService.getOrderDetails(orderId);
   }
 }

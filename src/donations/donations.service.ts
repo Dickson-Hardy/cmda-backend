@@ -498,6 +498,16 @@ export class DonationsService {
   }
   async syncPaymentStatus(userId: string, reference: string): Promise<ISuccessResponse> {
     try {
+      // Skip verification for unpaid placeholder references (UNPAID-XXXXXX)
+      // These are internal references that were never sent to Paystack
+      if (reference.startsWith('UNPAID-')) {
+        return {
+          success: false,
+          message: 'This donation was never initiated with payment gateway',
+          data: null,
+        };
+      }
+
       // Check if donation already exists with this reference
       const existingDonation = await this.donationModel.findOne({
         reference,
