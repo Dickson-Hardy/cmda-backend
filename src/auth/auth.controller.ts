@@ -22,6 +22,7 @@ import { ResetPasswordDto } from './dto/reset-password.dto';
 import { ChangePasswordDto } from './dto/change-password-dto';
 import { VerifyEmailDto } from './dto/verify-email.dto';
 import { CheckUserDto } from './dto/check-user.dto';
+import { VerifyPasswordDto } from './dto/verify-password.dto';
 import { FileInterceptor } from '@nestjs/platform-express';
 
 @ApiTags('Auth')
@@ -114,5 +115,30 @@ export class AuthController {
   @ApiBody({ type: CheckUserDto })
   checkUser(@Body() checkUserDto: CheckUserDto) {
     return this.authService.checkUserExists(checkUserDto);
+  }
+
+  @Post('verify-password')
+  @Roles(AllUserRoles)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Verify current user password' })
+  @ApiBody({ type: VerifyPasswordDto })
+  verifyPassword(@Req() req: { user: IJwtPayload }, @Body() verifyPasswordDto: VerifyPasswordDto) {
+    return this.authService.verifyPassword(req.user.id, verifyPasswordDto);
+  }
+
+  @Post('logout-all')
+  @Roles(AllUserRoles)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Sign out from all devices' })
+  logoutAll(@Req() req: { user: IJwtPayload }) {
+    return this.authService.logoutAllDevices(req.user.id);
+  }
+
+  @Post('refresh-token')
+  @Roles(AllUserRoles)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Refresh access token' })
+  refreshToken(@Req() req: { user: IJwtPayload }) {
+    return this.authService.refreshToken(req.user.id);
   }
 }

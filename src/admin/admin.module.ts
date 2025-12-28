@@ -3,6 +3,7 @@ import { AdminController } from './admin.controller';
 import { AdminService } from './admin.service';
 import { PendingPaymentsController } from './pending-payments.controller';
 import { PendingPaymentsService } from './pending-payments.service';
+import { AdminNotificationsController } from './admin-notifications.controller';
 import { MongooseModule } from '@nestjs/mongoose';
 import { Admin, AdminSchema } from './admin.schema';
 import { JwtModule } from '@nestjs/jwt';
@@ -16,6 +17,7 @@ import { User, UserSchema } from '../users/schema/users.schema';
 import { Event, EventSchema } from '../events/events.schema';
 import { Subscription, SubscriptionShema } from '../subscriptions/subscription.schema';
 import { Donation, DonationShema } from '../donations/donation.schema';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
   imports: [
@@ -41,8 +43,9 @@ import { Donation, DonationShema } from '../donations/donation.schema';
     EmailModule,
     PaystackModule,
     PaypalModule,
+    NotificationsModule,
   ],
-  controllers: [AdminController, PendingPaymentsController],
+  controllers: [AdminController, PendingPaymentsController, AdminNotificationsController],
   providers: [AdminService, PendingPaymentsService, BulkEmailService],
 })
 export class AdminModule {}

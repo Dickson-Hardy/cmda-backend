@@ -188,6 +188,20 @@ export class User extends Document {
 
   @Prop()
   verifiedBy?: string; // User ID of member manager who verified
+
+  // Token management for security features
+  @Prop({ default: 0 })
+  tokenVersion: number; // Incremented on logout-all to invalidate tokens
+
+  @Prop()
+  lastLogoutAll?: Date; // Timestamp of last logout-all action
+
+  // Tutorial completion tracking
+  @Prop({ default: false })
+  tutorialCompleted: boolean;
+
+  @Prop()
+  tutorialCompletedAt?: Date;
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);

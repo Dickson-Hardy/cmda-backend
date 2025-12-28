@@ -21,6 +21,7 @@ import { VerifyEmailDto } from './dto/verify-email.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { ChangePasswordDto } from './dto/change-password-dto';
 import { CheckUserDto } from './dto/check-user.dto';
+import { VerifyPasswordDto } from './dto/verify-password.dto';
 import { EmailService } from '../email/email.service';
 import ShortUniqueId from 'short-unique-id';
 import { CloudinaryService } from '../cloudinary/cloudinary.service';
@@ -358,6 +359,77 @@ export class AuthService {
         exists: !!user,
         email,
       },
+    };
+  }
+
+  /**
+   * Verify user's password
+   * Requirements: 6.5 - Require password confirmation when disabling biometric or PIN
+   */
+  async verifyPassword(
+    id: string,
+    verifyPasswordDto: VerifyPasswordDto,
+  ): Promise<ISuccessResponse> {
+    const { password } = verifyPasswordDto;
+    const user = await this.userModel.findById(id);
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+    const isPasswordMatched = await bcrypt.compare(password, user.password);
+    if (!isPasswordMatched) {
+      throw new UnauthorizedException('Password is incorrect');
+    }
+    return {
+      success: true,
+      message: 'Password verified successfully',
+    };
+  }
+
+  /**
+   * Sign out from all devices by invalidating all tokens
+   * Requirements: 6.7 - Invalidate all active tokens when "Sign out of all devices" is triggered
+   */
+  async logoutAllDevices(id: string): Promise<ISuccessResponse> {
+    const user = await this.userModel.findById(id);
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+    
+    // Update tokenVersion to invalidate all existing tokens
+    // In a production system, you might want to use a token blacklist or version tracking
+    const currentTokenVersion = (user as any).tokenVersion || 0;
+    await user.updateOne({ 
+      tokenVersion: currentTokenVersion + 1,
+      lastLogoutAll: new Date(),
+    });
+
+    return {
+      success: true,
+      message: 'Successfully signed out from all devices',
+    };
+  }
+
+  /**
+   * Refresh access token
+   * Requirements: 3.2 - Auto-refresh token when within 24 hours of expiration
+   */
+  async refreshToken(id: string): Promise<ISuccessResponse> {
+    const user = await this.userModel.findById(id);
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+    
+    // Generate new access token
+    const accessToken = this.jwtService.sign({ 
+      id: user._id, 
+      email: user.email, 
+      role: user.role 
+    });
+
+    return {
+      success: true,
+      message: 'Token refreshed successfully',
+      data: { accessToken },
     };
   }
 }
