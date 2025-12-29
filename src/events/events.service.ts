@@ -470,13 +470,13 @@ export class EventsService {
         amount: amountInKobo,
         email: user.email,
         callback_url: this.configService.get('EVENT_PAYMENT_SUCCESS_URL').replace('[slug]', slug),
-        metadata: JSON.stringify({
+        metadata: {
           desc: event.isConference ? 'CONFERENCE' : 'EVENT',
           slug,
           userId,
           name: user.fullName,
           registrationPeriod: currentRegistrationPeriod,
-        }),
+        },
       };
 
       // Add split code for conferences if configured

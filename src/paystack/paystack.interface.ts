@@ -4,5 +4,5 @@ export interface IPaystackInitTransaction {
   reference?: string;
   callback_url?: string;
   channels?: string[];
-  metadata?: string;
+  metadata?: Record<string, any>;
 }

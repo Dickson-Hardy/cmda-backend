@@ -105,7 +105,7 @@ export class DonationsService {
         amount: totalAmount * 100,
         email: user.email,
         callback_url: this.configService.get('PAYMENT_SUCCESS_URL') + '?type=donation',
-        metadata: JSON.stringify({
+        metadata: {
           desc: 'DONATION',
           intentId: intent.id,
           recurring,
@@ -114,7 +114,7 @@ export class DonationsService {
           memId: user.membershipId,
           areasOfNeed,
           donationId: donation._id.toString(),
-        }),
+        },
       });
       if (!transaction.status) {
         throw new Error(transaction.message);
