@@ -14,7 +14,7 @@ export class PaystackService {
 
       console.log('Paystack API URL:', apiUrl);
       console.log('Paystack API Key exists:', !!apiKey);
-      console.log('Transaction data:', data);
+      console.log('Transaction data:', JSON.stringify(data, null, 2));
 
       const response = await axios.post(`${apiUrl}/transaction/initialize`, data, {
         headers: {
@@ -30,6 +30,7 @@ export class PaystackService {
         statusText: error.response?.statusText,
         data: error.response?.data,
         url: error.config?.url,
+        requestData: error.config?.data,
       });
       throw error;
     }

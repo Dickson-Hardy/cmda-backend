@@ -173,7 +173,7 @@ export class SubscriptionsService {
         amount: amount * 100,
         email: user.email,
         callback_url: this.configService.get('PAYMENT_SUCCESS_URL') + '?type=subscription',
-        metadata: {
+        metadata: JSON.stringify({
           desc: 'SUBSCRIPTION',
           intentId: intent.id,
           name: user.fullName,
@@ -181,7 +181,7 @@ export class SubscriptionsService {
           currency: 'NGN',
           subscriptionId: subscription._id.toString(),
           isLifetime: isNigerianLifetime,
-        },
+        }),
       });
       if (!transaction.status) {
         throw new Error(transaction.message);

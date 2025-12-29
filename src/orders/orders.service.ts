@@ -114,7 +114,7 @@ export class OrdersService {
         amount: totalAmount * 100,
         email: shippingContactEmail,
         callback_url: this.configService.get('ORDER_SUCCESS_URL'),
-        metadata: {
+        metadata: JSON.stringify({
           intentId: intent.id,
           products,
           shippingAddress,
@@ -122,7 +122,7 @@ export class OrdersService {
           shippingContactName,
           shippingContactPhone,
           orderId: order._id.toString(),
-        },
+        }),
       });
       if (!transaction.status) {
         throw new Error(transaction.message);
