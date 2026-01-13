@@ -9,13 +9,19 @@ export class RolesGuard implements CanActivate {
 
   canActivate(context: ExecutionContext): boolean {
     const requiredRoles = this.reflector.get(Roles, context.getHandler());
-    if (!requiredRoles) return true;
+    if (!requiredRoles || requiredRoles.length === 0) return true;
 
     const request = context.switchToHttp().getRequest();
     const user: IJwtPayload = request.user;
 
+    if (!user) {
+      throw new ForbiddenException('User not authenticated');
+    }
+
     if (!requiredRoles.includes(user.role)) {
-      throw new ForbiddenException(`Access not allowed to ${user.role.toLowerCase()}`);
+      throw new ForbiddenException(
+        `Access not allowed to ${user.role?.toLowerCase() || 'unknown'}`,
+      );
     }
 
     return true;

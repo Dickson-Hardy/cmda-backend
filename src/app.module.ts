@@ -30,6 +30,9 @@ import { MemberManagerModule } from './member-manager/member-manager.module';
 import { BackupModule } from './backup/backup.module';
 import { ScheduleModule } from '@nestjs/schedule';
 import { ScheduledEmailsModule } from './scheduled-emails/scheduled-emails.module';
+import { ProjectDeliverablesModule } from './project-deliverables/project-deliverables.module';
+import { DevelopmentInvoicesModule } from './development-invoices/development-invoices.module';
+import { ServiceSubscriptionsModule } from './service-subscriptions/service-subscriptions.module';
 
 @Module({
   imports: [
@@ -65,6 +68,9 @@ import { ScheduledEmailsModule } from './scheduled-emails/scheduled-emails.modul
     MemberManagerModule,
     BackupModule,
     ScheduledEmailsModule,
+    DevelopmentInvoicesModule,
+    ProjectDeliverablesModule,
+    ServiceSubscriptionsModule,
   ],
   controllers: [AppController],
   providers: [
