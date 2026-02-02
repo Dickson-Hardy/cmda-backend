@@ -26,45 +26,16 @@ export class EmailService {
   async sendWelcomeEmail({ name, email, code }): Promise<{ success: boolean }> {
     const html = WELCOME_EMAIL_TEMPLATE.replace('[Name]', name).replace('[VerificationCode]', code);
 
-    // Try Resend first (faster, more reliable on cloud)
-    if (this.resendFallback.isAvailable()) {
-      try {
-        const result = await this.resendFallback.sendEmail({
-          to: email,
-          subject: 'Welcome to CMDA Nigeria',
-          html,
-        });
+    // Send email asynchronously without blocking
+    this.sendEmailAsync({
+      to: email,
+      subject: 'Welcome to CMDA Nigeria',
+      html,
+      priority: 'high',
+    });
 
-        if (result.success) {
-          this.logger.log('Welcome email sent via Resend API');
-          return { success: true };
-        }
-      } catch (error) {
-        this.logger.warn(`Resend failed: ${error.message}. Trying SMTP fallback...`);
-      }
-    }
-
-    // Fallback to SMTP
-    try {
-      const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Email send timeout')), 45000),
-      );
-
-      await Promise.race([
-        this.mailerService.sendMail({
-          to: email,
-          subject: 'Welcome to CMDA Nigeria',
-          html,
-        }),
-        timeoutPromise,
-      ]);
-
-      this.logger.log('Welcome email sent via SMTP fallback');
-      return { success: true };
-    } catch (error) {
-      this.logger.error('All email services failed for welcome email');
-      return { success: false };
-    }
+    // Return immediately
+    return { success: true };
   }
 
   async sendPasswordResetTokenEmail({ name, email, code }): Promise<{ success: boolean }> {
@@ -73,45 +44,16 @@ export class EmailService {
       code,
     );
 
-    // Try Resend first (faster, more reliable on cloud)
-    if (this.resendFallback.isAvailable()) {
-      try {
-        const result = await this.resendFallback.sendEmail({
-          to: email,
-          subject: 'Password Reset Request',
-          html,
-        });
+    // Send email asynchronously without blocking
+    this.sendEmailAsync({
+      to: email,
+      subject: 'Password Reset Request',
+      html,
+      priority: 'critical',
+    });
 
-        if (result.success) {
-          this.logger.log('Password reset email sent via Resend API');
-          return { success: true };
-        }
-      } catch (error) {
-        this.logger.warn(`Resend failed: ${error.message}. Trying SMTP fallback...`);
-      }
-    }
-
-    // Fallback to SMTP
-    try {
-      const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Email send timeout')), 45000),
-      );
-
-      await Promise.race([
-        this.mailerService.sendMail({
-          to: email,
-          subject: 'Password Reset Request',
-          html,
-        }),
-        timeoutPromise,
-      ]);
-
-      this.logger.log('Password reset email sent via SMTP fallback');
-      return { success: true };
-    } catch (error) {
-      this.logger.error('All email services failed for password reset email');
-      return { success: false };
-    }
+    // Return immediately
+    return { success: true };
   }
 
   async sendPasswordResetSuccessEmail({ name, email }): Promise<{ success: boolean }> {
@@ -173,52 +115,75 @@ CMDA Nigeria
 Wholeness House Gwagwalada, FCT, Nigeria
 Email: office@cmdanigeria.org`;
 
-    // Try Resend first (faster, more reliable on cloud)
-    if (this.resendFallback.isAvailable()) {
+    // Send email asynchronously without blocking
+    this.sendEmailAsync({
+      to: email,
+      subject: 'Complete your CMDA Nigeria registration',
+      html,
+      text: textContent,
+      priority: 'critical',
+    });
+
+    // Return immediately
+    return { success: true };
+  }
+
+  private async sendEmailAsync(emailData: {
+    to: string;
+    subject: string;
+    html: string;
+    text?: string;
+    priority?: 'critical' | 'high' | 'normal' | 'low';
+  }): Promise<void> {
+    // Run in background without blocking
+    setImmediate(async () => {
       try {
-        const result = await this.resendFallback.sendEmail({
-          to: email,
-          subject: 'Complete your CMDA Nigeria registration',
-          html,
-          text: textContent,
-        });
+        // Try Resend first (faster, more reliable on cloud)
+        if (this.resendFallback.isAvailable()) {
+          try {
+            const result = await this.resendFallback.sendEmail({
+              to: emailData.to,
+              subject: emailData.subject,
+              html: emailData.html,
+              text: emailData.text,
+            });
 
-        if (result.success) {
-          this.logger.log('Verification email sent via Resend API');
-          return { success: true };
+            if (result.success) {
+              this.logger.log(`Email sent to ${emailData.to} via Resend API`);
+              return;
+            }
+          } catch (error) {
+            this.logger.warn(`Resend failed: ${error.message}. Trying SMTP fallback...`);
+          }
         }
+
+        // Fallback to SMTP with shorter timeout
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Email send timeout')), 30000),
+        );
+
+        await Promise.race([
+          this.mailerService.sendMail({
+            to: emailData.to,
+            subject: emailData.subject,
+            html: emailData.html,
+            text: emailData.text,
+            headers: {
+              'X-Mailer': 'CMDA Nigeria',
+              'X-Priority': emailData.priority === 'critical' ? '1' : '3',
+              'List-Unsubscribe': '<mailto:unsubscribe@cmdanigeria.org>',
+              'Reply-To': 'office@cmdanigeria.org',
+            },
+          }),
+          timeoutPromise,
+        ]);
+
+        this.logger.log(`Email sent to ${emailData.to} via SMTP`);
       } catch (error) {
-        this.logger.warn(`Resend failed: ${error.message}. Trying SMTP fallback...`);
+        this.logger.error(`Failed to send email to ${emailData.to}: ${error.message}`);
+        // Could log to database here for retry later
       }
-    }
-
-    // Fallback to SMTP
-    try {
-      const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Email send timeout')), 45000),
-      );
-
-      await Promise.race([
-        this.mailerService.sendMail({
-          to: email,
-          subject: 'Complete your CMDA Nigeria registration',
-          html,
-          text: textContent,
-          headers: {
-            'X-Mailer': 'CMDA Nigeria',
-            'List-Unsubscribe': '<mailto:unsubscribe@cmdanigeria.org>',
-            'Reply-To': 'office@cmdanigeria.org',
-          },
-        }),
-        timeoutPromise,
-      ]);
-
-      this.logger.log('Verification email sent via SMTP fallback');
-      return { success: true };
-    } catch (error) {
-      this.logger.error('All email services failed for verification email');
-      return { success: false };
-    }
+    });
   }
 
   async sendAdminCredentialsEmail({ name, email, password }): Promise<{ success: boolean }> {

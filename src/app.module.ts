@@ -33,6 +33,7 @@ import { ScheduledEmailsModule } from './scheduled-emails/scheduled-emails.modul
 import { ProjectDeliverablesModule } from './project-deliverables/project-deliverables.module';
 import { DevelopmentInvoicesModule } from './development-invoices/development-invoices.module';
 import { ServiceSubscriptionsModule } from './service-subscriptions/service-subscriptions.module';
+import { ChaptersModule } from './chapters/chapters.module';
 
 @Module({
   imports: [
@@ -71,6 +72,7 @@ import { ServiceSubscriptionsModule } from './service-subscriptions/service-subs
     DevelopmentInvoicesModule,
     ProjectDeliverablesModule,
     ServiceSubscriptionsModule,
+    ChaptersModule,
   ],
   controllers: [AppController],
   providers: [
