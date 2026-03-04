@@ -113,11 +113,11 @@ export class ScheduledEmailsService {
         // Find users whose subscription expires in X days
         const users = await this.userModel
           .find({
-            subscriptionExpiryDate: {
+            subscriptionExpiry: {
               $gte: startOfDay,
               $lte: targetDate,
             },
-            subscriptionStatus: { $in: ['active', 'pending'] },
+            subscribed: true,
           })
           .exec();
 

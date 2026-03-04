@@ -28,6 +28,9 @@ export class Subscription extends Document {
   @Prop()
   expiryDate: Date;
 
+  @Prop()
+  subscriptionYear?: number;
+
   // New fields for income-based pricing
   @Prop()
   incomeBracket?: string; // for global members: greater_than_200k, 100k_to_200k, etc.

@@ -937,8 +937,8 @@ export class MemberManagerService {
       Subscribed: member.subscribed ? 'Yes' : 'No',
       'Lifetime Member': member.hasLifetimeMembership ? 'Yes' : 'No',
       'Membership Type': member.lifetimeType || '',
-      'Subscription Expires': member.subscriptionExpiryDate
-        ? new Date(member.subscriptionExpiryDate).toLocaleDateString()
+      'Subscription Expires': member.subscriptionExpiry
+        ? new Date(member.subscriptionExpiry).toLocaleDateString()
         : '',
       'Joined Date': member.createdAt ? new Date(member.createdAt).toLocaleDateString() : '',
     }));

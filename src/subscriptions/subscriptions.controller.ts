@@ -70,13 +70,13 @@ export class SubscriptionsController {
     return this.subscriptionsService.syncPaymentStatus(req.user.id, reference);
   }
 
-  @Post('activate/:userId/:subDate')
+  @Post('activate/:userId/:subYear')
   @Roles(AllAdminRoles)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'saves a successful subscription payment details' })
   @ApiBody({ type: CreateSubscriptionDto })
-  activate(@Param('userId') userId: string, @Param('subDate') subDate: string) {
-    return this.subscriptionsService.activate(userId, subDate);
+  activate(@Param('userId') userId: string, @Param('subYear') subYear: string) {
+    return this.subscriptionsService.activate(userId, subYear);
   }
 
   @Post('activate-lifetime/:userId')
