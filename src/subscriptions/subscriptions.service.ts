@@ -84,6 +84,21 @@ export class SubscriptionsService {
     };
   }
 
+  private normalizeCoverageYear(subscriptionYear?: number | string): number | undefined {
+    const parsedYear =
+      typeof subscriptionYear === 'string' ? Number(subscriptionYear) : subscriptionYear;
+
+    if (!Number.isInteger(parsedYear)) {
+      return undefined;
+    }
+
+    if (parsedYear < 2000 || parsedYear > 2100) {
+      return undefined;
+    }
+
+    return parsedYear;
+  }
+
   private resolveTargetYearFromExistingSubscription(
     existingSubscription?: Pick<Subscription, 'subscriptionYear' | 'expiryDate'>,
   ): number | undefined {
@@ -705,7 +720,10 @@ export class SubscriptionsService {
       delete searchCriteria.$or;
     }
 
-    const coverageYearCriteria = this.buildCoverageYearCriteria(subscriptionYear);
+    const normalizedSubscriptionYear = this.normalizeCoverageYear(
+      subscriptionYear as number | string,
+    );
+    const coverageYearCriteria = this.buildCoverageYearCriteria(normalizedSubscriptionYear);
     if (coverageYearCriteria) {
       if (searchCriteria.$and) {
         searchCriteria.$and.push(coverageYearCriteria);
@@ -782,7 +800,10 @@ export class SubscriptionsService {
       delete searchCriteria.$or;
     }
 
-    const coverageYearCriteria = this.buildCoverageYearCriteria(subscriptionYear);
+    const normalizedSubscriptionYear = this.normalizeCoverageYear(
+      subscriptionYear as number | string,
+    );
+    const coverageYearCriteria = this.buildCoverageYearCriteria(normalizedSubscriptionYear);
     if (coverageYearCriteria) {
       if (searchCriteria.$and) {
         searchCriteria.$and.push(coverageYearCriteria);
