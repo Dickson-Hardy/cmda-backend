@@ -1,7 +1,6 @@
 const fs = require("fs");
 const path = require("path");
 const mongoose = require("mongoose");
-const { EJSON } = require("bson");
 require("dotenv").config();
 
 (async () => {
@@ -30,7 +29,7 @@ require("dotenv").config();
     let exported = 0;
     const cursor = collection.find({});
     for await (const doc of cursor) {
-      stream.write(EJSON.stringify(doc, { relaxed: false }) + "\n");
+      stream.write(JSON.stringify(doc) + "\n");
       exported += 1;
     }
 

@@ -1,4 +1,5 @@
-import { IsEnum, IsOptional, IsString } from 'class-validator';
+import { Type } from 'class-transformer';
+import { IsEnum, IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { UserRole } from '../../users/user.constant';
 
@@ -35,4 +36,12 @@ export class SubscriptionPaginationQueryDto {
   @IsOptional()
   @IsString()
   userId?: string;
+
+  @ApiPropertyOptional({ description: 'Filter by subscription coverage year', example: 2026 })
+  @Type(() => Number)
+  @IsInt()
+  @Min(2000)
+  @Max(2100)
+  @IsOptional()
+  subscriptionYear?: number;
 }

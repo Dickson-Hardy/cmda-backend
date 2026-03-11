@@ -63,6 +63,51 @@ export class SubscriptionsService {
     return new Date(year, 11, 31, 23, 59, 59, 999);
   }
 
+  private buildCoverageYearCriteria(subscriptionYear?: number): Record<string, any> | null {
+    if (!subscriptionYear) {
+      return null;
+    }
+
+    return {
+      $or: [
+        { subscriptionYear },
+        {
+          $and: [
+            { subscriptionYear: { $exists: false } },
+            { isLifetime: { $ne: true } },
+            { isVisionPartner: { $ne: true } },
+            { expiryDate: { $type: 'date' } },
+            { $expr: { $eq: [{ $year: '$expiryDate' }, subscriptionYear] } },
+          ],
+        },
+      ],
+    };
+  }
+
+  private resolveTargetYearFromExistingSubscription(
+    existingSubscription?: Pick<Subscription, 'subscriptionYear' | 'expiryDate'>,
+  ): number | undefined {
+    if (!existingSubscription) {
+      return undefined;
+    }
+
+    if (
+      typeof existingSubscription.subscriptionYear === 'number' &&
+      Number.isInteger(existingSubscription.subscriptionYear)
+    ) {
+      return existingSubscription.subscriptionYear;
+    }
+
+    if (
+      existingSubscription.expiryDate instanceof Date &&
+      !isNaN(existingSubscription.expiryDate.getTime())
+    ) {
+      return existingSubscription.expiryDate.getFullYear();
+    }
+
+    return undefined;
+  }
+
   private async hasActiveCurrentYearSubscription(userId: string): Promise<boolean> {
     const currentYear = this.getCurrentYear();
     const now = new Date();
@@ -334,7 +379,9 @@ export class SubscriptionsService {
 
       // Update user fields for Global Network members
       if (user.role === UserRole.GLOBALNETWORK) {
-        const hasCurrentYearCoverage = await this.hasActiveCurrentYearSubscription(user._id.toString());
+        const hasCurrentYearCoverage = await this.hasActiveCurrentYearSubscription(
+          user._id.toString(),
+        );
         const updateData: any = {
           subscribed: isLifetime ? true : hasCurrentYearCoverage,
           subscriptionExpiry: expiryDate,
@@ -352,7 +399,9 @@ export class SubscriptionsService {
 
         user = await this.userModel.findByIdAndUpdate(user._id, updateData, { new: true });
       } else {
-        const hasCurrentYearCoverage = await this.hasActiveCurrentYearSubscription(user._id.toString());
+        const hasCurrentYearCoverage = await this.hasActiveCurrentYearSubscription(
+          user._id.toString(),
+        );
         user = await this.userModel.findByIdAndUpdate(
           user._id,
           { subscribed: hasCurrentYearCoverage, subscriptionExpiry: expiryDate },
@@ -371,9 +420,18 @@ export class SubscriptionsService {
 
       user = await this.userModel.findOne({ membershipId: memId });
 
+      const existingIntentSubscription = subscriptionId
+        ? await this.subscriptionModel.findById(subscriptionId)
+        : null;
+
       // Set expiry date based on lifetime or calendar-year annual subscription
       const isNigerianLifetime = isLifetime === true || isLifetime === 'true';
-      const targetYear = this.resolveTargetYear(transaction?.data?.metadata?.targetYear || dtoTargetYear);
+      const fallbackTargetYear = this.resolveTargetYearFromExistingSubscription(
+        existingIntentSubscription,
+      );
+      const targetYear = this.resolveTargetYear(
+        transaction?.data?.metadata?.targetYear || dtoTargetYear || fallbackTargetYear,
+      );
       expiryDate = isNigerianLifetime
         ? new Date(
             new Date().setFullYear(
@@ -415,7 +473,9 @@ export class SubscriptionsService {
       }
 
       // Update user with lifetime membership info if applicable
-      const hasCurrentYearCoverage = await this.hasActiveCurrentYearSubscription(user._id.toString());
+      const hasCurrentYearCoverage = await this.hasActiveCurrentYearSubscription(
+        user._id.toString(),
+      );
       const updateData: any = {
         subscribed: isNigerianLifetime ? true : hasCurrentYearCoverage,
         subscriptionExpiry: expiryDate,
@@ -621,7 +681,7 @@ export class SubscriptionsService {
   }
 
   async findAll(query: SubscriptionPaginationQueryDto): Promise<ISuccessResponse> {
-    const { searchBy, limit, page, role, region } = query;
+    const { searchBy, limit, page, role, region, subscriptionYear } = query;
     const perPage = Number(limit) || 10;
     const currentPage = Number(page) || 1;
 
@@ -636,13 +696,23 @@ export class SubscriptionsService {
         { reference: { $regex: searchBy, $options: 'i' } },
         !isNaN(searchNumber) ? { amount: searchNumber } : false,
       ].filter(Boolean);
-      
+
       // Combine isPaid filter with search conditions
       searchCriteria.$and = [
         { $or: [{ isPaid: true }, { isPaid: { $exists: false } }] },
         { $or: searchConditions },
       ];
       delete searchCriteria.$or;
+    }
+
+    const coverageYearCriteria = this.buildCoverageYearCriteria(subscriptionYear);
+    if (coverageYearCriteria) {
+      if (searchCriteria.$and) {
+        searchCriteria.$and.push(coverageYearCriteria);
+      } else {
+        searchCriteria.$and = [{ ...searchCriteria }, coverageYearCriteria];
+        delete searchCriteria.$or;
+      }
     }
 
     const pipeline: PipelineStage[] = [
@@ -690,7 +760,7 @@ export class SubscriptionsService {
   }
 
   async exportAll(query: SubscriptionPaginationQueryDto): Promise<any> {
-    const { searchBy, role, region, userId } = query;
+    const { searchBy, role, region, userId, subscriptionYear } = query;
 
     // Filter: isPaid is true OR doesn't exist (for old records before isPaid field was added)
     const searchCriteria: any = {
@@ -703,13 +773,23 @@ export class SubscriptionsService {
         { reference: { $regex: searchBy, $options: 'i' } },
         !isNaN(searchNumber) ? { amount: searchNumber } : false,
       ].filter(Boolean);
-      
+
       // Combine isPaid filter with search conditions
       searchCriteria.$and = [
         { $or: [{ isPaid: true }, { isPaid: { $exists: false } }] },
         { $or: searchConditions },
       ];
       delete searchCriteria.$or;
+    }
+
+    const coverageYearCriteria = this.buildCoverageYearCriteria(subscriptionYear);
+    if (coverageYearCriteria) {
+      if (searchCriteria.$and) {
+        searchCriteria.$and.push(coverageYearCriteria);
+      } else {
+        searchCriteria.$and = [{ ...searchCriteria }, coverageYearCriteria];
+        delete searchCriteria.$or;
+      }
     }
 
     if (userId) {
@@ -915,7 +995,15 @@ export class SubscriptionsService {
         });
       } else {
         const { amount, metadata } = transaction.data;
-        resolvedTargetYear = this.resolveTargetYear(metadata?.targetYear);
+
+        const existingIntentSubscription = metadata?.subscriptionId
+          ? await this.subscriptionModel.findById(metadata.subscriptionId)
+          : null;
+        const fallbackTargetYear = this.resolveTargetYearFromExistingSubscription(
+          existingIntentSubscription,
+        );
+
+        resolvedTargetYear = this.resolveTargetYear(metadata?.targetYear || fallbackTargetYear);
         const expiryDate = this.getCalendarYearExpiryDate(resolvedTargetYear);
 
         newSubscription = await this.subscriptionModel.create({
