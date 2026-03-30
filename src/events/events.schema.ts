@@ -107,6 +107,9 @@ export class Event extends Document {
   @Prop()
   linkOrLocation: string;
 
+  @Prop()
+  externalUrl?: string;
+
   @Prop({ default: false })
   isPaid: boolean;
 

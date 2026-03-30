@@ -128,6 +128,7 @@ export class EventsService {
         { name: new RegExp(searchBy, 'i') },
         { eventType: new RegExp(searchBy, 'i') },
         { linkOrLocation: new RegExp(searchBy, 'i') },
+        { externalUrl: new RegExp(searchBy, 'i') },
         { eventDateTime: new RegExp(searchBy, 'i') },
       ];
     }

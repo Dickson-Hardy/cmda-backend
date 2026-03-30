@@ -48,6 +48,15 @@ export class CreateEventDto {
   @IsString()
   linkOrLocation: string;
 
+  @ApiProperty({
+    example: 'https://example.com/register',
+    description: 'Optional external URL for registration or event page',
+    required: false,
+  })
+  @IsString()
+  @IsOptional()
+  externalUrl?: string;
+
   @ApiProperty({ example: false, description: 'paid of free event' })
   @IsBooleanString()
   isPaid: boolean;
