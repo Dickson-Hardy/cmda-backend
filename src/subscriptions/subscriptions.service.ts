@@ -63,6 +63,19 @@ export class SubscriptionsService {
     return new Date(year, 11, 31, 23, 59, 59, 999);
   }
 
+  private resolvePaymentYear(paymentDate?: string | Date): number {
+    if (!paymentDate) {
+      return this.getCurrentYear();
+    }
+
+    const parsedDate = paymentDate instanceof Date ? paymentDate : new Date(paymentDate);
+    if (isNaN(parsedDate.getTime())) {
+      return this.getCurrentYear();
+    }
+
+    return parsedDate.getFullYear();
+  }
+
   private buildCoverageYearCriteria(subscriptionYear?: number): Record<string, any> | null {
     if (!subscriptionYear) {
       return null;
@@ -76,8 +89,8 @@ export class SubscriptionsService {
             { subscriptionYear: { $exists: false } },
             { isLifetime: { $ne: true } },
             { isVisionPartner: { $ne: true } },
-            { expiryDate: { $type: 'date' } },
-            { $expr: { $eq: [{ $year: '$expiryDate' }, subscriptionYear] } },
+            { createdAt: { $type: 'date' } },
+            { $expr: { $eq: [{ $year: '$createdAt' }, subscriptionYear] } },
           ],
         },
       ],
@@ -159,7 +172,7 @@ export class SubscriptionsService {
     let lifetimeType: string | undefined;
     let incomeBracket: string | undefined;
     let isNigerianLifetime = false;
-    const targetYear = this.resolveTargetYear(subscriptionData?.targetYear);
+    const targetYear = this.getCurrentYear();
 
     // Handle Nigerian lifetime membership
     if (subscriptionData?.isNigerianLifetime && user.role !== UserRole.GLOBALNETWORK) {
@@ -318,7 +331,7 @@ export class SubscriptionsService {
     };
   }
   async create(createSubscriptionDto: CreateSubscriptionDto): Promise<ISuccessResponse> {
-    const { reference, source, targetYear: dtoTargetYear } = createSubscriptionDto;
+    const { reference, source } = createSubscriptionDto;
 
     const alreadyExist = await this.subscriptionModel.findOne({ reference });
     if (alreadyExist) {
@@ -369,11 +382,13 @@ export class SubscriptionsService {
       } else if (selectedTab === 'donations') {
         expiryDate = new Date(new Date().setMonth(new Date().getMonth() + 1));
       } else {
-        const targetYear = this.resolveTargetYear(metadataTargetYear || dtoTargetYear);
+        const paidAt = details?.create_time || details?.update_time;
+        const targetYear = this.resolvePaymentYear(paidAt);
         expiryDate = this.getCalendarYearExpiryDate(targetYear);
       }
 
-      const targetYear = this.resolveTargetYear(metadataTargetYear || dtoTargetYear);
+      const paidAt = details?.create_time || details?.update_time;
+      const targetYear = this.resolvePaymentYear(paidAt);
       const isVisionPartner = selectedTab === 'donations';
 
       subscription = await this.subscriptionModel.create({
@@ -435,18 +450,10 @@ export class SubscriptionsService {
 
       user = await this.userModel.findOne({ membershipId: memId });
 
-      const existingIntentSubscription = subscriptionId
-        ? await this.subscriptionModel.findById(subscriptionId)
-        : null;
-
       // Set expiry date based on lifetime or calendar-year annual subscription
       const isNigerianLifetime = isLifetime === true || isLifetime === 'true';
-      const fallbackTargetYear = this.resolveTargetYearFromExistingSubscription(
-        existingIntentSubscription,
-      );
-      const targetYear = this.resolveTargetYear(
-        transaction?.data?.metadata?.targetYear || dtoTargetYear || fallbackTargetYear,
-      );
+      const paidAt = transaction?.data?.paid_at || transaction?.data?.created_at;
+      const targetYear = this.resolvePaymentYear(paidAt);
       expiryDate = isNigerianLifetime
         ? new Date(
             new Date().setFullYear(
@@ -765,6 +772,16 @@ export class SubscriptionsService {
 
     let totalItems: any = await this.subscriptionModel.aggregate(pipeline);
     totalItems = totalItems.length;
+    const [totalAmountResult] = await this.subscriptionModel.aggregate([
+      ...pipeline,
+      {
+        $group: {
+          _id: null,
+          totalAmount: { $sum: { $ifNull: ['$amount', 0] } },
+        },
+      },
+    ]);
+    const totalAmount = totalAmountResult?.totalAmount || 0;
     const totalPages = Math.ceil(totalItems / perPage);
 
     return {
@@ -772,7 +789,7 @@ export class SubscriptionsService {
       message: 'Subscription records fetched successfully',
       data: {
         items: aggregatedSubscriptions,
-        meta: { currentPage, itemsPerPage: perPage, totalItems, totalPages },
+        meta: { currentPage, itemsPerPage: perPage, totalItems, totalPages, totalAmount },
       },
     };
   }
@@ -843,6 +860,14 @@ export class SubscriptionsService {
           _id: 0,
           SOURCE: { $ifNull: ['$source', 'N/A'] },
           REFERENCE: '$reference',
+          SUBSCRIPTION_YEAR: {
+            $ifNull: [
+              '$subscriptionYear',
+              {
+                $cond: [{ $eq: [{ $type: '$createdAt' }, 'date'] }, { $year: '$createdAt' }, 'N/A'],
+              },
+            ],
+          },
           CURRENCY: '$currency',
           AMOUNT: '$amount',
           NAME: { $ifNull: ['$user.fullName', 'N/A'] },
@@ -1000,7 +1025,8 @@ export class SubscriptionsService {
             metadata = {};
           }
         }
-        resolvedTargetYear = this.resolveTargetYear(metadata?.targetYear);
+        const paidAt = details?.create_time || details?.update_time;
+        resolvedTargetYear = this.resolvePaymentYear(paidAt);
         const expiryDate = this.getCalendarYearExpiryDate(resolvedTargetYear);
 
         newSubscription = await this.subscriptionModel.create({
@@ -1017,14 +1043,8 @@ export class SubscriptionsService {
       } else {
         const { amount, metadata } = transaction.data;
 
-        const existingIntentSubscription = metadata?.subscriptionId
-          ? await this.subscriptionModel.findById(metadata.subscriptionId)
-          : null;
-        const fallbackTargetYear = this.resolveTargetYearFromExistingSubscription(
-          existingIntentSubscription,
-        );
-
-        resolvedTargetYear = this.resolveTargetYear(metadata?.targetYear || fallbackTargetYear);
+        const paidAt = transaction?.data?.paid_at || transaction?.data?.created_at;
+        resolvedTargetYear = this.resolvePaymentYear(paidAt);
         const expiryDate = this.getCalendarYearExpiryDate(resolvedTargetYear);
 
         newSubscription = await this.subscriptionModel.create({
