@@ -59,6 +59,15 @@
     "swagger-ui-express": "^5.0.1",
     "yarn": "^1.22.22"
   },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@nestjs/core"
+    ],
+    "ignoredBuiltDependencies": [
+      "@scarf/scarf",
+      "yarn"
+    ]
+  },
   "devDependencies": {
     "@nestjs/cli": "^10.0.0",
     "@nestjs/schematics": "^10.0.0",
