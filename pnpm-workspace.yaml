@@ -1,6 +1,4 @@
-onlyBuiltDependencies:
-  - '@nestjs/core'
-
-ignoredBuiltDependencies:
-  - '@scarf/scarf'
-  - yarn
+allowBuilds:
+  '@nestjs/core': true
+  '@scarf/scarf': false
+  yarn: false
