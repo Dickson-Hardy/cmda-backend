@@ -54,10 +54,10 @@ export class CreateMemberByAdminDto {
   @IsEnum(UserRole, { message: 'correct values for role are Student, Doctor or GlobalNetwork' })
   readonly role: UserRole;
 
-  @ApiProperty({ example: '2000-01-01', description: 'Date of birth' })
-  @IsNotEmpty()
+  @ApiPropertyOptional({ example: '2000-01-01', description: 'Date of birth (optional for Global Network members)' })
+  @IsOptional()
   @IsDateString()
-  dateOfBirth: string;
+  dateOfBirth?: string;
 
   @ApiProperty({
     example: 'Abuja',

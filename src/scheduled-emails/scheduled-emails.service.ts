@@ -60,17 +60,17 @@ export class ScheduledEmailsService {
       this.logger.log(`Found ${birthdayUsers.length} users with birthdays today`);
 
       for (const user of birthdayUsers) {
-        try {
-          const emailContent = BIRTHDAY_EMAIL_TEMPLATE.replace(
-            /\[Name\]/g,
-            user.firstName || 'Member',
-          );
+          try {
+            const emailContent = BIRTHDAY_EMAIL_TEMPLATE.replace(
+              /\[Name\]/g,
+              user.firstName || 'Member',
+            );
 
-          await this.emailService.sendEmail({
-            to: user.email,
-            subject: `🎉 Happy Birthday ${user.firstName}! - CMDA Nigeria`,
-            html: emailContent,
-          });
+            await this.emailService.sendBirthdayEmail({
+              to: user.email,
+              subject: `🎉 Happy Birthday ${user.firstName}! - CMDA Nigeria`,
+              html: emailContent,
+            });
 
           this.logger.log(`Birthday email sent to ${user.email}`);
         } catch (error) {
@@ -139,7 +139,7 @@ export class ScheduledEmailsService {
               .replace(/\[DaysRemaining\]/g, days.toString())
               .replace(/\[ExpiryDate\]/g, formattedDate);
 
-            await this.emailService.sendEmail({
+            await this.emailService.sendReminderEmail({
               to: user.email,
               subject: `⏰ Your CMDA Subscription Expires in ${days} Day${days !== 1 ? 's' : ''}`,
               html: emailContent,
@@ -276,7 +276,7 @@ export class ScheduledEmailsService {
                 emailContent = emailContent.replace(/\[VirtualMeetingInfo\]/g, '');
               }
 
-              await this.emailService.sendEmail({
+              await this.emailService.sendReminderEmail({
                 to: user.email,
                 subject: `📅 Reminder: ${event.name} is in ${timeUntilEvent}!`,
                 html: emailContent,
@@ -356,7 +356,7 @@ export class ScheduledEmailsService {
               30: '💜 We Miss You at CMDA Nigeria',
             };
 
-            await this.emailService.sendEmail({
+            await this.emailService.sendReminderEmail({
               to: user.email,
               subject: subjects[days],
               html: emailContent,

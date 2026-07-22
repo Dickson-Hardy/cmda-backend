@@ -154,6 +154,11 @@ export const MEMBER_CREDENTIALS_TEMPLATE = `
             <p style="color: #666666; font-size: 16px; line-height: 1.5; margin: 20px 0">
                 Please note that you will be prompted to change your password upon your first login for security purposes.
             </p>
+            <div style="background-color: #fff3cd; border: 1px solid #ffc107; border-radius: 5px; padding: 15px; margin: 20px 0">
+                <p style="color: #856404; font-size: 16px; line-height: 1.5; margin: 0">
+                    <strong>Important:</strong> After logging in, please take a moment to complete your profile by updating any missing information, including your date of birth, phone number, and other personal details. This helps us serve you better.
+                </p>
+            </div>
             <p style="color: #666666; font-size: 16px; line-height: 1.5; margin: 20px 0">
                 If you experience any issues accessing your account or have questions about the platform, do not hesitate to contact us for assistance.
             </p>
