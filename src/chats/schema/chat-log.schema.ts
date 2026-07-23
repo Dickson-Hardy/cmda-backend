@@ -3,10 +3,10 @@ import { Document } from 'mongoose';
 
 @Schema({ timestamps: true, versionKey: false })
 export class ChatLog extends Document {
-  @Prop()
+  @Prop({ index: true })
   user: string;
 
-  @Prop()
+  @Prop({ index: true })
   chatWith: string;
 
   @Prop()
@@ -14,3 +14,6 @@ export class ChatLog extends Document {
 }
 
 export const ChatLogSchema = SchemaFactory.createForClass(ChatLog);
+
+// Compound index for finding chat log between two users
+ChatLogSchema.index({ user: 1, chatWith: 1 }, { unique: true });

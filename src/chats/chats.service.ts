@@ -94,8 +94,16 @@ export class ChatsService {
     };
   }
 
-  async getChatHistory(user: IJwtPayload, chatWithId: string): Promise<ISuccessResponse> {
+  async getChatHistory(
+    user: IJwtPayload,
+    chatWithId: string,
+    page: number = 1,
+    limit: number = 50,
+  ): Promise<ISuccessResponse> {
+    const skip = (page - 1) * limit;
     let messages: any;
+    let total: number;
+
     if (AllAdminRoles.includes(user.role as AdminRole)) {
       // mark all recieved messages from chatWith as read here
       await this.messageModel.updateMany({ sender: chatWithId, receiver: 'admin' }, { read: true });
@@ -105,7 +113,13 @@ export class ChatsService {
           { sender: chatWithId, receiver: 'admin' },
         ],
       };
-      messages = await this.messageModel.find(adminCriteria);
+      total = await this.messageModel.countDocuments(adminCriteria);
+      messages = await this.messageModel
+        .find(adminCriteria)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean();
     } else {
       // mark all recieved messages from chatWith as read here
       await this.messageModel.updateMany({ sender: chatWithId, receiver: user.id }, { read: true });
@@ -116,13 +130,31 @@ export class ChatsService {
           { sender: chatWithId, receiver: user.id },
         ],
       };
-      messages = await this.messageModel.find(userCriteria);
+      total = await this.messageModel.countDocuments(userCriteria);
+      messages = await this.messageModel
+        .find(userCriteria)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean();
     }
+
+    // Reverse so oldest is first (we fetched newest-first for pagination)
+    messages.reverse();
 
     return {
       success: true,
       message: 'Chat history fetched successfully',
-      data: messages,
+      data: {
+        messages,
+        pagination: {
+          page,
+          limit,
+          total,
+          totalPages: Math.ceil(total / limit),
+          hasMore: skip + messages.length < total,
+        },
+      },
     };
   }
 }

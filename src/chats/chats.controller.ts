@@ -1,6 +1,6 @@
-import { Controller, Get, Param, Req } from '@nestjs/common';
+import { Controller, Get, Param, Query, Req } from '@nestjs/common';
 import { ChatsService } from './chats.service';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { IJwtPayload } from '../_global/interface/jwt-payload';
 
 @ApiTags('Chats')
@@ -18,7 +18,14 @@ export class ChatsController {
   @Get('history/:id')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Fetch previous chats between current user and user with param id' })
-  getChatHistory(@Req() req: { user: IJwtPayload }, @Param('id') chatWith: string) {
-    return this.chatsService.getChatHistory(req.user, chatWith);
+  @ApiQuery({ name: 'page', required: false, type: Number, description: 'Page number (default: 1)' })
+  @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Messages per page (default: 50)' })
+  getChatHistory(
+    @Req() req: { user: IJwtPayload },
+    @Param('id') chatWith: string,
+    @Query('page') page?: number,
+    @Query('limit') limit?: number,
+  ) {
+    return this.chatsService.getChatHistory(req.user, chatWith, page || 1, limit || 50);
   }
 }

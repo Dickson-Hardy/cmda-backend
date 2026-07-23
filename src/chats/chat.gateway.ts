@@ -84,32 +84,43 @@ export class ChatGateway {
     if (region) searchCriteria.region = region;
 
     const receivers = await this.userModel.find(searchCriteria).lean();
+    const BATCH_SIZE = 50;
 
-    receivers
-      .map((receiver) => receiver._id)
-      .forEach(async (receiver) => {
-        const newMessage = await this.messageModel.create({ sender, receiver, content });
+    // Process receivers in batches to avoid overwhelming the database
+    for (let i = 0; i < receivers.length; i += BATCH_SIZE) {
+      const batch = receivers.slice(i, i + BATCH_SIZE);
+      
+      await Promise.all(
+        batch.map(async (receiver) => {
+          try {
+            const newMessage = await this.messageModel.create({ sender, receiver: receiver._id, content });
 
-        await this.chatLogModel.findOneAndUpdate(
-          { user: sender, chatWith: receiver },
-          { lastMessage: content },
-          { upsert: true, new: true },
-        );
+            await Promise.all([
+              this.chatLogModel.findOneAndUpdate(
+                { user: sender, chatWith: receiver._id },
+                { lastMessage: content },
+                { upsert: true, new: true },
+              ),
+              this.chatLogModel.findOneAndUpdate(
+                { user: receiver._id, chatWith: sender },
+                { lastMessage: content },
+                { upsert: true, new: true },
+              ),
+            ]);
 
-        await this.chatLogModel.findOneAndUpdate(
-          { user: receiver, chatWith: sender },
-          { lastMessage: content },
-          { upsert: true, new: true },
-        );
+            this.server.emit(`newMessage_${['admin', receiver._id].sort().join('_')}`, newMessage);
 
-        this.server.emit(`newMessage_${['admin', receiver].sort().join('_')}`, newMessage);
-
-        await this.notificationsGateway.broadcastNewMessageNotification({
-          userId: receiver,
-          type: NotificationType.MESSAGE,
-          typeId: newMessage._id,
-          content: `You have a new message from Admin with body: "${newMessage.content}"`,
-        });
-      });
+            await this.notificationsGateway.broadcastNewMessageNotification({
+              userId: receiver._id,
+              type: NotificationType.MESSAGE,
+              typeId: newMessage._id,
+              content: `You have a new message from Admin with body: "${newMessage.content}"`,
+            });
+          } catch (error) {
+            console.error(`Failed to send broadcast message to ${receiver._id}:`, error.message);
+          }
+        }),
+      );
+    }
   }
 }
