@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { PushToken } from './push-token.schema';
@@ -6,6 +6,7 @@ import { RegisterPushTokenDto } from './dto/register-push-token.dto';
 import { ISuccessResponse } from '../_global/interface/success-response';
 import { User } from '../users/schema/users.schema';
 import { UserRole } from '../users/user.constant';
+import { Expo } from 'expo-server-sdk';
 
 @Injectable()
 export class PushTokenService {
@@ -24,6 +25,13 @@ export class PushTokenService {
     dto: RegisterPushTokenDto,
   ): Promise<ISuccessResponse> {
     const { token, platform, deviceId } = dto;
+
+    // Validate Expo push token format
+    if (!Expo.isExpoPushToken(token)) {
+      throw new BadRequestException(
+        `Invalid Expo push token format: ${String(token).substring(0, 20)}...`
+      );
+    }
 
     try {
       // Check if token already exists for another user/device and deactivate it
@@ -185,10 +193,13 @@ export class PushTokenService {
     }
 
     // Only include users who have push notifications enabled
-    // Handle both new users (with preferences) and legacy users (without preferences)
+    // Handle both new users (with preferences), legacy users (without preferences),
+    // and users with empty notificationPreferences object
     userQuery.$or = [
       { 'notificationPreferences.pushNotifications': true },
-      { notificationPreferences: { $exists: false } }, // Legacy users - assume they want notifications
+      { notificationPreferences: { $exists: false } }, // Legacy users
+      { notificationPreferences: {} }, // Empty preferences object
+      { 'notificationPreferences.pushNotifications': { $ne: false } }, // Not explicitly disabled
     ];
 
     const users = await this.userModel.find(userQuery).select('_id');

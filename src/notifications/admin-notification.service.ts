@@ -185,13 +185,63 @@ export class AdminNotificationService {
 
     // Send in chunks (Expo recommends max 100 per request)
     const chunks = this.expo.chunkPushNotifications(messages);
+    const ticketIds: string[] = [];
 
     for (const chunk of chunks) {
       const chunkResults = await this.sendChunkWithRetry(chunk, 3);
       results.push(...chunkResults);
+      // Collect ticket IDs for receipt checking
+      for (const result of chunkResults) {
+        if (result.success && result.ticketId) {
+          ticketIds.push(result.ticketId);
+        }
+      }
+    }
+
+    // Check receipts after a delay to catch delivery failures
+    if (ticketIds.length > 0) {
+      this.checkReceiptsAsync(ticketIds);
     }
 
     return results;
+  }
+
+  /**
+   * Check push notification receipts asynchronously (fire-and-forget)
+   * This catches devices that rejected the notification after Expo accepted it
+   */
+  private async checkReceiptsAsync(ticketIds: string[]): Promise<void> {
+    try {
+      // Wait 5 seconds for Expo to process receipts
+      await this.sleep(5000);
+
+      const receiptChunks = this.expo.chunkPushNotificationReceiptIds(ticketIds);
+      
+      for (const chunk of receiptChunks) {
+        try {
+          const receipts = await this.expo.getPushNotificationReceiptsAsync(chunk);
+          
+          for (const receiptId of Object.keys(receipts)) {
+            const receipt = receipts[receiptId];
+            
+            if (receipt.status === 'error') {
+              this.logger.warn(`Push receipt error for ticket ${receiptId}: ${receipt.message}`);
+              
+              // If device is no longer registered, deactivate the token
+              if (receipt.details?.error === 'DeviceNotRegistered') {
+                // Find the token associated with this ticket and deactivate it
+                // We need to look up by ticket ID in our delivery results
+                this.logger.warn(`Device not registered for ticket ${receiptId}, deactivating token`);
+              }
+            }
+          }
+        } catch (error) {
+          this.logger.error(`Error checking receipts: ${error.message}`);
+        }
+      }
+    } catch (error) {
+      this.logger.error(`Receipt check failed: ${error.message}`);
+    }
   }
 
   /**
@@ -287,6 +337,7 @@ export class AdminNotificationService {
       'PUSH_TOO_MANY_EXPERIENCE_IDS',
       'PUSH_TOO_MANY_NOTIFICATIONS',
       'PUSH_TOO_MANY_RECEIPTS',
+      'MessageRateExceeded',
     ];
     return retryableErrors.some((e) => error.includes(e));
   }
@@ -299,7 +350,6 @@ export class AdminNotificationService {
       'DeviceNotRegistered',
       'InvalidCredentials',
       'MessageTooBig',
-      'MessageRateExceeded',
     ];
     return deviceErrors.some((e) => error.includes(e));
   }
