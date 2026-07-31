@@ -448,6 +448,7 @@ export class EventsService {
           description: event.isConference ? 'CONFERENCE' : 'EVENT',
           metadata: JSON.stringify({
             eventId: event._id,
+            slug: event.slug,
             userId,
             registrationPeriod: currentRegistrationPeriod,
           }),
@@ -1149,7 +1150,7 @@ export class EventsService {
     try {
       let paymentVerification: any;
       let eventData: any;
-      if (source === 'paypal') {
+      if (source?.toLowerCase() === 'paypal') {
         // Verify PayPal payment
         paymentVerification = await this.paypalService.captureOrder(reference);
         if (!paymentVerification.status || paymentVerification.status !== 'COMPLETED') {
@@ -1162,10 +1163,15 @@ export class EventsService {
         // Only parse if it's a string, otherwise use as is
         if (typeof customId === 'string') {
           try {
-            eventData = JSON.parse(customId);
+            const decodedCustomId = Buffer.from(customId, 'base64').toString('utf-8');
+            eventData = JSON.parse(decodedCustomId);
           } catch (parseError) {
-            console.error('Failed to parse PayPal custom ID:', parseError);
-            throw new BadRequestException('Invalid PayPal metadata format');
+            try {
+              eventData = JSON.parse(customId);
+            } catch {
+              console.error('Failed to parse PayPal custom ID:', parseError);
+              throw new BadRequestException('Invalid PayPal metadata format');
+            }
           }
         } else if (typeof customId === 'object') {
           // If it's already an object, use it directly
@@ -1205,15 +1211,17 @@ export class EventsService {
         }
       }
 
-      const { userId, slug, registrationPeriod } = eventData;
-      const event = await this.eventModel.findOne({ slug });
+      const { userId, slug, eventId, registrationPeriod } = eventData;
+      const event = slug
+        ? await this.eventModel.findOne({ slug })
+        : await this.eventModel.findById(eventId);
 
       if (!event) {
         throw new NotFoundException('Event not found');
       }
 
       // Register the user for the event
-      await this.registerForEvent(userId, slug, reference);
+      await this.registerForEvent(userId, event.slug, reference);
 
       // Send payment confirmation email for conferences
       if (event.isConference) {
@@ -1227,7 +1235,7 @@ export class EventsService {
               conferenceName: event.name,
               amountPaid: this.formatCurrency(amount),
               registrationPeriod: registrationPeriod || 'Regular',
-              paymentMethod: source === 'paypal' ? 'PayPal' : 'Paystack',
+              paymentMethod: source?.toLowerCase() === 'paypal' ? 'PayPal' : 'Paystack',
               transactionId: reference,
               paymentDate: this.formatDate(new Date()),
               conferenceDate: this.formatDate(event.eventDateTime),

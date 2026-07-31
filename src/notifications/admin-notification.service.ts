@@ -1,4 +1,5 @@
 import { Injectable, Logger, BadRequestException } from '@nestjs/common';
+import { Cron, CronExpression } from '@nestjs/schedule';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { AdminNotification } from './admin-notification.schema';
@@ -366,8 +367,9 @@ export class AdminNotificationService {
   }
 
   /**
-   * Process scheduled notifications (called by cron job)
+   * Process scheduled notifications (called by cron job every 5 minutes)
    */
+  @Cron(CronExpression.EVERY_5_MINUTES)
   async processScheduledNotifications(): Promise<void> {
     const now = new Date();
 
