@@ -148,7 +148,10 @@ export class PushTokenService {
     targetType: 'all' | 'role' | 'region' | 'user',
     targetValue?: string,
   ): Promise<{ userId: string; tokens: string[] }[]> {
-    let userQuery: any = { isActive: true };
+    // `isActive` was added after many production users already existed.
+    // Treat only an explicit false as inactive so legacy members remain
+    // targetable by email, role, region, and all-user broadcasts.
+    let userQuery: any = { isActive: { $ne: false } };
 
     switch (targetType) {
       case 'all':
