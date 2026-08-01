@@ -45,14 +45,23 @@ export class ChatGateway {
 
     this.server.emit(`newMessage_${[sender, receiver].sort().join('_')}`, newMessage);
 
-    const senderUser = await this.userModel.findById(sender);
+    // Don't crash chat if notification fails (e.g. admin receiver or missing user)
+    try {
+      if (receiver !== 'admin') {
+        const senderUser = await this.userModel.findById(sender).lean();
+        const senderName =
+          senderUser?.fullName || (sender === 'admin' ? 'Admin' : 'Someone');
 
-    await this.notificationsGateway.broadcastNewMessageNotification({
-      userId: receiver,
-      type: NotificationType.MESSAGE,
-      typeId: newMessage._id,
-      content: `You have a new message from ${senderUser.fullName} with body: "${newMessage.content}"`,
-    });
+        await this.notificationsGateway.broadcastNewMessageNotification({
+          userId: receiver,
+          type: NotificationType.MESSAGE,
+          typeId: newMessage._id,
+          content: `You have a new message from ${senderName} with body: "${newMessage.content}"`,
+        });
+      }
+    } catch (err) {
+      console.error('[ChatGateway] Failed to broadcast message notification:', err);
+    }
   }
 
   //  admin sending broadcast message to selected users
