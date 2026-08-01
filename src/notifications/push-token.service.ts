@@ -226,9 +226,11 @@ export class PushTokenService {
       tokensByUser.set(token.userId, existing);
     }
 
-    return Array.from(tokensByUser.entries()).map(([userId, tokens]) => ({
+    // Preserve targeted users that do not have a registered device. Admin
+    // notifications still need to appear in their in-app notification bell.
+    return userIds.map((userId) => ({
       userId,
-      tokens,
+      tokens: tokensByUser.get(userId) || [],
     }));
   }
 

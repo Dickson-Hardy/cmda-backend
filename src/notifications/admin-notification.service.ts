@@ -8,6 +8,8 @@ import { PushTokenService } from './push-token.service';
 import { ISuccessResponse } from '../_global/interface/success-response';
 import { PaginationQueryDto } from '../_global/dto/pagination-query.dto';
 import { Expo, ExpoPushMessage, ExpoPushTicket, ExpoPushReceipt } from 'expo-server-sdk';
+import { NotificationsService } from './notifications.service';
+import { NotificationType as InAppNotificationType } from './notification.constant';
 
 interface DeliveryResult {
   success: boolean;
@@ -25,6 +27,7 @@ export class AdminNotificationService {
     @InjectModel(AdminNotification.name)
     private readonly adminNotificationModel: Model<AdminNotification>,
     private readonly pushTokenService: PushTokenService,
+    private readonly notificationsService: NotificationsService,
   ) {
     this.expo = new Expo();
   }
@@ -97,6 +100,16 @@ export class AdminNotificationService {
       notification.targetType,
       notification.targetValue,
     );
+
+    // The bell is backed by the Notification collection, not Expo delivery.
+    // Persist an idempotent in-app item for every targeted user, including
+    // users without a currently registered push token.
+    await this.notificationsService.createForUsers({
+      type: notification.type as unknown as InAppNotificationType,
+      content: notification.body,
+      typeId: notification._id.toString(),
+      userIds: targetedUsers.map((user) => user.userId),
+    });
 
     // Flatten all tokens
     const allTokens: string[] = [];

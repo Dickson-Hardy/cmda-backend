@@ -25,6 +25,38 @@ export class NotificationsService {
     };
   }
 
+  async createForUsers({
+    type,
+    content,
+    typeId,
+    userIds,
+  }: {
+    type: Notification['type'];
+    content: string;
+    typeId: string;
+    userIds: string[];
+  }): Promise<ISuccessResponse> {
+    const uniqueUserIds = Array.from(new Set(userIds));
+
+    if (uniqueUserIds.length) {
+      await this.notificationModel.bulkWrite(
+        uniqueUserIds.map((userId) => ({
+          updateOne: {
+            filter: { userId, typeId },
+            update: { $setOnInsert: { userId, type, content, typeId, read: false } },
+            upsert: true,
+          },
+        })),
+      );
+    }
+
+    return {
+      success: true,
+      message: 'In-app notifications created successfully',
+      data: { count: uniqueUserIds.length },
+    };
+  }
+
   async findAllNotifications(
     user: IJwtPayload,
     query: PaginationQueryDto,
