@@ -1,6 +1,6 @@
 import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { isValidObjectId, Model } from 'mongoose';
 import { PushToken } from './push-token.schema';
 import { RegisterPushTokenDto } from './dto/register-push-token.dto';
 import { ISuccessResponse } from '../_global/interface/success-response';
@@ -181,11 +181,18 @@ export class PushTokenService {
         break;
 
       case 'user':
-        // Single user
+        // The admin UI accepts either a MongoDB user ID or an email address.
+        // Never assign an arbitrary string to `_id`, because Mongoose will
+        // throw a CastError before the query can return an empty result.
         if (!targetValue) {
           throw new Error('Target value (userId) is required');
         }
-        userQuery._id = targetValue;
+        const userTarget = targetValue.trim();
+        if (isValidObjectId(userTarget)) {
+          userQuery._id = userTarget;
+        } else {
+          userQuery.email = userTarget.toLowerCase();
+        }
         break;
 
       default:

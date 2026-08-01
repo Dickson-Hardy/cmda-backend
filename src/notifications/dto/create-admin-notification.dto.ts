@@ -40,7 +40,7 @@ export class CreateAdminNotificationDto {
   targetType: TargetType;
 
   @ApiPropertyOptional({
-    description: 'Target value (role name, region code, or user ID)',
+    description: 'Target value (role name, region code, user ID, or email address)',
   })
   @IsString()
   @IsOptional()
