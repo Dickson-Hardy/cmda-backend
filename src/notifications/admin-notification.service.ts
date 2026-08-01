@@ -32,6 +32,40 @@ export class AdminNotificationService {
     this.expo = new Expo();
   }
 
+  async sendChatMessagePush(params: {
+    userId: string;
+    senderId: string;
+    senderName: string;
+    messageId: string;
+    content: string;
+  }): Promise<{ total: number; delivered: number; failed: number }> {
+    const targetedUsers = await this.pushTokenService.getTokensForTarget('user', params.userId);
+    const tokens = targetedUsers.flatMap((user) => user.tokens);
+
+    if (!tokens.length) {
+      this.logger.warn(`No push tokens found for chat message ${params.messageId}`);
+      return { total: 0, delivered: 0, failed: 0 };
+    }
+
+    const results = await this.sendPushNotifications(
+      tokens,
+      `New message from ${params.senderName}`,
+      params.content.slice(0, 200),
+      {
+        type: 'message_received',
+        messageId: params.messageId,
+        senderId: params.senderId,
+        senderName: params.senderName,
+      },
+    );
+
+    return {
+      total: results.length,
+      delivered: results.filter((result) => result.success).length,
+      failed: results.filter((result) => !result.success).length,
+    };
+  }
+
   /**
    * Create and send a notification
    */

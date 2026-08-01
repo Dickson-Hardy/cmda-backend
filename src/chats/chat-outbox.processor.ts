@@ -7,6 +7,7 @@ import { Message } from './schema/message.schema';
 import { User } from '../users/schema/users.schema';
 import { NotificationsGateway } from '../notifications/notifications.gateway';
 import { NotificationType } from '../notifications/notification.constant';
+import { AdminNotificationService } from '../notifications/admin-notification.service';
 
 @Injectable()
 export class ChatOutboxProcessor {
@@ -17,6 +18,7 @@ export class ChatOutboxProcessor {
     @InjectModel(Message.name) private readonly messageModel: Model<Message>,
     @InjectModel(User.name) private readonly userModel: Model<User>,
     private readonly notificationsGateway: NotificationsGateway,
+    private readonly adminNotificationService: AdminNotificationService,
   ) {}
 
   @Interval(5_000)
@@ -54,6 +56,13 @@ export class ChatOutboxProcessor {
             type: NotificationType.MESSAGE,
             typeId: message._id.toString(),
             content: `You have a new message from ${senderName} with body: "${message.content}"`,
+          });
+          await this.adminNotificationService.sendChatMessagePush({
+            userId: event.receiver,
+            senderId: message.sender,
+            senderName,
+            messageId: message._id.toString(),
+            content: message.content,
           });
           await event.updateOne({
             $set: { status: 'processed', processedAt: new Date() },
