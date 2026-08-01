@@ -27,6 +27,10 @@ export class ChatGateway {
 
   @SubscribeMessage('newMessage')
   async handleMessage(@MessageBody() data: { sender: string; receiver: string; content: string }) {
+    return this.sendMessage(data);
+  }
+
+  async sendMessage(data: { sender: string; receiver: string; content: string }) {
     const { sender, receiver, content } = data;
 
     const newMessage = await this.messageModel.create({ sender, receiver, content });
@@ -62,6 +66,8 @@ export class ChatGateway {
     } catch (err) {
       console.error('[ChatGateway] Failed to broadcast message notification:', err);
     }
+
+    return newMessage;
   }
 
   //  admin sending broadcast message to selected users

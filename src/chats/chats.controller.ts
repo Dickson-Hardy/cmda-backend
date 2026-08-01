@@ -1,12 +1,16 @@
-import { Controller, Get, Param, Query, Req } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, Param, Post, Query, Req } from '@nestjs/common';
 import { ChatsService } from './chats.service';
+import { ChatGateway } from './chat.gateway';
 import { ApiBearerAuth, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { IJwtPayload } from '../_global/interface/jwt-payload';
 
 @ApiTags('Chats')
 @Controller('chats')
 export class ChatsController {
-  constructor(private readonly chatsService: ChatsService) {}
+  constructor(
+    private readonly chatsService: ChatsService,
+    private readonly chatGateway: ChatGateway,
+  ) {}
 
   @Get('contacts')
   @ApiBearerAuth()
@@ -27,5 +31,32 @@ export class ChatsController {
     @Query('limit') limit?: number,
   ) {
     return this.chatsService.getChatHistory(req.user, chatWith, page || 1, limit || 50);
+  }
+
+  @Post('messages')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Send a chat message' })
+  async sendMessage(
+    @Req() req: { user: IJwtPayload },
+    @Body() body: { receiver?: string; content?: string },
+  ) {
+    const receiver = body.receiver?.trim();
+    const content = body.content?.trim();
+
+    if (!receiver || !content) {
+      throw new BadRequestException('Receiver and message content are required');
+    }
+
+    const message = await this.chatGateway.sendMessage({
+      sender: req.user.id,
+      receiver,
+      content,
+    });
+
+    return {
+      success: true,
+      message: 'Message sent successfully',
+      data: message,
+    };
   }
 }
