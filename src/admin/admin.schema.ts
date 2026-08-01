@@ -9,6 +9,8 @@ import { AdminRole } from './admin.constant';
   toJSON: {
     transform(doc, ret: any) {
       delete ret.password;
+      delete ret.passwordResetToken;
+      delete ret.refreshSessions;
     },
   },
 })
@@ -27,6 +29,27 @@ export class Admin extends Document {
 
   @Prop()
   passwordResetToken: string;
+
+  @Prop({ default: 0 })
+  tokenVersion: number;
+
+  @Prop({
+    type: [
+      {
+        sessionId: { type: String, required: true },
+        tokenHash: { type: String, required: true },
+        expiresAt: { type: Date, required: true },
+        createdAt: { type: Date, required: true },
+      },
+    ],
+    default: [],
+  })
+  refreshSessions: Array<{
+    sessionId: string;
+    tokenHash: string;
+    expiresAt: Date;
+    createdAt: Date;
+  }>;
 }
 
 export const AdminSchema = SchemaFactory.createForClass(Admin);

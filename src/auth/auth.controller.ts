@@ -24,6 +24,9 @@ import { VerifyEmailDto } from './dto/verify-email.dto';
 import { CheckUserDto } from './dto/check-user.dto';
 import { VerifyPasswordDto } from './dto/verify-password.dto';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { RefreshTokenDto } from './dto/refresh-token.dto';
+import { AllAdminRoles } from '../admin/admin.constant';
+import { Throttle } from '@nestjs/throttler';
 
 @ApiTags('Auth')
 @Controller('auth')
@@ -31,6 +34,7 @@ export class AuthController {
   constructor(private authService: AuthService) {}
 
   @Post('signup')
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @Public()
   @ApiOperation({ summary: 'Sign up a new user' })
   @ApiBody({ type: CreateUserDto })
@@ -39,6 +43,7 @@ export class AuthController {
   }
 
   @Post('login')
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @Public()
   @ApiOperation({ summary: 'Login a user' })
   @ApiBody({ type: LoginDto })
@@ -85,6 +90,7 @@ export class AuthController {
   }
 
   @Post('forgot-password')
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @Public()
   @ApiOperation({ summary: 'Sends password reset token to email' })
   @ApiBody({ type: ForgotPasswordDto })
@@ -127,18 +133,19 @@ export class AuthController {
   }
 
   @Post('logout-all')
-  @Roles(AllUserRoles)
+  @Roles([...AllUserRoles, ...AllAdminRoles])
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Sign out from all devices' })
   logoutAll(@Req() req: { user: IJwtPayload }) {
-    return this.authService.logoutAllDevices(req.user.id);
+    return this.authService.logoutAllDevices(req.user.id, req.user.role);
   }
 
   @Post('refresh-token')
-  @Roles(AllUserRoles)
-  @ApiBearerAuth()
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  @Public()
   @ApiOperation({ summary: 'Refresh access token' })
-  refreshToken(@Req() req: { user: IJwtPayload }) {
-    return this.authService.refreshToken(req.user.id);
+  @ApiBody({ type: RefreshTokenDto })
+  refreshToken(@Body() body: RefreshTokenDto) {
+    return this.authService.refreshToken(body.refreshToken);
   }
 }

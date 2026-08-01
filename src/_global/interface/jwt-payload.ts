@@ -5,6 +5,9 @@ export interface IJwtPayload {
   id: string;
   email: string;
   role: AdminRole | UserRole;
-  iat: string;
-  exp: string;
+  type: 'access' | 'refresh';
+  tokenVersion: number;
+  sessionId?: string;
+  iat: number;
+  exp: number;
 }

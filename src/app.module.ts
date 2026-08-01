@@ -34,11 +34,18 @@ import { ProjectDeliverablesModule } from './project-deliverables/project-delive
 import { DevelopmentInvoicesModule } from './development-invoices/development-invoices.module';
 import { ServiceSubscriptionsModule } from './service-subscriptions/service-subscriptions.module';
 import { ChaptersModule } from './chapters/chapters.module';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
     ScheduleModule.forRoot(),
+    ThrottlerModule.forRoot([
+      {
+        ttl: 60_000,
+        limit: 100,
+      },
+    ]),
     MongooseModule.forRootAsync({
       imports: [ConfigModule],
       useFactory: async (configService: ConfigService) => ({
@@ -79,6 +86,7 @@ import { ChaptersModule } from './chapters/chapters.module';
     AppService,
     { provide: APP_GUARD, useClass: AuthGuard },
     { provide: APP_GUARD, useClass: RolesGuard },
+    { provide: APP_GUARD, useClass: ThrottlerGuard },
   ],
 })
 export class AppModule {}

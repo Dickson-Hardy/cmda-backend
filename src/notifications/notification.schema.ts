@@ -21,3 +21,7 @@ export class Notification extends Document {
 }
 
 export const NotificationSchema = SchemaFactory.createForClass(Notification);
+NotificationSchema.index(
+  { userId: 1, typeId: 1 },
+  { unique: true, partialFilterExpression: { typeId: { $type: 'string' } } },
+);

@@ -18,6 +18,7 @@ import { Event, EventSchema } from '../events/events.schema';
 import { Subscription, SubscriptionShema } from '../subscriptions/subscription.schema';
 import { Donation, DonationShema } from '../donations/donation.schema';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { AuthModule } from '../auth/auth.module';
 
 @Module({
   imports: [
@@ -44,6 +45,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
     PaystackModule,
     PaypalModule,
     NotificationsModule,
+    AuthModule,
   ],
   controllers: [AdminController, PendingPaymentsController, AdminNotificationsController],
   providers: [AdminService, PendingPaymentsService, BulkEmailService],

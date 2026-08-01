@@ -23,7 +23,13 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   async validate(payload: IJwtPayload): Promise<IJwtPayload> {
     const user = await this.userModel.findById(payload.id).exec();
 
-    if (!user) {
+    if (
+      !user ||
+      payload.type !== 'access' ||
+      (user.tokenVersion || 0) !== payload.tokenVersion ||
+      user.isActive === false ||
+      user.isBanned === true
+    ) {
       throw new UnauthorizedException('Invalid token');
     }
 
@@ -31,6 +37,9 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       id: payload.id,
       email: payload.email,
       role: payload.role,
+      type: payload.type,
+      tokenVersion: payload.tokenVersion,
+      sessionId: payload.sessionId,
       iat: payload.iat,
       exp: payload.exp,
     };

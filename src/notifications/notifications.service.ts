@@ -16,7 +16,11 @@ export class NotificationsService {
   ) {}
 
   async create({ type, content, typeId, userId }: Notification): Promise<ISuccessResponse> {
-    const notification = await this.notificationModel.create({ type, content, typeId, userId });
+    const notification = await this.notificationModel.findOneAndUpdate(
+      { userId, typeId },
+      { $setOnInsert: { type, content, typeId, userId, read: false } },
+      { upsert: true, new: true },
+    );
 
     return {
       success: true,

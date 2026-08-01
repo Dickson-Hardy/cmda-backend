@@ -16,6 +16,7 @@ import { BulkEmailService } from './bulk-email.service';
 import { SendBulkEmailDto } from './dto/send-bulk-email.dto';
 import { GetEmailLogsDto } from './dto/get-email-logs.dto';
 import { CreateMemberByAdminDto } from './dto/create-member-by-admin.dto';
+import { Throttle } from '@nestjs/throttler';
 
 @ApiTags('Admin')
 @Controller('admin')
@@ -44,6 +45,7 @@ export class AdminController {
   }
 
   @Post('login')
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @Public()
   @ApiOperation({ summary: 'Login an admin' })
   @ApiBody({ type: LoginAdminDto })
@@ -80,6 +82,7 @@ export class AdminController {
   }
 
   @Post('forgot-password')
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @Public()
   @ApiOperation({ summary: 'Sends password reset token to admin email' })
   @ApiBody({ type: ForgotPasswordDto })

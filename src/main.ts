@@ -6,9 +6,17 @@ import { json, urlencoded } from 'express';
 import { join } from 'path';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { AllExceptionsFilter } from './_global/filters/all-exceptions.filter';
+import { ALLOWED_ORIGINS } from './_global/constants/cors.constants';
+import helmet from 'helmet';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
+
+  app.use(
+    helmet({
+      crossOriginResourcePolicy: { policy: 'cross-origin' },
+    }),
+  );
 
   // Serve static files from public directory
   app.useStaticAssets(join(__dirname, '..', 'public'), {
@@ -16,8 +24,8 @@ async function bootstrap() {
   });
 
   // Configure payload size limits for file uploads
-  app.use(json({ limit: '50mb' }));
-  app.use(urlencoded({ extended: true, limit: '50mb' }));
+  app.use(json({ limit: '2mb' }));
+  app.use(urlencoded({ extended: true, limit: '2mb' }));
 
   // Configure timeout for file uploads
   app.use((req, res, next) => {
@@ -30,16 +38,7 @@ async function bootstrap() {
 
   // Configure CORS with specific origins
   app.enableCors({
-    origin: [
-      'http://localhost:3000',
-      'http://localhost:4040',
-      'http://localhost:5173',
-      'http://localhost:5174',
-      'https://cmdanigeria.net',
-      'https://www.cmdanigeria.net',
-      'https://admin.cmdanigeria.net',
-      'https://api.cmdanigeria.net',
-    ],
+    origin: ALLOWED_ORIGINS,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
     allowedHeaders: [
       'Origin',
@@ -56,25 +55,27 @@ async function bootstrap() {
     optionsSuccessStatus: 200,
   });
 
-  app.useGlobalPipes(new ValidationPipe());
+  app.useGlobalPipes(
+    new ValidationPipe({
+      transform: true,
+      whitelist: true,
+      forbidNonWhitelisted: true,
+      transformOptions: { enableImplicitConversion: true },
+    }),
+  );
   app.useGlobalFilters(new AllExceptionsFilter());
 
   // Swagger configuration
-  const swaggerConfig = new DocumentBuilder()
-    .setTitle('CMDA Nigeria API')
-    .setDescription('API documentation for CMDA Nigeria')
-    .setVersion('1.0')
-    .addBearerAuth()
-    .build();
-  const swaggerDoc = SwaggerModule.createDocument(app, swaggerConfig);
-  SwaggerModule.setup('apidocs', app, swaggerDoc, {
-    customCssUrl: 'https://cdn.jsdelivr.net/npm/swagger-ui-dist@5.0.0/swagger-ui.css',
-    customJs: [
-      'https://cdn.jsdelivr.net/npm/swagger-ui-dist@5.0.0/swagger-ui-bundle.js',
-      'https://cdn.jsdelivr.net/npm/swagger-ui-dist@5.0.0/swagger-ui-standalone-preset.js',
-    ],
-    customfavIcon: 'https://cdn.jsdelivr.net/npm/swagger-ui-dist@5.0.0/favicon-32x32.png',
-  });
+  if (process.env.NODE_ENV !== 'production' || process.env.ENABLE_SWAGGER === 'true') {
+    const swaggerConfig = new DocumentBuilder()
+      .setTitle('CMDA Nigeria API')
+      .setDescription('API documentation for CMDA Nigeria')
+      .setVersion('1.0')
+      .addBearerAuth()
+      .build();
+    const swaggerDoc = SwaggerModule.createDocument(app, swaggerConfig);
+    SwaggerModule.setup('apidocs', app, swaggerDoc);
+  }
 
   // Use PORT from environment (Digital Ocean sets this) or default to 3000
   const port = process.env.PORT || 3000;

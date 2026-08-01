@@ -13,7 +13,6 @@ import { CreateAdminDto } from './dto/create-admin.dto';
 import { ISuccessResponse } from '../_global/interface/success-response';
 import { LoginAdminDto } from './dto/login-admin.dto';
 import * as bcrypt from 'bcryptjs';
-import { JwtService } from '@nestjs/jwt';
 import { EmailService } from '../email/email.service';
 import ShortUniqueId from 'short-unique-id';
 import { AdminRole, AllAdminRoles } from './admin.constant';
@@ -24,14 +23,15 @@ import { ResetPasswordDto } from '../auth/dto/reset-password.dto';
 import { CreateMemberByAdminDto } from './dto/create-member-by-admin.dto';
 import { User } from '../users/schema/users.schema';
 import { isGlobalCategory } from '../users/user.constant';
+import { AuthService } from '../auth/auth.service';
 
 @Injectable()
 export class AdminService {
   constructor(
     @InjectModel(Admin.name) private adminModel: Model<Admin>,
     @InjectModel(User.name) private userModel: Model<User>,
-    private jwtService: JwtService,
     private emailService: EmailService,
+    private authService: AuthService,
   ) {}
 
   async create(createAdminDto: CreateAdminDto): Promise<ISuccessResponse> {
@@ -69,11 +69,15 @@ export class AdminService {
     const isPasswordMatched = await bcrypt.compare(password, admin.password);
     if (!isPasswordMatched) throw new UnauthorizedException('Invalid login credentials');
 
-    const accessToken = this.jwtService.sign({ id: admin._id, email, role: admin.role });
+    const tokens = await this.authService.issueTokenPair({
+      id: admin._id.toString(),
+      email: admin.email,
+      role: admin.role,
+    });
     return {
       success: true,
       message: 'Login successful',
-      data: { admin, accessToken },
+      data: { admin, ...tokens },
     };
   }
 
@@ -123,7 +127,10 @@ export class AdminService {
       throw new BadRequestException('Old password is incorrect');
     }
     const hashedPassword = await bcrypt.hash(newPassword, 10);
-    await admin.updateOne({ password: hashedPassword });
+    await admin.updateOne({
+      $set: { password: hashedPassword, refreshSessions: [] },
+      $inc: { tokenVersion: 1 },
+    });
     return {
       success: true,
       message: 'Password changed successfully',
@@ -134,7 +141,11 @@ export class AdminService {
     if (!AllAdminRoles.includes(role)) {
       throw new BadRequestException('Role ' + role + ' is not a valid admin role');
     }
-    const admin = await this.adminModel.findByIdAndUpdate(id, { role }, { new: true });
+    const admin = await this.adminModel.findByIdAndUpdate(
+      id,
+      { $set: { role, refreshSessions: [] }, $inc: { tokenVersion: 1 } },
+      { new: true },
+    );
     if (!admin) throw new NotFoundException('Admin with id does not exist');
     return {
       success: true,
@@ -192,7 +203,10 @@ export class AdminService {
       throw new BadRequestException('Password reset token is invalid');
     }
     const hashedPassword = await bcrypt.hash(newPassword, 10);
-    await user.updateOne({ password: hashedPassword, passwordResetToken: '' });
+    await user.updateOne({
+      $set: { password: hashedPassword, passwordResetToken: '', refreshSessions: [] },
+      $inc: { tokenVersion: 1 },
+    });
     await this.emailService.sendPasswordResetSuccessEmail({
       name: user.fullName,
       email: user.email,

@@ -1,5 +1,6 @@
 import { ExceptionFilter, Catch, ArgumentsHost, HttpException, HttpStatus } from '@nestjs/common';
 import { Response, Request } from 'express';
+import { ALLOWED_ORIGINS } from '../constants/cors.constants';
 
 @Catch()
 export class AllExceptionsFilter implements ExceptionFilter {
@@ -11,23 +12,20 @@ export class AllExceptionsFilter implements ExceptionFilter {
     const status =
       exception instanceof HttpException ? exception.getStatus() : HttpStatus.INTERNAL_SERVER_ERROR;
 
-    const message =
+    const exceptionResponse =
       exception instanceof HttpException ? exception.getResponse() : 'Internal server error';
+    const message =
+      typeof exceptionResponse === 'string'
+        ? exceptionResponse
+        : (exceptionResponse as any).message || 'Request failed';
+
+    if (status >= 500) {
+      console.error('[AllExceptionsFilter]', request.method, request.url, exception);
+    }
 
     // Ensure CORS headers are present on error responses
     const origin = request.headers.origin;
-    const allowedOrigins = [
-      'http://localhost:3000',
-      'http://localhost:4040',
-      'http://localhost:5173',
-      'http://localhost:5174',
-      'https://cmdanigeria.net',
-      'https://www.cmdanigeria.net',
-      'https://admin.cmdanigeria.net',
-      'https://api.cmdanigeria.net',
-    ];
-
-    if (origin && allowedOrigins.includes(origin)) {
+    if (origin && ALLOWED_ORIGINS.includes(origin)) {
       response.setHeader('Access-Control-Allow-Origin', origin);
       response.setHeader('Access-Control-Allow-Credentials', 'true');
     }
@@ -37,8 +35,8 @@ export class AllExceptionsFilter implements ExceptionFilter {
       statusCode: status,
       timestamp: new Date().toISOString(),
       path: request.url,
-      message: typeof message === 'string' ? message : (message as any).message || message,
-      error: exception instanceof Error ? exception.message : String(exception),
+      message,
+      error: status >= 500 ? 'InternalServerError' : exception?.constructor?.name || 'Error',
     });
   }
 }

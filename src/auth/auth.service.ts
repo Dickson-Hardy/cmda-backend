@@ -25,23 +25,45 @@ import { VerifyPasswordDto } from './dto/verify-password.dto';
 import { EmailService } from '../email/email.service';
 import ShortUniqueId from 'short-unique-id';
 import { CloudinaryService } from '../cloudinary/cloudinary.service';
+import { Admin } from '../admin/admin.schema';
+import { AdminRole, AllAdminRoles } from '../admin/admin.constant';
+import { IJwtPayload } from '../_global/interface/jwt-payload';
+import { createHash, randomUUID } from 'crypto';
 
 @Injectable()
 export class AuthService {
   constructor(
     @InjectModel(User.name)
     private userModel: Model<User>,
+    @InjectModel(Admin.name)
+    private adminModel: Model<Admin>,
     private jwtService: JwtService,
     private configService: ConfigService,
     private emailService: EmailService,
     private cloudinaryService: CloudinaryService,
   ) {}
 
-  async validateToken(token: string) {
+  async validateToken(token: string): Promise<IJwtPayload> {
     try {
-      const payload = await this.jwtService.verifyAsync(token, {
+      const payload = await this.jwtService.verifyAsync<IJwtPayload>(token, {
         secret: this.configService.get('JWT_SECRET'),
       });
+
+      if (payload.type !== 'access') throw new Error('Incorrect token type');
+
+      const account: any = await this.accountModel(payload.role)
+        .findById(payload.id)
+        .select('tokenVersion isActive isBanned')
+        .lean();
+      if (!account || (account.tokenVersion || 0) !== payload.tokenVersion) {
+        throw new Error('Session revoked');
+      }
+      if (!AllAdminRoles.includes(payload.role as AdminRole)) {
+        if (account.isActive === false || account.isBanned === true) {
+          throw new Error('Account unavailable');
+        }
+      }
+
       return payload;
     } catch {
       throw new UnauthorizedException('Invalid or expired token provided');
@@ -86,7 +108,11 @@ export class AuthService {
           : { licenseNumber, specialty, yearsOfExperience }),
       });
       // accessToken using id and email
-      const accessToken = this.jwtService.sign({ id: user._id, email, role: user.role });
+      const tokens = await this.issueTokenPair({
+        id: user._id.toString(),
+        email: user.email,
+        role: user.role,
+      });
       // send welcome mail
       const { randomUUID } = new ShortUniqueId({ length: 6, dictionary: 'number' });
       const code = randomUUID();
@@ -107,7 +133,7 @@ export class AuthService {
       return {
         success: true,
         message: 'Registration successful',
-        data: { user, accessToken },
+        data: { user, ...tokens },
       };
     } catch (error) {
       if (error.code === 11000) {
@@ -126,12 +152,16 @@ export class AuthService {
     const isPasswordMatched = await bcrypt.compare(password, user.password);
     if (!isPasswordMatched) throw new UnauthorizedException('Invalid email or password');
     // generate access token
-    const accessToken = this.jwtService.sign({ id: user._id, email, role: user.role });
+    const tokens = await this.issueTokenPair({
+      id: user._id.toString(),
+      email: user.email,
+      role: user.role,
+    });
     // return response with requirePasswordChange flag
     return {
       success: true,
       message: 'Login successful',
-      data: { user, accessToken, requirePasswordChange: user.requirePasswordChange || false },
+      data: { user, ...tokens, requirePasswordChange: user.requirePasswordChange || false },
     };
   }
 
@@ -300,7 +330,14 @@ export class AuthService {
       throw new BadRequestException('Password reset token is invalid');
     }
     const hashedPassword = await bcrypt.hash(newPassword, 10);
-    await user.updateOne({ password: hashedPassword, passwordResetToken: '' });
+    await user.updateOne({
+      $set: {
+        password: hashedPassword,
+        passwordResetToken: '',
+        refreshSessions: [],
+      },
+      $inc: { tokenVersion: 1 },
+    });
 
     // Send success email asynchronously without blocking
     this.emailService
@@ -333,7 +370,11 @@ export class AuthService {
     }
     const hashedPassword = await bcrypt.hash(newPassword, 10);
     // Clear requirePasswordChange flag when user successfully changes password
-    const updateData: any = { password: hashedPassword, requirePasswordChange: false };
+    const updateData: any = {
+      password: hashedPassword,
+      requirePasswordChange: false,
+      refreshSessions: [],
+    };
 
     // Track initial password change for admin-created accounts
     if (user.createdByAdmin && !user.initialPasswordChanged) {
@@ -342,7 +383,7 @@ export class AuthService {
       updateData.isVerified = true; // Auto-verify when admin-created user changes password
     }
 
-    await user.updateOne(updateData);
+    await user.updateOne({ $set: updateData, $inc: { tokenVersion: 1 } });
     return {
       success: true,
       message: 'Password changed successfully',
@@ -389,19 +430,12 @@ export class AuthService {
    * Sign out from all devices by invalidating all tokens
    * Requirements: 6.7 - Invalidate all active tokens when "Sign out of all devices" is triggered
    */
-  async logoutAllDevices(id: string): Promise<ISuccessResponse> {
-    const user = await this.userModel.findById(id);
-    if (!user) {
-      throw new NotFoundException('User not found');
-    }
-    
-    // Update tokenVersion to invalidate all existing tokens
-    // In a production system, you might want to use a token blacklist or version tracking
-    const currentTokenVersion = (user as any).tokenVersion || 0;
-    await user.updateOne({ 
-      tokenVersion: currentTokenVersion + 1,
-      lastLogoutAll: new Date(),
+  async logoutAllDevices(id: string, role: AdminRole | UserRole): Promise<ISuccessResponse> {
+    const account = await this.accountModel(role).findByIdAndUpdate(id, {
+      $inc: { tokenVersion: 1 },
+      $set: { refreshSessions: [], lastLogoutAll: new Date() },
     });
+    if (!account) throw new NotFoundException('Account not found');
 
     return {
       success: true,
@@ -413,23 +447,167 @@ export class AuthService {
    * Refresh access token
    * Requirements: 3.2 - Auto-refresh token when within 24 hours of expiration
    */
-  async refreshToken(id: string): Promise<ISuccessResponse> {
-    const user = await this.userModel.findById(id);
-    if (!user) {
-      throw new NotFoundException('User not found');
+  async refreshToken(refreshToken: string): Promise<ISuccessResponse> {
+    let payload: IJwtPayload;
+    try {
+      payload = await this.jwtService.verifyAsync<IJwtPayload>(refreshToken, {
+        secret:
+          this.configService.get<string>('JWT_REFRESH_SECRET') ||
+          this.configService.get<string>('JWT_SECRET'),
+      });
+    } catch {
+      throw new UnauthorizedException('Invalid or expired refresh token');
     }
-    
-    // Generate new access token
-    const accessToken = this.jwtService.sign({ 
-      id: user._id, 
-      email: user.email, 
-      role: user.role 
-    });
+
+    if (payload.type !== 'refresh' || !payload.sessionId) {
+      throw new UnauthorizedException('Invalid refresh token');
+    }
+
+    const model = this.accountModel(payload.role);
+    const account: any = await model
+      .findById(payload.id)
+      .select('email role tokenVersion refreshSessions isActive isBanned')
+      .lean();
+    if (!account || (account.tokenVersion || 0) !== payload.tokenVersion) {
+      throw new UnauthorizedException('Session has been revoked');
+    }
+    if (
+      !AllAdminRoles.includes(payload.role as AdminRole) &&
+      (account.isActive === false || account.isBanned === true)
+    ) {
+      throw new UnauthorizedException('Account unavailable');
+    }
+
+    const oldHash = this.hashToken(refreshToken);
+    const session = account.refreshSessions?.find(
+      (item) =>
+        item.sessionId === payload.sessionId &&
+        item.tokenHash === oldHash &&
+        new Date(item.expiresAt).getTime() > Date.now(),
+    );
+    if (!session) {
+      await model.updateOne(
+        { _id: payload.id },
+        { $pull: { refreshSessions: { sessionId: payload.sessionId } } },
+      );
+      throw new UnauthorizedException('Refresh token has already been used or revoked');
+    }
+
+    const tokens = await this.createTokenPair(
+      {
+        id: payload.id,
+        email: account.email,
+        role: account.role,
+        tokenVersion: account.tokenVersion || 0,
+      },
+      payload.sessionId,
+    );
+
+    const update = await model.updateOne(
+      {
+        _id: payload.id,
+        tokenVersion: payload.tokenVersion,
+        refreshSessions: {
+          $elemMatch: {
+            sessionId: payload.sessionId,
+            tokenHash: oldHash,
+            expiresAt: { $gt: new Date() },
+          },
+        },
+      },
+      {
+        $set: {
+          'refreshSessions.$.tokenHash': this.hashToken(tokens.refreshToken),
+          'refreshSessions.$.expiresAt': tokens.refreshTokenExpiresAt,
+        },
+      },
+    );
+    if (update.modifiedCount !== 1) {
+      await model.updateOne(
+        { _id: payload.id },
+        { $pull: { refreshSessions: { sessionId: payload.sessionId } } },
+      );
+      throw new UnauthorizedException('Refresh token has already been used or revoked');
+    }
 
     return {
       success: true,
       message: 'Token refreshed successfully',
-      data: { accessToken },
+      data: tokens,
     };
+  }
+
+  async issueTokenPair(identity: {
+    id: string;
+    email: string;
+    role: AdminRole | UserRole;
+  }) {
+    const model = this.accountModel(identity.role);
+    const account: any = await model.findById(identity.id).select('tokenVersion').lean();
+    if (!account) throw new NotFoundException('Account not found');
+
+    const sessionId = randomUUID();
+    const tokens = await this.createTokenPair(
+      { ...identity, tokenVersion: account.tokenVersion || 0 },
+      sessionId,
+    );
+    const session = {
+      sessionId,
+      tokenHash: this.hashToken(tokens.refreshToken),
+      expiresAt: tokens.refreshTokenExpiresAt,
+      createdAt: new Date(),
+    };
+
+    await model.updateOne(
+      { _id: identity.id },
+      {
+        $set: { tokenVersion: account.tokenVersion || 0 },
+        $push: { refreshSessions: { $each: [session], $slice: -10 } },
+      },
+    );
+    return tokens;
+  }
+
+  private async createTokenPair(
+    identity: {
+      id: string;
+      email: string;
+      role: AdminRole | UserRole;
+      tokenVersion: number;
+    },
+    sessionId: string,
+  ) {
+    const accessToken = await this.jwtService.signAsync(
+      { ...identity, type: 'access', sessionId },
+      {
+        secret: this.configService.get<string>('JWT_SECRET'),
+        expiresIn: (this.configService.get<string>('JWT_ACCESS_EXPIRE') || '15m') as any,
+      },
+    );
+    const refreshToken = await this.jwtService.signAsync(
+      { ...identity, type: 'refresh', sessionId },
+      {
+        secret:
+          this.configService.get<string>('JWT_REFRESH_SECRET') ||
+          this.configService.get<string>('JWT_SECRET'),
+        expiresIn: (this.configService.get<string>('JWT_REFRESH_EXPIRE') || '30d') as any,
+      },
+    );
+    const accessPayload = this.jwtService.decode(accessToken) as IJwtPayload;
+    const refreshPayload = this.jwtService.decode(refreshToken) as IJwtPayload;
+    return {
+      accessToken,
+      refreshToken,
+      accessTokenExpiresAt: new Date(accessPayload.exp * 1000),
+      refreshTokenExpiresAt: new Date(refreshPayload.exp * 1000),
+    };
+  }
+
+  private accountModel(role: AdminRole | UserRole): Model<any> {
+    return AllAdminRoles.includes(role as AdminRole) ? this.adminModel : this.userModel;
+  }
+
+  private hashToken(token: string): string {
+    return createHash('sha256').update(token).digest('hex');
   }
 }

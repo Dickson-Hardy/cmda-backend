@@ -10,6 +10,7 @@ import { User, UserSchema } from '../users/schema/users.schema';
 import { Counter, CounterSchema } from '../_global/schema/counter.schema';
 import { EmailModule } from '../email/email.module';
 import { CloudinaryModule } from '../cloudinary/cloudinary.module';
+import { Admin, AdminSchema } from '../admin/admin.schema';
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { CloudinaryModule } from '../cloudinary/cloudinary.module';
     MongooseModule.forFeature([
       { name: User.name, schema: UserSchema },
       { name: Counter.name, schema: CounterSchema },
+      { name: Admin.name, schema: AdminSchema },
     ]),
     EmailModule,
     CloudinaryModule,

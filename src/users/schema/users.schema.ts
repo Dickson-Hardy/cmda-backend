@@ -14,6 +14,7 @@ import { Vacancy } from '../../vacancy/vacancy.schema';
       delete ret.password;
       delete ret.passwordResetToken;
       delete ret.verificationCode;
+      delete ret.refreshSessions;
     },
   },
 })
@@ -195,6 +196,24 @@ export class User extends Document {
 
   @Prop()
   lastLogoutAll?: Date; // Timestamp of last logout-all action
+
+  @Prop({
+    type: [
+      {
+        sessionId: { type: String, required: true },
+        tokenHash: { type: String, required: true },
+        expiresAt: { type: Date, required: true },
+        createdAt: { type: Date, required: true },
+      },
+    ],
+    default: [],
+  })
+  refreshSessions: Array<{
+    sessionId: string;
+    tokenHash: string;
+    expiresAt: Date;
+    createdAt: Date;
+  }>;
 
   // Tutorial completion tracking
   @Prop({ default: false })
