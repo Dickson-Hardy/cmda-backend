@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Req } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Logger, Param, Patch, Post, Query, Req } from '@nestjs/common';
 import { ApiBearerAuth, ApiBody, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { UsersService } from './users.service';
 import { UserPaginationQueryDto } from './dto/user-pagination.dto';
@@ -10,10 +10,14 @@ import { UpdateUserSettingsDto } from './dto/user-settings.dto';
 import { CreateUserTransitionDto } from './dto/create-transition.dto';
 import { UpdateMemberDto } from './dto/update-member.dto';
 import { CreateMemberDto } from './dto/create-member.dto';
+import { ClientErrorDto } from './dto/client-error.dto';
+import { Throttle } from '@nestjs/throttler';
 
 @ApiTags('Users')
 @Controller('users')
 export class UsersController {
+  private readonly logger = new Logger('MobileClient');
+
   constructor(private usersService: UsersService) {}
 
   @Get()
@@ -24,6 +28,7 @@ export class UsersController {
   }
 
   @Get('export')
+  @Roles(AllAdminRoles)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Downloads all members data as csv' })
   exportAll(@Query() query: UserPaginationQueryDto) {
@@ -31,6 +36,7 @@ export class UsersController {
   }
 
   @Get('stats')
+  @Roles(AllAdminRoles)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Returns total members for each role - student, doctor, global' })
   getStats() {
@@ -91,6 +97,26 @@ export class UsersController {
     @Body() updateUserSettingsDto: UpdateUserSettingsDto,
   ) {
     return this.usersService.updateSettings(req.user.id, updateUserSettingsDto);
+  }
+
+  @Post('client-errors')
+  @ApiBearerAuth()
+  @Roles(AllUserRoles)
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @ApiOperation({ summary: 'Records a sanitized mobile client crash report' })
+  reportClientError(
+    @Req() req: { user: IJwtPayload },
+    @Body() report: ClientErrorDto,
+  ) {
+    this.logger.error(
+      JSON.stringify({
+        event: 'mobile_client_crash',
+        userId: req.user.id,
+        ...report,
+        receivedAt: new Date().toISOString(),
+      }),
+    );
+    return { success: true, message: 'Client error recorded' };
   }
 
   @Get(':id')

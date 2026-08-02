@@ -12,6 +12,7 @@ import { Roles } from '../auth/decorators/roles.decorator';
 import { AllAdminRoles } from '../admin/admin.constant';
 import { AllUserRoles } from '../users/user.constant';
 import { DonationPaginationQueryDto } from './dto/donation-pagination.dto';
+import { ParseObjectIdPipe } from '../_global/pipes/parse-object-id.pipe';
 
 @ApiTags('Donations')
 @Controller('donations')
@@ -31,10 +32,15 @@ export class DonationsController {
   }
 
   @Get('export')
+  @Roles([...AllUserRoles, ...AllAdminRoles])
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Exports all donation records' })
-  exportAll(@Query() query: DonationPaginationQueryDto) {
-    return this.donationsService.exportAll(query);
+  exportAll(@Req() req: { user: IJwtPayload }, @Query() query: DonationPaginationQueryDto) {
+    const isAdmin = AllAdminRoles.map(String).includes(req.user.role);
+    return this.donationsService.exportAll({
+      ...query,
+      userId: isAdmin ? query.userId : req.user.id,
+    });
   }
 
   @Get('user')
@@ -74,6 +80,7 @@ export class DonationsController {
   }
 
   @Get('stats')
+  @Roles(AllAdminRoles)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Returns total count for donations' })
   getStats() {
@@ -81,6 +88,7 @@ export class DonationsController {
   }
 
   @Get(':id')
+  @Roles(AllAdminRoles)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get a donation by id' })
   findOne(@Param('id') id: string) {
@@ -91,25 +99,22 @@ export class DonationsController {
   @Roles([...AllUserRoles, ...AllAdminRoles])
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Download receipt for a donation as PDF' })
-  async downloadReceipt(@Param('id') id: string, @Res() res: Response) {
-    try {
-      const pdfBuffer = await this.donationReceiptPdfService.generateReceiptPdf(id);
+  async downloadReceipt(
+    @Req() req: { user: IJwtPayload },
+    @Param('id', ParseObjectIdPipe) id: string,
+    @Res() res: Response,
+  ) {
+    const isAdmin = AllAdminRoles.map(String).includes(req.user.role);
+    await this.donationsService.assertCanDownloadReceipt(id, req.user.id, isAdmin);
+    const pdfBuffer = await this.donationReceiptPdfService.generateReceiptPdf(id);
 
-      // Set proper headers for PDF delivery
-      res.setHeader('Content-Type', 'application/pdf');
-      res.setHeader('Content-Disposition', `inline; filename="donation-receipt-${id}.pdf"`);
-      res.setHeader('Content-Length', pdfBuffer.length.toString());
-      res.setHeader('Cache-Control', 'private, no-cache, no-store, must-revalidate');
-      res.setHeader('Pragma', 'no-cache');
-      res.setHeader('Expires', '0');
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="donation-receipt-${id}.pdf"`);
+    res.setHeader('Content-Length', pdfBuffer.length.toString());
+    res.setHeader('Cache-Control', 'private, no-cache, no-store, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
 
-      res.send(pdfBuffer);
-    } catch (error) {
-      console.error('Donation receipt error:', error);
-      res.status(error.message === 'Donation not found' ? 404 : 500).json({
-        success: false,
-        message: error.message || 'Failed to generate receipt',
-      });
-    }
+    res.send(pdfBuffer);
   }
 }

@@ -11,6 +11,7 @@ import { Roles } from '../auth/decorators/roles.decorator';
 import { AllAdminRoles } from '../admin/admin.constant';
 import { PaginationQueryDto } from '../_global/dto/pagination-query.dto';
 import { SubscriptionPaginationQueryDto } from './dto/subscription-pagination.dto';
+import { ParseObjectIdPipe } from '../_global/pipes/parse-object-id.pipe';
 
 @ApiTags('Subscriptions')
 @Controller('subscriptions')
@@ -30,10 +31,15 @@ export class SubscriptionsController {
   }
 
   @Get('export')
+  @Roles([...AllUserRoles, ...AllAdminRoles])
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Exports all subscription records' })
-  exportAll(@Query() query: SubscriptionPaginationQueryDto) {
-    return this.subscriptionsService.exportAll(query);
+  exportAll(@Req() req: { user: IJwtPayload }, @Query() query: SubscriptionPaginationQueryDto) {
+    const isAdmin = AllAdminRoles.map(String).includes(req.user.role);
+    return this.subscriptionsService.exportAll({
+      ...query,
+      userId: isAdmin ? query.userId : req.user.id,
+    });
   }
 
   @Get('history')
@@ -91,6 +97,7 @@ export class SubscriptionsController {
   }
 
   @Get('stats')
+  @Roles(AllAdminRoles)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Returns total count for subscriptions' })
   getStats() {
@@ -98,6 +105,7 @@ export class SubscriptionsController {
   }
 
   @Get(':id')
+  @Roles(AllAdminRoles)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get a subscription by id' })
   findOne(@Param('id') id: string) {
@@ -108,25 +116,22 @@ export class SubscriptionsController {
   @Roles([...AllUserRoles, ...AllAdminRoles])
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Download receipt for a subscription as PDF' })
-  async downloadReceipt(@Param('id') id: string, @Res() res: Response) {
-    try {
-      const pdfBuffer = await this.receiptPdfService.generateReceiptPdf(id);
+  async downloadReceipt(
+    @Req() req: { user: IJwtPayload },
+    @Param('id', ParseObjectIdPipe) id: string,
+    @Res() res: Response,
+  ) {
+    const isAdmin = AllAdminRoles.map(String).includes(req.user.role);
+    await this.subscriptionsService.assertCanDownloadReceipt(id, req.user.id, isAdmin);
+    const pdfBuffer = await this.receiptPdfService.generateReceiptPdf(id);
 
-      // Set proper headers for PDF delivery
-      res.setHeader('Content-Type', 'application/pdf');
-      res.setHeader('Content-Disposition', `inline; filename="receipt-${id}.pdf"`);
-      res.setHeader('Content-Length', pdfBuffer.length.toString());
-      res.setHeader('Cache-Control', 'private, no-cache, no-store, must-revalidate');
-      res.setHeader('Pragma', 'no-cache');
-      res.setHeader('Expires', '0');
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="receipt-${id}.pdf"`);
+    res.setHeader('Content-Length', pdfBuffer.length.toString());
+    res.setHeader('Cache-Control', 'private, no-cache, no-store, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
 
-      res.send(pdfBuffer);
-    } catch (error) {
-      console.error('Receipt generation error:', error);
-      res.status(error.message === 'Subscription not found' ? 404 : 500).json({
-        success: false,
-        message: error.message || 'Failed to generate receipt',
-      });
-    }
+    res.send(pdfBuffer);
   }
 }

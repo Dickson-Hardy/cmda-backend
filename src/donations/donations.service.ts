@@ -447,6 +447,26 @@ export class DonationsService {
     };
   }
 
+  async assertCanDownloadReceipt(
+    donationId: string,
+    requesterId: string,
+    isAdmin: boolean,
+  ): Promise<void> {
+    const criteria: Record<string, unknown> = {
+      _id: donationId,
+      $or: [{ isPaid: true }, { isPaid: { $exists: false } }],
+    };
+
+    if (!isAdmin) {
+      criteria.user = requesterId;
+    }
+
+    const receiptExists = await this.donationModel.exists(criteria);
+    if (!receiptExists) {
+      throw new NotFoundException('Receipt not available');
+    }
+  }
+
   async getStats(): Promise<ISuccessResponse> {
     const totalDonationCount = await this.donationModel.countDocuments({ isPaid: true });
 

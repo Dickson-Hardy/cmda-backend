@@ -98,7 +98,7 @@ export class ChatGateway implements OnGatewayConnection {
     if (receiver !== 'admin') {
       const recipientExists = await this.userModel.exists({
         _id: receiver,
-        isActive: true,
+        isActive: { $ne: false },
         isBanned: { $ne: true },
       });
       if (!recipientExists) throw new NotFoundException('Recipient is unavailable');
@@ -181,7 +181,10 @@ export class ChatGateway implements OnGatewayConnection {
     const { receiverCriteria, content } = data;
     const { role, region, searchBy } = receiverCriteria;
 
-    const searchCriteria: any = { isActive: true, isBanned: { $ne: true } };
+    const searchCriteria: any = {
+      isActive: { $ne: false },
+      isBanned: { $ne: true },
+    };
     if (searchBy) {
       const escapedSearch = searchBy.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       searchCriteria.$or = [

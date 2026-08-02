@@ -923,6 +923,26 @@ export class SubscriptionsService {
     };
   }
 
+  async assertCanDownloadReceipt(
+    subscriptionId: string,
+    requesterId: string,
+    isAdmin: boolean,
+  ): Promise<void> {
+    const criteria: Record<string, unknown> = {
+      _id: subscriptionId,
+      $or: [{ isPaid: true }, { isPaid: { $exists: false } }],
+    };
+
+    if (!isAdmin) {
+      criteria.user = requesterId;
+    }
+
+    const receiptExists = await this.subscriptionModel.exists(criteria);
+    if (!receiptExists) {
+      throw new NotFoundException('Receipt not available');
+    }
+  }
+
   async getStats(): Promise<ISuccessResponse> {
     const totalSubscribers = await this.userModel.countDocuments();
     const activeSubscribers = await this.userModel.countDocuments({ subscribed: true });

@@ -97,4 +97,29 @@ describe('ChatGateway security boundaries', () => {
     expect(emit).toHaveBeenCalledWith('newMessage_member-a_member-b', { _id: 'message' });
     expect((gateway as any).server.emit).not.toHaveBeenCalled();
   });
+
+  it('allows legacy recipients whose isActive field is missing', async () => {
+    const userModel = { exists: jest.fn().mockResolvedValue(true) };
+    const chatBlockModel = { exists: jest.fn().mockResolvedValue(false) };
+    const connection = { transaction: jest.fn().mockRejectedValue(new Error('stop after lookup')) };
+    const gateway = new ChatGateway(
+      {} as any,
+      {} as any,
+      userModel as any,
+      chatBlockModel as any,
+      {} as any,
+      connection as any,
+      {} as any,
+    );
+
+    await expect(
+      gateway.sendMessage({ sender: 'member-a', receiver: 'member-b', content: 'Hello' }),
+    ).rejects.toThrow('stop after lookup');
+
+    expect(userModel.exists).toHaveBeenCalledWith({
+      _id: 'member-b',
+      isActive: { $ne: false },
+      isBanned: { $ne: true },
+    });
+  });
 });
