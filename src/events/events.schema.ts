@@ -37,6 +37,69 @@ class RegisteredUser {
 
   @Prop()
   registrationPeriod?: RegistrationPeriod; // Track when user registered
+
+  @Prop({
+    type: {
+      optionId: String,
+      name: String,
+      description: String,
+      price: Number,
+      currency: String,
+    },
+  })
+  accommodation?: {
+    optionId: string;
+    name: string;
+    description?: string;
+    price: number;
+    currency: 'NGN' | 'USD';
+  };
+
+  @Prop({ type: mongoose.Schema.Types.Mixed })
+  customResponses?: Record<string, unknown>;
+}
+
+class RegistrationField {
+  @Prop({ required: true })
+  id: string;
+
+  @Prop({ required: true })
+  label: string;
+
+  @Prop({ required: true })
+  type: string;
+
+  @Prop({ default: false })
+  required: boolean;
+
+  @Prop()
+  placeholder?: string;
+
+  @Prop()
+  helpText?: string;
+
+  @Prop({ type: [String], default: [] })
+  options?: string[];
+}
+
+class AccommodationOption {
+  @Prop({ required: true })
+  id: string;
+
+  @Prop({ required: true })
+  name: string;
+
+  @Prop()
+  description?: string;
+
+  @Prop({ default: false })
+  isPriced: boolean;
+
+  @Prop({ min: 0 })
+  priceNgn?: number;
+
+  @Prop({ min: 0 })
+  priceUsd?: number;
 }
 
 // Virtual meeting configuration
@@ -63,7 +126,10 @@ class VirtualMeetingInfo {
 // Conference-specific configuration
 class ConferenceConfig {
   @Prop()
-  type?: ConferenceType; // Students, Doctors, Global Network
+  conferenceType?: ConferenceType;
+
+  @Prop()
+  type?: ConferenceType; // Legacy field retained for existing conferences
 
   @Prop()
   zone?: ConferenceZone; // Western, Eastern, Northern (for zonal conferences)
@@ -141,6 +207,15 @@ export class Event extends Document {
 
   @Prop({ type: [RegisteredUser], default: [] })
   registeredUsers: RegisteredUser[];
+
+  @Prop({ type: [AccommodationOption], default: [] })
+  accommodationOptions: AccommodationOption[];
+
+  @Prop({ default: false })
+  accommodationSelectionRequired: boolean;
+
+  @Prop({ type: [RegistrationField], default: [] })
+  registrationFields: RegistrationField[];
 
   // Conference-specific fields
   @Prop({ type: ConferenceConfig })

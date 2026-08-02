@@ -24,6 +24,7 @@ import { AllUserRoles } from '../users/user.constant';
 import { IJwtPayload } from '../_global/interface/jwt-payload';
 import { ConfirmEventPayDto } from './dto/update-event.dto';
 import { ConferenceType, ConferenceZone, ConferenceRegion } from './events.constant';
+import { EventRegistrationDto } from './dto/event-registration.dto';
 
 @ApiTags('Events')
 @Controller('events')
@@ -118,8 +119,17 @@ export class EventsController {
   @Roles(AllUserRoles)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Pay for an event' })
-  payForEvent(@Param('slug') slug: string, @Req() req: { user: IJwtPayload }) {
-    return this.eventsService.payForEvent(req.user.id, slug);
+  payForEvent(
+    @Param('slug') slug: string,
+    @Req() req: { user: IJwtPayload },
+    @Body() eventRegistrationDto: EventRegistrationDto,
+  ) {
+    return this.eventsService.payForEvent(
+      req.user.id,
+      slug,
+      eventRegistrationDto?.accommodationOptionId,
+      eventRegistrationDto?.customResponses,
+    );
   }
   @Post('/confirm-payment')
   @Roles(AllUserRoles)
@@ -145,8 +155,19 @@ export class EventsController {
   @Roles(AllUserRoles)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Register for an event' })
-  registerForEvent(@Param('slug') slug: string, @Req() req: { user: IJwtPayload }) {
-    return this.eventsService.registerForEvent(req.user.id, slug);
+  registerForEvent(
+    @Param('slug') slug: string,
+    @Req() req: { user: IJwtPayload },
+    @Body() eventRegistrationDto: EventRegistrationDto,
+  ) {
+    return this.eventsService.registerForEvent(
+      req.user.id,
+      slug,
+      undefined,
+      eventRegistrationDto?.accommodationOptionId,
+      undefined,
+      eventRegistrationDto?.customResponses,
+    );
   }
 
   @Get('registered')

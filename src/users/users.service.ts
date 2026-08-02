@@ -484,11 +484,7 @@ export class UsersService {
    * @returns string representing the user's member group
    */
   getUserMemberGroup(user: User): string {
-    if (!user?.role) return 'Student';
-    if (user.role === 'Doctor') {
-      const years = Number(user.yearsOfExperience) || 0;
-      return years <= 5 ? 'Doctor_0_5_years' : 'Doctor_Above_5_years';
-    }
-    return user.role;
+    if (!user?.role) return EventAudience.STUDENT;
+    return this.getUserExperienceCategory(user);
   }
 }

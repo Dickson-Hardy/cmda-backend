@@ -10,6 +10,10 @@ import { User, UserSchema } from '../users/schema/users.schema';
 import { PaypalModule } from '../paypal/paypal.module';
 import { EmailModule } from '../email/email.module';
 import { UsersModule } from '../users/users.module';
+import {
+  EventRegistrationDraft,
+  EventRegistrationDraftSchema,
+} from './event-registration-draft.schema';
 
 @Module({
   imports: [
@@ -17,6 +21,7 @@ import { UsersModule } from '../users/users.module';
     MongooseModule.forFeature([
       { name: Event.name, schema: EventSchema },
       { name: User.name, schema: UserSchema },
+      { name: EventRegistrationDraft.name, schema: EventRegistrationDraftSchema },
     ]),
     CloudinaryModule,
     EmailModule,

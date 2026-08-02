@@ -28,10 +28,19 @@ import { ConfirmEventPayDto } from './dto/update-event.dto';
 import { EmailService } from '../email/email.service';
 import { UsersService } from '../users/users.service';
 import { PaystackFeeCalculator } from '../_global/utils/paystack-fees.util';
+import { EventRegistrationDraft } from './event-registration-draft.schema';
 
 // Type for Event with computed registrationStatus
 type EventWithRegistrationStatus = Event & {
   registrationStatus?: 'regular' | 'late' | 'closed';
+};
+
+type AccommodationSelection = {
+  optionId: string;
+  name: string;
+  description?: string;
+  price: number;
+  currency: 'NGN' | 'USD';
 };
 
 @Injectable()
@@ -45,12 +54,264 @@ export class EventsService {
     private paypalService: PaypalService,
     private emailService: EmailService,
     private usersService: UsersService,
+    @InjectModel(EventRegistrationDraft.name)
+    private registrationDraftModel: Model<EventRegistrationDraft>,
   ) {}
+
+  private toBoolean(value: unknown, defaultValue = false): boolean {
+    if (value === undefined || value === null || value === '') return defaultValue;
+    return value === true || value === 'true';
+  }
+
+  private parseAccommodationOptions(value: unknown): any[] {
+    if (!value) return [];
+
+    let options: unknown;
+    try {
+      options = typeof value === 'string' ? JSON.parse(value) : value;
+    } catch {
+      throw new BadRequestException('Accommodation options must be valid JSON');
+    }
+
+    if (!Array.isArray(options)) {
+      throw new BadRequestException('Accommodation options must be an array');
+    }
+
+    const ids = new Set<string>();
+    return options.map((rawOption: any, index) => {
+      const id = String(rawOption?.id || '').trim();
+      const name = String(rawOption?.name || '').trim();
+      const description = String(rawOption?.description || '').trim();
+      const isPriced = rawOption?.isPriced === true || rawOption?.isPriced === 'true';
+      const priceNgn =
+        rawOption?.priceNgn === '' || rawOption?.priceNgn == null
+          ? undefined
+          : Number(rawOption.priceNgn);
+      const priceUsd =
+        rawOption?.priceUsd === '' || rawOption?.priceUsd == null
+          ? undefined
+          : Number(rawOption.priceUsd);
+
+      if (!id || !name) {
+        throw new BadRequestException(
+          `Accommodation option ${index + 1} requires an id and name`,
+        );
+      }
+      if (ids.has(id)) {
+        throw new BadRequestException(`Accommodation option id "${id}" is duplicated`);
+      }
+      if (
+        (priceNgn !== undefined && (!Number.isFinite(priceNgn) || priceNgn < 0)) ||
+        (priceUsd !== undefined && (!Number.isFinite(priceUsd) || priceUsd < 0))
+      ) {
+        throw new BadRequestException(`Accommodation option "${name}" has an invalid price`);
+      }
+      if (isPriced && priceNgn === undefined && priceUsd === undefined) {
+        throw new BadRequestException(
+          `Price-tagged accommodation option "${name}" needs an NGN or USD price`,
+        );
+      }
+
+      ids.add(id);
+      return {
+        id,
+        name,
+        description: description || undefined,
+        isPriced,
+        priceNgn: isPriced ? priceNgn : undefined,
+        priceUsd: isPriced ? priceUsd : undefined,
+      };
+    });
+  }
+
+  private parseRegistrationFields(value: unknown): any[] {
+    if (!value) return [];
+
+    let fields: unknown;
+    try {
+      fields = typeof value === 'string' ? JSON.parse(value) : value;
+    } catch {
+      throw new BadRequestException('Registration fields must be valid JSON');
+    }
+
+    if (!Array.isArray(fields)) {
+      throw new BadRequestException('Registration fields must be an array');
+    }
+    if (fields.length > 30) {
+      throw new BadRequestException('A conference can have at most 30 custom fields');
+    }
+
+    const allowedTypes = new Set([
+      'shortText',
+      'longText',
+      'email',
+      'phone',
+      'number',
+      'date',
+      'select',
+      'radio',
+      'checkbox',
+    ]);
+    const ids = new Set<string>();
+
+    return fields.map((rawField: any, index) => {
+      const id = String(rawField?.id || '').trim();
+      const label = String(rawField?.label || '').trim();
+      const type = String(rawField?.type || '').trim();
+      const options = Array.isArray(rawField?.options)
+        ? rawField.options.map((option: unknown) => String(option).trim()).filter(Boolean)
+        : [];
+
+      if (!id || !label) {
+        throw new BadRequestException(`Registration field ${index + 1} needs an id and label`);
+      }
+      if (ids.has(id)) {
+        throw new BadRequestException(`Registration field id "${id}" is duplicated`);
+      }
+      if (!allowedTypes.has(type)) {
+        throw new BadRequestException(`Registration field "${label}" has an unsupported type`);
+      }
+      if ((type === 'select' || type === 'radio') && options.length < 2) {
+        throw new BadRequestException(`Registration field "${label}" needs at least two options`);
+      }
+
+      ids.add(id);
+      return {
+        id,
+        label,
+        type,
+        required: this.toBoolean(rawField?.required),
+        placeholder: String(rawField?.placeholder || '').trim() || undefined,
+        helpText: String(rawField?.helpText || '').trim() || undefined,
+        options,
+      };
+    });
+  }
+
+  private validateRegistrationResponses(
+    event: any,
+    responses: Record<string, unknown> | undefined,
+  ): Record<string, unknown> {
+    const fields = event.registrationFields || [];
+    const supplied = responses || {};
+    const allowedIds = new Set(fields.map((field: any) => field.id));
+    const unknownField = Object.keys(supplied).find((id) => !allowedIds.has(id));
+    if (unknownField) {
+      throw new BadRequestException('The registration form contains an unknown field');
+    }
+
+    const normalized: Record<string, unknown> = {};
+    for (const field of fields) {
+      const rawValue = supplied[field.id];
+      const isEmpty =
+        rawValue === undefined || rawValue === null || rawValue === '' ||
+        (typeof rawValue === 'string' && rawValue.trim() === '');
+
+      if (field.required && (isEmpty || (field.type === 'checkbox' && rawValue !== true))) {
+        throw new BadRequestException(`${field.label} is required`);
+      }
+      if (isEmpty) continue;
+
+      switch (field.type) {
+        case 'shortText':
+        case 'phone': {
+          const value = String(rawValue).trim();
+          if (value.length > 500) throw new BadRequestException(`${field.label} is too long`);
+          normalized[field.id] = value;
+          break;
+        }
+        case 'longText': {
+          const value = String(rawValue).trim();
+          if (value.length > 5000) throw new BadRequestException(`${field.label} is too long`);
+          normalized[field.id] = value;
+          break;
+        }
+        case 'email': {
+          const value = String(rawValue).trim().toLowerCase();
+          if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
+            throw new BadRequestException(`${field.label} must be a valid email address`);
+          }
+          normalized[field.id] = value;
+          break;
+        }
+        case 'number': {
+          const value = Number(rawValue);
+          if (!Number.isFinite(value)) {
+            throw new BadRequestException(`${field.label} must be a number`);
+          }
+          normalized[field.id] = value;
+          break;
+        }
+        case 'date': {
+          const value = String(rawValue);
+          if (Number.isNaN(new Date(value).getTime())) {
+            throw new BadRequestException(`${field.label} must be a valid date`);
+          }
+          normalized[field.id] = value;
+          break;
+        }
+        case 'select':
+        case 'radio': {
+          const value = String(rawValue);
+          if (!(field.options || []).includes(value)) {
+            throw new BadRequestException(`${field.label} has an invalid selection`);
+          }
+          normalized[field.id] = value;
+          break;
+        }
+        case 'checkbox':
+          if (typeof rawValue !== 'boolean') {
+            throw new BadRequestException(`${field.label} must be checked or unchecked`);
+          }
+          normalized[field.id] = rawValue;
+          break;
+      }
+    }
+
+    return normalized;
+  }
+
+  private resolveAccommodationSelection(
+    event: any,
+    accommodationOptionId: string | undefined,
+    userRole: string,
+  ): AccommodationSelection | undefined {
+    const options = event.accommodationOptions || [];
+    if (!accommodationOptionId) {
+      if (event.accommodationSelectionRequired && options.length > 0) {
+        throw new BadRequestException('Please select an accommodation option');
+      }
+      return undefined;
+    }
+
+    const option = options.find((item: any) => item.id === accommodationOptionId);
+    if (!option) {
+      throw new BadRequestException('The selected accommodation option is unavailable');
+    }
+
+    const currency = userRole === UserRole.GLOBALNETWORK ? 'USD' : 'NGN';
+    const configuredPrice = currency === 'USD' ? option.priceUsd : option.priceNgn;
+    if (option.isPriced && configuredPrice == null) {
+      throw new BadRequestException(
+        `${option.name} does not have a ${currency} price for your account`,
+      );
+    }
+
+    return {
+      optionId: option.id,
+      name: option.name,
+      description: option.description,
+      price: option.isPriced ? Number(configuredPrice) : 0,
+      currency,
+    };
+  }
+
   async create(
     createEventDto: CreateEventDto,
     file: Express.Multer.File,
   ): Promise<ISuccessResponse> {
     try {
+      const isConference = this.toBoolean(createEventDto.isConference);
       let [featuredImageUrl, featuredImageCloudId] = ['', ''];
       if (file) {
         const upload = await this.cloudinaryService.uploadFile(file, 'events');
@@ -64,7 +325,7 @@ export class EventsService {
 
       // Prepare conference configuration if this is a conference
       let conferenceConfig = undefined;
-      if (createEventDto.isConference) {
+      if (isConference) {
         conferenceConfig = {
           conferenceType: createEventDto.conferenceType,
           zone: createEventDto.conferenceZone,
@@ -92,21 +353,29 @@ export class EventsService {
       const event = await this.eventModel.create({
         ...createEventDto,
         paymentPlans: createEventDto.paymentPlans ? JSON.parse(createEventDto.paymentPlans) : [],
+        accommodationOptions: isConference
+          ? this.parseAccommodationOptions(createEventDto.accommodationOptions)
+          : [],
+        accommodationSelectionRequired:
+          isConference && this.toBoolean(createEventDto.accommodationSelectionRequired),
+        registrationFields: isConference
+          ? this.parseRegistrationFields(createEventDto.registrationFields)
+          : [],
         membersGroup: !createEventDto.membersGroup.length
           ? AllEventAudiences
           : createEventDto.membersGroup,
         featuredImageCloudId,
         featuredImageUrl,
         registeredUsers: [],
-        isConference: createEventDto.isConference || false,
+        isConference,
         conferenceConfig,
-        requiresSubscription: createEventDto.requiresSubscription !== false,
+        requiresSubscription: this.toBoolean(createEventDto.requiresSubscription, true),
         virtualMeetingInfo,
       });
 
       return {
         success: true,
-        message: `${createEventDto.isConference ? 'Conference' : 'Event'} created successfully`,
+        message: `${isConference ? 'Conference' : 'Event'} created successfully`,
         data: event,
       };
     } catch (error) {
@@ -315,6 +584,9 @@ export class EventsService {
                   ],
                 },
                 paymentReference: '$$regUser.paymentReference',
+                registrationPeriod: '$$regUser.registrationPeriod',
+                accommodation: '$$regUser.accommodation',
+                customResponses: '$$regUser.customResponses',
               },
             },
           },
@@ -386,14 +658,67 @@ export class EventsService {
         await this.cloudinaryService.deleteFile(event.featuredImageCloudId);
       }
     }
+    const updates: any = {
+      ...updateEventDto,
+      featuredImageCloudId,
+      featuredImageUrl,
+    };
+
+    if (updateEventDto.paymentPlans !== undefined) {
+      updates.paymentPlans =
+        typeof updateEventDto.paymentPlans === 'string'
+          ? JSON.parse(updateEventDto.paymentPlans)
+          : updateEventDto.paymentPlans;
+    }
+    if (updateEventDto.accommodationOptions !== undefined) {
+      updates.accommodationOptions = this.parseAccommodationOptions(
+        updateEventDto.accommodationOptions,
+      );
+    }
+    if (updateEventDto.registrationFields !== undefined) {
+      updates.registrationFields = this.parseRegistrationFields(updateEventDto.registrationFields);
+    }
+
+    const conferenceConfigFields = [
+      'conferenceType',
+      'conferenceZone',
+      'conferenceRegion',
+      'regularRegistrationEndDate',
+      'lateRegistrationEndDate',
+      'paystackSplitCode',
+      'usePayPalForGlobal',
+    ];
+    if (conferenceConfigFields.some((field) => updateEventDto[field] !== undefined)) {
+      updates.conferenceConfig = {
+        ...((event.conferenceConfig as any)?.toObject?.() || event.conferenceConfig || {}),
+        ...(updateEventDto.conferenceType !== undefined
+          ? { conferenceType: updateEventDto.conferenceType }
+          : {}),
+        ...(updateEventDto.conferenceZone !== undefined
+          ? { zone: updateEventDto.conferenceZone }
+          : {}),
+        ...(updateEventDto.conferenceRegion !== undefined
+          ? { region: updateEventDto.conferenceRegion }
+          : {}),
+        ...(updateEventDto.regularRegistrationEndDate !== undefined
+          ? { regularRegistrationEndDate: updateEventDto.regularRegistrationEndDate }
+          : {}),
+        ...(updateEventDto.lateRegistrationEndDate !== undefined
+          ? { lateRegistrationEndDate: updateEventDto.lateRegistrationEndDate }
+          : {}),
+        ...(updateEventDto.paystackSplitCode !== undefined
+          ? { paystackSplitCode: updateEventDto.paystackSplitCode }
+          : {}),
+        ...(updateEventDto.usePayPalForGlobal !== undefined
+          ? { usePayPalForGlobal: updateEventDto.usePayPalForGlobal }
+          : {}),
+      };
+      conferenceConfigFields.forEach((field) => delete updates[field]);
+    }
+
     const newEvent = await this.eventModel.findOneAndUpdate(
       { slug },
-      {
-        ...updateEventDto,
-        paymentPlans: JSON.parse(updateEventDto.paymentPlans),
-        featuredImageCloudId,
-        featuredImageUrl,
-      },
+      updates,
       { new: true },
     );
 
@@ -420,7 +745,12 @@ export class EventsService {
     };
   }
 
-  async payForEvent(userId: string, slug: string): Promise<ISuccessResponse> {
+  async payForEvent(
+    userId: string,
+    slug: string,
+    accommodationOptionId?: string,
+    customResponses?: Record<string, unknown>,
+  ): Promise<ISuccessResponse> {
     const event = await this.eventModel.findOne({ slug }).lean();
 
     if (!event) {
@@ -437,7 +767,9 @@ export class EventsService {
     }
 
     // Check if user is already registered
-    const isRegistered = event.registeredUsers.some((user) => user.toString() === userId);
+    const isRegistered = event.registeredUsers.some(
+      (registration: any) => registration.userId?.toString() === userId,
+    );
     if (isRegistered) {
       throw new ConflictException('User is already registered for this event');
     }
@@ -447,8 +779,38 @@ export class EventsService {
     // Determine current registration period for conferences
     const currentRegistrationPeriod = this.getCurrentRegistrationPeriod(event);
 
+    const accommodation = this.resolveAccommodationSelection(
+      event,
+      accommodationOptionId,
+      user.role,
+    );
+    const normalizedResponses = this.validateRegistrationResponses(event, customResponses);
+
+    const registrationDraft = await this.registrationDraftModel.findOneAndUpdate(
+      { eventId: event._id, userId: user._id },
+      {
+        $set: {
+          accommodation,
+          customResponses: normalizedResponses,
+          expiresAt: new Date(Date.now() + 2 * 60 * 60 * 1000),
+        },
+      },
+      { new: true, upsert: true, setDefaultsOnInsert: true },
+    );
+
+    const userMemberGroup = this.usersService.getUserExperienceCategory(user);
+
     // Find the appropriate payment plan based on role and registration period
-    const amount = this.getEventPaymentAmount(event, user.role, currentRegistrationPeriod);
+    const amount = this.getEventPaymentAmount(
+      event,
+      userMemberGroup,
+      currentRegistrationPeriod,
+      accommodation?.price || 0,
+    );
+
+    if (amount <= 0) {
+      throw new BadRequestException('This registration does not require online payment');
+    }
 
     if (user.role === UserRole.GLOBALNETWORK) {
       // Check if conference is configured to use PayPal for global network
@@ -464,6 +826,7 @@ export class EventsService {
             slug: event.slug,
             userId,
             registrationPeriod: currentRegistrationPeriod,
+            registrationDraftId: registrationDraft._id,
           }),
           items: [
             {
@@ -484,6 +847,7 @@ export class EventsService {
       const paystackConfig: any = {
         amount: amountInKobo,
         email: user.email,
+        currency: user.role === UserRole.GLOBALNETWORK ? 'USD' : 'NGN',
         callback_url: this.configService.get('EVENT_PAYMENT_SUCCESS_URL').replace('[slug]', slug),
         metadata: JSON.stringify({
           desc: event.isConference ? 'CONFERENCE' : 'EVENT',
@@ -491,6 +855,7 @@ export class EventsService {
           userId,
           name: user.fullName,
           registrationPeriod: currentRegistrationPeriod,
+          registrationDraftId: registrationDraft._id,
         }),
       };
 
@@ -610,6 +975,7 @@ export class EventsService {
     event: any,
     userRole: string,
     registrationPeriod: RegistrationPeriod,
+    accommodationPrice = 0,
   ): number {
     let baseAmount = 0;
 
@@ -628,6 +994,8 @@ export class EventsService {
       const plan = event.paymentPlans.find((p: any) => p.role === userRole);
       baseAmount = plan ? plan.price : 0;
     }
+
+    baseAmount += accommodationPrice;
 
     // If no amount found, return 0
     if (baseAmount <= 0) {
@@ -748,6 +1116,9 @@ export class EventsService {
     userId: string, // Accept userId as a string
     slug: string,
     reference?: string,
+    accommodationOptionId?: string,
+    confirmedAccommodation?: AccommodationSelection,
+    customResponses?: Record<string, unknown>,
   ): Promise<ISuccessResponse> {
     const event = await this.eventModel.findOne({ slug });
 
@@ -756,6 +1127,11 @@ export class EventsService {
     }
 
     const user = await this.userModel.findById(userId);
+
+    const accommodation =
+      confirmedAccommodation ||
+      this.resolveAccommodationSelection(event, accommodationOptionId, user.role);
+    const normalizedResponses = this.validateRegistrationResponses(event, customResponses);
 
     // Check if user has an active subscription (only if event requires it)
     if (event.requiresSubscription && !user.subscribed) {
@@ -776,7 +1152,7 @@ export class EventsService {
       throw new ConflictException('User is already registered for this event');
     }
 
-    if (event.isPaid && !reference) {
+    if ((event.isPaid || (accommodation?.price || 0) > 0) && !reference) {
       throw new BadRequestException('Payment reference is required for paid events');
     }
 
@@ -788,6 +1164,8 @@ export class EventsService {
       userId: userObjectId,
       paymentReference: reference,
       registrationPeriod,
+      accommodation,
+      customResponses: normalizedResponses,
     });
     await event.save();
 
@@ -800,7 +1178,8 @@ export class EventsService {
             name: `${user.firstName} ${user.lastName}`,
             email: user.email,
             conferenceName: event.name,
-            conferenceType: event.conferenceConfig?.type || 'General',
+            conferenceType:
+              event.conferenceConfig?.conferenceType || event.conferenceConfig?.type || 'General',
             conferenceScope: this.getConferenceScope(event),
             conferenceDate: this.formatDate(event.eventDateTime),
             conferenceVenue: event.linkOrLocation,
@@ -1048,7 +1427,7 @@ export class EventsService {
       .find(searchCriteria)
       // Select only public fields
       .select(
-        'name description featuredImageUrl eventType linkOrLocation eventDateTime membersGroup isPaid paymentPlans conferenceConfig slug createdAt',
+        'name description featuredImageUrl eventType linkOrLocation eventDateTime membersGroup isPaid paymentPlans conferenceConfig accommodationOptions accommodationSelectionRequired registrationFields slug createdAt',
       )
       .sort({ eventDateTime: 1 }) // Sort by event date (upcoming first)
       .limit(perPage)
@@ -1150,10 +1529,10 @@ export class EventsService {
     });
   }
 
-  private formatCurrency(amount: number): string {
+  private formatCurrency(amount: number, currency = 'NGN'): string {
     return new Intl.NumberFormat('en-NG', {
       style: 'currency',
-      currency: 'NGN',
+      currency,
     }).format(amount);
   }
 
@@ -1224,7 +1603,15 @@ export class EventsService {
         }
       }
 
-      const { userId, slug, eventId, registrationPeriod } = eventData;
+      const {
+        userId,
+        slug,
+        eventId,
+        registrationPeriod,
+        registrationDraftId,
+        accommodationOptionId,
+        accommodation,
+      } = eventData;
       const event = slug
         ? await this.eventModel.findOne({ slug })
         : await this.eventModel.findById(eventId);
@@ -1233,27 +1620,63 @@ export class EventsService {
         throw new NotFoundException('Event not found');
       }
 
+      let registrationDraft: any = null;
+      if (registrationDraftId) {
+        registrationDraft = await this.registrationDraftModel
+          .findOne({
+            _id: registrationDraftId,
+            eventId: event._id,
+            userId: new mongoose.Types.ObjectId(userId),
+          })
+          .lean();
+        if (!registrationDraft) {
+          throw new BadRequestException(
+            'Your registration form session expired. Please start registration again.',
+          );
+        }
+      }
+
       // Register the user for the event
-      await this.registerForEvent(userId, event.slug, reference);
+      await this.registerForEvent(
+        userId,
+        event.slug,
+        reference,
+        accommodationOptionId,
+        (registrationDraft?.accommodation || accommodation) as AccommodationSelection,
+        registrationDraft?.customResponses || {},
+      );
+
+      if (registrationDraftId) {
+        await this.registrationDraftModel.deleteOne({ _id: registrationDraftId });
+      }
 
       // Send payment confirmation email for conferences
       if (event.isConference) {
         try {
           const user = await this.userModel.findById(userId);
           if (user) {
-            const amount = this.getEventPaymentAmount(event, user.role, registrationPeriod);
+            const amount = this.getEventPaymentAmount(
+              event,
+              this.usersService.getUserExperienceCategory(user),
+              registrationPeriod || RegistrationPeriod.REGULAR,
+              (registrationDraft?.accommodation?.price || accommodation?.price || 0) as number,
+            );
             await this.emailService.sendConferencePaymentConfirmationEmail({
               name: `${user.firstName} ${user.lastName}`,
               email: user.email,
               conferenceName: event.name,
-              amountPaid: this.formatCurrency(amount),
+              amountPaid: this.formatCurrency(
+                amount,
+                user.role === UserRole.GLOBALNETWORK ? 'USD' : 'NGN',
+              ),
               registrationPeriod: registrationPeriod || 'Regular',
               paymentMethod: source?.toLowerCase() === 'paypal' ? 'PayPal' : 'Paystack',
               transactionId: reference,
               paymentDate: this.formatDate(new Date()),
               conferenceDate: this.formatDate(event.eventDateTime),
               conferenceVenue: event.linkOrLocation,
-              conferenceType: event.conferenceConfig?.type || 'General',
+              conferenceType:
+                event.conferenceConfig?.conferenceType || event.conferenceConfig?.type || 'General',
               conferenceScope: this.getConferenceScope(event),
               conferenceUrl: `${this.configService.get('FRONTEND_URL')}/dashboard/conferences/${event.slug}`,
             });
@@ -1377,21 +1800,26 @@ export class EventsService {
           if (user) {
             const amount = this.getEventPaymentAmount(
               event,
-              user.role,
-              registration.registrationPeriod,
+              this.usersService.getUserExperienceCategory(user),
+              registration.registrationPeriod || RegistrationPeriod.REGULAR,
+              registration.accommodation?.price || 0,
             );
             await this.emailService.sendConferencePaymentConfirmationEmail({
               name: `${user.firstName} ${user.lastName}`,
               email: user.email,
               conferenceName: event.name,
-              amountPaid: this.formatCurrency(amount),
+              amountPaid: this.formatCurrency(
+                amount,
+                user.role === UserRole.GLOBALNETWORK ? 'USD' : 'NGN',
+              ),
               registrationPeriod: registration.registrationPeriod || 'Regular',
               paymentMethod: paymentVerification.status === 'COMPLETED' ? 'PayPal' : 'Paystack',
               transactionId: reference,
               paymentDate: this.formatDate(new Date()),
               conferenceDate: this.formatDate(event.eventDateTime),
               conferenceVenue: event.linkOrLocation,
-              conferenceType: event.conferenceConfig?.type || 'General',
+              conferenceType:
+                event.conferenceConfig?.conferenceType || event.conferenceConfig?.type || 'General',
               conferenceScope: this.getConferenceScope(event),
               conferenceUrl: `${this.configService.get('FRONTEND_URL')}/dashboard/conferences/${event.slug}`,
             });

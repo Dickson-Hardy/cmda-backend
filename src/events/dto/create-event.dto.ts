@@ -59,7 +59,7 @@ export class CreateEventDto {
 
   @ApiProperty({ example: false, description: 'paid of free event' })
   @IsBooleanString()
-  isPaid: boolean;
+  isPaid: string;
 
   @ApiProperty({
     description: 'The payment plans for the event',
@@ -68,9 +68,38 @@ export class CreateEventDto {
   @IsOptional()
   paymentPlans?: string;
 
+  @ApiProperty({
+    description: 'JSON encoded accommodation options for the conference',
+    required: false,
+    example:
+      '[{"id":"standard-room","name":"Standard Room","isPriced":true,"priceNgn":25000,"priceUsd":20}]',
+  })
+  @IsString()
+  @IsOptional()
+  accommodationOptions?: string;
+
+  @ApiProperty({
+    example: false,
+    description: 'Whether attendees must choose an accommodation option before registering',
+    required: false,
+  })
+  @IsBooleanString()
+  @IsOptional()
+  accommodationSelectionRequired?: string;
+
+  @ApiProperty({
+    description: 'JSON encoded custom registration fields configured by an administrator',
+    required: false,
+    example:
+      '[{"id":"dietary-needs","label":"Dietary needs","type":"longText","required":false}]',
+  })
+  @IsString()
+  @IsOptional()
+  registrationFields?: string;
+
   @ApiProperty({ example: '2024-07-29T10:00:00Z', description: 'The date and time of the event' })
   @IsDateString()
-  eventDateTime: Date;
+  eventDateTime: string;
 
   @ApiProperty({
     example: [EventTag.CONFERENCE, EventTag.SEMINAR],
@@ -120,7 +149,7 @@ export class CreateEventDto {
   })
   @IsBooleanString()
   @IsOptional()
-  isConference?: boolean;
+  isConference?: string;
 
   @ApiProperty({
     example: ConferenceType.NATIONAL,
@@ -159,7 +188,7 @@ export class CreateEventDto {
   })
   @IsDateString()
   @IsOptional()
-  regularRegistrationEndDate?: Date;
+  regularRegistrationEndDate?: string;
 
   @ApiProperty({
     example: '2024-07-15T23:59:59Z',
@@ -168,7 +197,7 @@ export class CreateEventDto {
   })
   @IsDateString()
   @IsOptional()
-  lateRegistrationEndDate?: Date;
+  lateRegistrationEndDate?: string;
 
   @ApiProperty({
     example: 'SPL_xxxxxx',
@@ -186,7 +215,7 @@ export class CreateEventDto {
   })
   @IsBooleanString()
   @IsOptional()
-  usePayPalForGlobal?: boolean;
+  usePayPalForGlobal?: string;
 
   @ApiProperty({
     example: true,
@@ -195,7 +224,7 @@ export class CreateEventDto {
   })
   @IsBooleanString()
   @IsOptional()
-  requiresSubscription?: boolean;
+  requiresSubscription?: string;
 
   // Virtual meeting fields
   @ApiProperty({
