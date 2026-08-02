@@ -23,8 +23,16 @@ export class ChatsController {
   @Get('contacts')
   @ApiBearerAuth()
   @ApiOperation({ summary: "Fetch current user's chat contacts" })
-  findAllContacts(@Req() req: { user: IJwtPayload }) {
-    return this.chatsService.findAllContacts(req.user);
+  @ApiQuery({ name: 'page', required: false, type: Number })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
+  @ApiQuery({ name: 'search', required: false, type: String })
+  findAllContacts(
+    @Req() req: { user: IJwtPayload },
+    @Query('page') page?: number,
+    @Query('limit') limit?: number,
+    @Query('search') search?: string,
+  ) {
+    return this.chatsService.findAllContacts(req.user, { page: Number(page) || 1, limit: Number(limit) || 30, search });
   }
 
   @Get('history/:id')

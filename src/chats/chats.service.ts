@@ -20,38 +20,81 @@ export class ChatsService {
     @InjectModel(MessageReport.name) private readonly reportModel: Model<MessageReport>,
   ) {}
 
-  async findAllContacts(user: IJwtPayload): Promise<ISuccessResponse> {
+  async findAllContacts(
+    user: IJwtPayload,
+    query: { page: number; limit: number; search?: string },
+  ): Promise<ISuccessResponse> {
+    const { page, limit, search } = query;
+    const skip = (page - 1) * limit;
     let contacts: any;
+    let total = 0;
     let [adminUnreadCount, adminLastMessage] = [0, ''];
 
+    // Only populate essential fields to reduce memory usage
+    const userFields = '_id fullName avatarUrl';
+
     if (AllAdminRoles.includes(user.role as AdminRole)) {
+      // Build match query for search
+      const matchQuery: any = { chatWith: 'admin' };
+
+      if (search) {
+        // Find users matching search first
+        const matchingUsers = await this.userModel
+          .find({ fullName: { $regex: search, $options: 'i' } })
+          .select('_id')
+          .lean();
+        matchQuery.user = { $in: matchingUsers.map((u) => u._id) };
+      }
+
+      total = await this.chatLogModel.countDocuments(matchQuery);
+
       contacts = await this.chatLogModel
-        .find({ chatWith: 'admin' })
+        .find(matchQuery)
         .sort({ updatedAt: -1 })
-        .populate({ path: 'user', model: this.userModel })
+        .skip(skip)
+        .limit(limit)
+        .populate({ path: 'user', model: this.userModel, select: userFields })
         .lean();
 
-      // Aggregate unread counts for each contact in one query
-      const unreadCounts = await this.messageModel.aggregate([
-        { $match: { receiver: 'admin', read: false } },
-        { $group: { _id: '$sender', count: { $sum: 1 } } },
-      ]);
+      // Only aggregate unread counts for the current page of contacts
+      const contactUserIds = contacts
+        .map((c) => c.user?._id)
+        .filter(Boolean);
 
-      // Create a map of counts by user id for fast access
-      const unreadCountMap = unreadCounts.reduce((acc, item) => {
-        acc[item._id.toString()] = item.count;
-        return acc;
-      }, {});
+      if (contactUserIds.length > 0) {
+        const unreadCounts = await this.messageModel.aggregate([
+          { $match: { receiver: 'admin', read: false, sender: { $in: contactUserIds } } },
+          { $group: { _id: '$sender', count: { $sum: 1 } } },
+        ]);
 
-      // Assign unread counts to contacts
-      contacts.forEach((contact) => {
-        contact.unreadCount = unreadCountMap[contact.user?._id.toString()] || 0;
-      });
+        const unreadCountMap = unreadCounts.reduce((acc, item) => {
+          acc[item._id.toString()] = item.count;
+          return acc;
+        }, {});
+
+        contacts.forEach((contact) => {
+          contact.unreadCount = unreadCountMap[contact.user?._id.toString()] || 0;
+        });
+      }
     } else {
+      const matchQuery: any = { user: user.id, chatWith: { $ne: 'admin' } };
+
+      if (search) {
+        const matchingUsers = await this.userModel
+          .find({ fullName: { $regex: search, $options: 'i' } })
+          .select('_id')
+          .lean();
+        matchQuery.chatWith = { $in: matchingUsers.map((u) => u._id) };
+      }
+
+      total = await this.chatLogModel.countDocuments(matchQuery);
+
       contacts = await this.chatLogModel
-        .find({ user: user.id, chatWith: { $ne: 'admin' } })
+        .find(matchQuery)
         .sort({ updatedAt: -1 })
-        .populate({ path: 'chatWith', model: this.userModel })
+        .skip(skip)
+        .limit(limit)
+        .populate({ path: 'chatWith', model: this.userModel, select: userFields })
         .lean();
 
       adminUnreadCount = await this.messageModel.countDocuments({
@@ -69,22 +112,26 @@ export class ChatsService {
         .sort({ createdAt: -1 });
       adminLastMessage = lastMessage?.content;
 
-      // Aggregate unread counts for each contact in one query
-      const unreadCounts = await this.messageModel.aggregate([
-        { $match: { receiver: user.id, read: false } },
-        { $group: { _id: '$sender', count: { $sum: 1 } } },
-      ]);
+      // Only aggregate unread counts for current page contacts
+      const contactUserIds = contacts
+        .map((c) => c.chatWith?._id)
+        .filter(Boolean);
 
-      // Create a map of counts by user id for fast access
-      const unreadCountMap = unreadCounts.reduce((acc, item) => {
-        acc[item._id.toString()] = item.count;
-        return acc;
-      }, {});
+      if (contactUserIds.length > 0) {
+        const unreadCounts = await this.messageModel.aggregate([
+          { $match: { receiver: user.id, read: false, sender: { $in: contactUserIds } } },
+          { $group: { _id: '$sender', count: { $sum: 1 } } },
+        ]);
 
-      // Assign unread counts to contacts
-      contacts.forEach((contact) => {
-        contact.unreadCount = unreadCountMap[contact.chatWith?._id.toString()] || 0;
-      });
+        const unreadCountMap = unreadCounts.reduce((acc, item) => {
+          acc[item._id.toString()] = item.count;
+          return acc;
+        }, {});
+
+        contacts.forEach((contact) => {
+          contact.unreadCount = unreadCountMap[contact.chatWith?._id.toString()] || 0;
+        });
+      }
     }
 
     return {
@@ -94,6 +141,12 @@ export class ChatsService {
         contacts,
         adminUnreadCount,
         adminLastMessage,
+        pagination: {
+          page,
+          limit,
+          total,
+          totalPages: Math.ceil(total / limit),
+        },
       },
     };
   }
