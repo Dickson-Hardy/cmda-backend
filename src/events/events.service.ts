@@ -118,7 +118,7 @@ export class EventsService {
   }
 
   async findAll(query: EventPaginationQueryDto): Promise<ISuccessResponse> {
-    const { searchBy, limit, page, eventType, membersGroup, eventDate, fromToday } = query;
+    const { searchBy, limit, page, eventType, membersGroup, eventDate, fromToday, fromDate, toDate } = query;
     const perPage = Number(limit) || 10;
     const currentPage = Number(page) || 1;
 
@@ -135,14 +135,27 @@ export class EventsService {
     if (eventType) searchCriteria.eventType = eventType;
     if (membersGroup) searchCriteria.membersGroup = membersGroup;
 
-    if (eventDate && String(fromToday) === 'true') {
-      throw new BadRequestException('Please use only one of eventDate or fromToday');
+    const hasDateRange = Boolean(fromDate || toDate);
+    if (hasDateRange && (!fromDate || !toDate)) {
+      throw new BadRequestException('Both fromDate and toDate are required for a date range');
+    }
+    if (fromDate && toDate && fromDate > toDate) {
+      throw new BadRequestException('fromDate must be before or equal to toDate');
+    }
+
+    const dateFilterCount = [Boolean(eventDate), String(fromToday) === 'true', hasDateRange].filter(Boolean).length;
+    if (dateFilterCount > 1) {
+      throw new BadRequestException('Please use only one event date filter');
     }
 
     if (eventDate) {
       const startOfDay = new Date(`${eventDate}T00:00:00+01:00`);
       const endOfDay = new Date(`${eventDate}T23:59:59+01:00`);
       searchCriteria.eventDateTime = { $gte: startOfDay, $lte: endOfDay };
+    } else if (fromDate && toDate) {
+      const rangeStart = new Date(`${fromDate}T00:00:00+01:00`);
+      const rangeEnd = new Date(`${toDate}T23:59:59+01:00`);
+      searchCriteria.eventDateTime = { $gte: rangeStart, $lte: rangeEnd };
     } else if (String(fromToday) === 'true') {
       const today = new Date().toISOString().split('T')[0];
       const startOfToday = new Date(`${today}T00:00:00+01:00`);

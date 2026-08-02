@@ -1,4 +1,4 @@
-import { IsOptional, IsString, IsEnum, IsBooleanString } from 'class-validator';
+import { IsOptional, IsString, IsEnum, IsBooleanString, IsDateString } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { EventAudience, EventType } from '../events.constant';
 
@@ -42,4 +42,14 @@ export class EventPaginationQueryDto {
   @IsOptional()
   @IsBooleanString()
   fromToday?: string;
+
+  @ApiPropertyOptional({ description: 'Range start date', type: String, example: '2026-08-02' })
+  @IsOptional()
+  @IsDateString({ strict: true })
+  fromDate?: string;
+
+  @ApiPropertyOptional({ description: 'Range end date', type: String, example: '2026-08-08' })
+  @IsOptional()
+  @IsDateString({ strict: true })
+  toDate?: string;
 }
