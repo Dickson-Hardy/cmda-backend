@@ -35,6 +35,13 @@ export class NotificationsController {
     return this.notificationService.markAsRead(req.user.id, id);
   }
 
+  @Delete(':id')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Delete a notification' })
+  async deleteNotification(@Req() req: { user: IJwtPayload }, @Param('id') id: string) {
+    return this.notificationService.deleteNotification(req.user.id, id);
+  }
+
   @Post('push-token')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Register or update push token for device' })

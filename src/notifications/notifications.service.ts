@@ -117,4 +117,12 @@ export class NotificationsService {
       message: 'Notification marked as read',
     };
   }
+
+  async deleteNotification(userId: string, notificationId: string): Promise<ISuccessResponse> {
+    await this.notificationModel.findOneAndDelete({ _id: notificationId, userId });
+    return {
+      success: true,
+      message: 'Notification deleted',
+    };
+  }
 }
