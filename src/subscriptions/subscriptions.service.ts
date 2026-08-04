@@ -31,6 +31,7 @@ import {
   PaymentIntentContext,
   PaymentIntentProvider,
 } from '../payment-intents/payment-intent.schema';
+import { escapeRegex } from '../_common/escape-regex.util';
 
 @Injectable()
 export class SubscriptionsService {
@@ -715,7 +716,7 @@ export class SubscriptionsService {
     if (searchBy) {
       const searchNumber = Number(searchBy);
       const searchConditions = [
-        { reference: { $regex: searchBy, $options: 'i' } },
+        { reference: { $regex: escapeRegex(searchBy), $options: 'i' } },
         !isNaN(searchNumber) ? { amount: searchNumber } : false,
       ].filter(Boolean);
 
@@ -805,7 +806,7 @@ export class SubscriptionsService {
     if (searchBy) {
       const searchNumber = Number(searchBy);
       const searchConditions = [
-        { reference: { $regex: searchBy, $options: 'i' } },
+        { reference: { $regex: escapeRegex(searchBy), $options: 'i' } },
         !isNaN(searchNumber) ? { amount: searchNumber } : false,
       ].filter(Boolean);
 

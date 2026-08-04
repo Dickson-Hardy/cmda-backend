@@ -1,3 +1,4 @@
+import { randomBytes } from 'crypto';
 import {
   BadRequestException,
   ConflictException,
@@ -24,6 +25,7 @@ import { CreateMemberByAdminDto } from './dto/create-member-by-admin.dto';
 import { User } from '../users/schema/users.schema';
 import { isGlobalCategory } from '../users/user.constant';
 import { AuthService } from '../auth/auth.service';
+import { escapeRegex } from '../_common/escape-regex.util';
 
 @Injectable()
 export class AdminService {
@@ -39,9 +41,7 @@ export class AdminService {
       const { fullName, email, role } = createAdminDto;
 
       // generate password
-      const { randomUUID } = new ShortUniqueId({ length: 5, dictionary: 'alphanum_upper' });
-      const pass = randomUUID();
-      const password = 'Cmda24@' + pass;
+      const password = randomBytes(12).toString('base64url');
 
       await this.emailService.sendAdminCredentialsEmail({ name: fullName, email, password });
 
@@ -63,7 +63,7 @@ export class AdminService {
   async login(loginDto: LoginAdminDto): Promise<ISuccessResponse> {
     const { email, password } = loginDto;
 
-    const admin = await this.adminModel.findOne({ email: { $regex: `^${email}$`, $options: 'i' } });
+    const admin = await this.adminModel.findOne({ email: { $regex: `^${escapeRegex(email)}$`, $options: 'i' } });
     if (!admin) throw new UnauthorizedException('Invalid login credentials');
 
     const isPasswordMatched = await bcrypt.compare(password, admin.password);
@@ -166,7 +166,7 @@ export class AdminService {
 
   async forgotPassword(forgotPasswordDto: ForgotPasswordDto): Promise<ISuccessResponse> {
     const { email } = forgotPasswordDto;
-    const user = await this.adminModel.findOne({ email: { $regex: `^${email}$`, $options: 'i' } });
+    const user = await this.adminModel.findOne({ email: { $regex: `^${escapeRegex(email)}$`, $options: 'i' } });
     if (!user) {
       return {
         success: true,
@@ -182,14 +182,17 @@ export class AdminService {
         code,
       });
       if (res.success) {
-        await user.updateOne({ passwordResetToken: code });
+        await user.updateOne({
+          passwordResetToken: code,
+          passwordResetTokenExpires: new Date(Date.now() + 15 * 60 * 1000), // 15 minutes
+        });
       } else {
         throw new InternalServerErrorException('Error on email server, please try again later');
       }
     }
     return {
       success: true,
-      message: "Password reset token has been sent to your email if it exists'",
+      message: "Password reset token has been sent to your email if it exists",
     };
   }
 
@@ -198,13 +201,16 @@ export class AdminService {
     if (newPassword !== confirmPassword) {
       throw new BadRequestException('confirmPassword does not match newPassword');
     }
-    const user = await this.adminModel.findOne({ passwordResetToken: token.toUpperCase() });
+    const user = await this.adminModel.findOne({
+      passwordResetToken: token.toUpperCase(),
+      passwordResetTokenExpires: { $gt: new Date() },
+    });
     if (!user) {
-      throw new BadRequestException('Password reset token is invalid');
+      throw new BadRequestException('Password reset token is invalid or expired');
     }
     const hashedPassword = await bcrypt.hash(newPassword, 10);
     await user.updateOne({
-      $set: { password: hashedPassword, passwordResetToken: '', refreshSessions: [] },
+      $set: { password: hashedPassword, passwordResetToken: '', passwordResetTokenExpires: null, refreshSessions: [] },
       $inc: { tokenVersion: 1 },
     });
     await this.emailService.sendPasswordResetSuccessEmail({
@@ -223,16 +229,14 @@ export class AdminService {
 
       // Check if email already exists
       const isExists = await this.userModel.findOne({
-        email: { $regex: `^${email}$`, $options: 'i' },
+        email: { $regex: `^${escapeRegex(email)}$`, $options: 'i' },
       });
       if (isExists) {
         throw new ConflictException('Email already exists');
       }
 
       // Generate temporary password
-      const { randomUUID } = new ShortUniqueId({ length: 5, dictionary: 'alphanum_upper' });
-      const pass = randomUUID();
-      const tempPassword = 'Cmda24@' + pass;
+      const tempPassword = randomBytes(12).toString('base64url');
 
       // Create the user first to get the ID for tracking
       const tempUser = await this.userModel.create({

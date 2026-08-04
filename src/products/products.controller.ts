@@ -77,7 +77,7 @@ export class ProductsController {
   @UseInterceptors(FileInterceptor('featuredImage'))
   update(
     @Param('slug') slug: string,
-    @Body() updateProductDto,
+    @Body() updateProductDto: UpdateProductDto,
     @UploadedFile() file: Express.Multer.File,
   ) {
     return this.productsService.update(slug, updateProductDto, file);

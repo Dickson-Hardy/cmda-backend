@@ -4,6 +4,7 @@ import { SubscriptionsService } from './subscriptions.service';
 import { ReceiptService } from './receipt.service';
 import { ReceiptPdfService } from './receipt-pdf.service';
 import { CreateSubscriptionDto } from './dto/create-subscription.dto';
+import { InitSubscriptionDto } from './dto/init-subscription.dto';
 import { ApiBearerAuth, ApiBody, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { IJwtPayload } from '../_global/interface/jwt-payload';
 import { AllUserRoles } from '../users/user.constant';
@@ -53,7 +54,7 @@ export class SubscriptionsController {
   @Roles(AllUserRoles)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'init a subscription payment session' })
-  init(@Req() req: { user: IJwtPayload }, @Body() subscriptionData?: any) {
+  init(@Req() req: { user: IJwtPayload }, @Body() subscriptionData?: InitSubscriptionDto) {
     return this.subscriptionsService.init(req.user.id, subscriptionData);
   }
   @Post('save')

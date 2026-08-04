@@ -1,3 +1,4 @@
+import { randomBytes } from 'crypto';
 import {
   BadRequestException,
   ConflictException,
@@ -20,10 +21,11 @@ import { CreateUserTransitionDto } from './dto/create-transition.dto';
 import { EmailService } from '../email/email.service';
 import { PipelineStage } from 'mongoose';
 import { CreateMemberDto } from './dto/create-member.dto';
+import { UpdateMemberDto } from './dto/update-member.dto';
 import ShortUniqueId from 'short-unique-id';
 import * as bcrypt from 'bcryptjs';
-import { UpdateMemberDto } from './dto/update-member.dto';
 import { EventAudience } from '../events/events.constant';
+import { escapeRegex } from '../_common/escape-regex.util';
 
 @Injectable()
 export class UsersService {
@@ -43,15 +45,15 @@ export class UsersService {
     if (searchBy) {
       const trimmedSearchBy = searchBy.trim();
       searchCriteria.$or = await [
-        { firstName: { $regex: trimmedSearchBy, $options: 'i' } },
-        { middleName: { $regex: trimmedSearchBy, $options: 'i' } },
-        { lastName: { $regex: trimmedSearchBy, $options: 'i' } },
-        { gender: { $regex: trimmedSearchBy, $options: 'i' } },
-        { fullName: { $regex: trimmedSearchBy, $options: 'i' } },
-        { email: { $regex: trimmedSearchBy, $options: 'i' } },
-        { specialty: { $regex: trimmedSearchBy, $options: 'i' } },
-        { licenseNumber: { $regex: trimmedSearchBy, $options: 'i' } },
-        { membershipId: { $regex: trimmedSearchBy, $options: 'i' } },
+        { firstName: { $regex: escapeRegex(trimmedSearchBy), $options: 'i' } },
+        { middleName: { $regex: escapeRegex(trimmedSearchBy), $options: 'i' } },
+        { lastName: { $regex: escapeRegex(trimmedSearchBy), $options: 'i' } },
+        { gender: { $regex: escapeRegex(trimmedSearchBy), $options: 'i' } },
+        { fullName: { $regex: escapeRegex(trimmedSearchBy), $options: 'i' } },
+        { email: { $regex: escapeRegex(trimmedSearchBy), $options: 'i' } },
+        { specialty: { $regex: escapeRegex(trimmedSearchBy), $options: 'i' } },
+        { licenseNumber: { $regex: escapeRegex(trimmedSearchBy), $options: 'i' } },
+        { membershipId: { $regex: escapeRegex(trimmedSearchBy), $options: 'i' } },
       ];
     }
     if (role) searchCriteria.role = role;
@@ -81,15 +83,15 @@ export class UsersService {
     if (searchBy) {
       const trimmedSearchBy = searchBy.trim();
       searchCriteria.$or = await [
-        { firstName: { $regex: trimmedSearchBy, $options: 'i' } },
-        { middleName: { $regex: trimmedSearchBy, $options: 'i' } },
-        { lastName: { $regex: trimmedSearchBy, $options: 'i' } },
-        { gender: { $regex: trimmedSearchBy, $options: 'i' } },
-        { fullName: { $regex: trimmedSearchBy, $options: 'i' } },
-        { email: { $regex: trimmedSearchBy, $options: 'i' } },
-        { specialty: { $regex: trimmedSearchBy, $options: 'i' } },
-        { licenseNumber: { $regex: trimmedSearchBy, $options: 'i' } },
-        { membershipId: { $regex: trimmedSearchBy, $options: 'i' } },
+        { firstName: { $regex: escapeRegex(trimmedSearchBy), $options: 'i' } },
+        { middleName: { $regex: escapeRegex(trimmedSearchBy), $options: 'i' } },
+        { lastName: { $regex: escapeRegex(trimmedSearchBy), $options: 'i' } },
+        { gender: { $regex: escapeRegex(trimmedSearchBy), $options: 'i' } },
+        { fullName: { $regex: escapeRegex(trimmedSearchBy), $options: 'i' } },
+        { email: { $regex: escapeRegex(trimmedSearchBy), $options: 'i' } },
+        { specialty: { $regex: escapeRegex(trimmedSearchBy), $options: 'i' } },
+        { licenseNumber: { $regex: escapeRegex(trimmedSearchBy), $options: 'i' } },
+        { membershipId: { $regex: escapeRegex(trimmedSearchBy), $options: 'i' } },
       ];
     }
     if (role) searchCriteria.role = role;
@@ -334,10 +336,9 @@ export class UsersService {
       } = createMemberDto;
 
       const isExists = await this.userModel.findOne({
-        email: { $regex: `^${email}$`, $options: 'i' },
+        email: { $regex: `^${escapeRegex(email)}$`, $options: 'i' },
       });
       if (isExists) {
-        console.log('ISEXI', isExists);
         throw new ConflictException('Email already exists');
       }
 
@@ -354,9 +355,7 @@ export class UsersService {
       }
 
       // generate password
-      const { randomUUID } = new ShortUniqueId({ length: 5, dictionary: 'alphanum_upper' });
-      const pass = randomUUID();
-      const password = 'Cmda24@' + pass;
+      const password = randomBytes(12).toString('base64url');
 
       // hash password
       const hashedPassword = await bcrypt.hash(password, 10);

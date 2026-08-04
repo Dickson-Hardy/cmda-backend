@@ -9,6 +9,7 @@ import { RenewServiceDto } from './dto/create-service-subscription.dto';
 import { EmailService } from '../email/email.service';
 import { ServiceInvoicePdfService, InvoiceData } from './service-invoice-pdf.service';
 import { MailerService } from '@nestjs-modules/mailer';
+import { escapeRegex } from '../_common/escape-regex.util';
 
 @Injectable()
 export class ServiceSubscriptionsService {
@@ -44,13 +45,13 @@ export class ServiceSubscriptionsService {
       query.category = filters.category;
     }
     if (filters?.provider) {
-      query.provider = { $regex: filters.provider, $options: 'i' };
+      query.provider = { $regex: escapeRegex(filters.provider), $options: 'i' };
     }
     if (filters?.search) {
       query.$or = [
-        { serviceName: { $regex: filters.search, $options: 'i' } },
-        { description: { $regex: filters.search, $options: 'i' } },
-        { provider: { $regex: filters.search, $options: 'i' } },
+        { serviceName: { $regex: escapeRegex(filters.search), $options: 'i' } },
+        { description: { $regex: escapeRegex(filters.search), $options: 'i' } },
+        { provider: { $regex: escapeRegex(filters.search), $options: 'i' } },
       ];
     }
 

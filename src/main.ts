@@ -65,8 +65,8 @@ async function bootstrap() {
   );
   app.useGlobalFilters(new AllExceptionsFilter());
 
-  // Swagger configuration
-  if (process.env.NODE_ENV !== 'production' || process.env.ENABLE_SWAGGER === 'true') {
+  // Swagger configuration - only in development
+  if (process.env.NODE_ENV !== 'production') {
     const swaggerConfig = new DocumentBuilder()
       .setTitle('CMDA Nigeria API')
       .setDescription('API documentation for CMDA Nigeria')

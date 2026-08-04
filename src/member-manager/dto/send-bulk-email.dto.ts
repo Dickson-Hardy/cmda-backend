@@ -1,4 +1,4 @@
-import { IsString, IsArray, IsOptional, IsEnum, IsBoolean } from 'class-validator';
+import { IsNotEmpty, IsString, IsArray, IsOptional, IsEnum, IsBoolean } from 'class-validator';
 
 export class SendBulkEmailDto {
   @IsString()

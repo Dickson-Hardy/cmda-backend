@@ -7,6 +7,7 @@ import { EmailService } from '../email/email.service';
 import { BulkEmailRecipientType, SendBulkEmailDto } from './dto/send-bulk-email.dto';
 import { GetEmailLogsDto } from './dto/get-email-logs.dto';
 import { ISuccessResponse } from '../_global/interface/success-response';
+import { escapeRegex } from '../_common/escape-regex.util';
 
 @Injectable()
 export class BulkEmailService {
@@ -130,7 +131,7 @@ export class BulkEmailService {
     const filter: any = {};
     if (status) filter.status = status;
     if (type) filter.type = type;
-    if (recipient) filter.recipient = { $regex: recipient, $options: 'i' };
+    if (recipient) filter.recipient = { $regex: escapeRegex(recipient), $options: 'i' };
 
     const [logs, total] = await Promise.all([
       this.emailLogModel.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limitNum),

@@ -22,7 +22,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { EventPaginationQueryDto } from './dto/event-pagination.dto';
 import { AllUserRoles } from '../users/user.constant';
 import { IJwtPayload } from '../_global/interface/jwt-payload';
-import { ConfirmEventPayDto } from './dto/update-event.dto';
+import { ConfirmEventPayDto, UpdateEventDto } from './dto/update-event.dto';
 import { ConferenceType, ConferenceZone, ConferenceRegion } from './events.constant';
 import { EventRegistrationDto } from './dto/event-registration.dto';
 
@@ -59,14 +59,6 @@ export class EventsController {
   @ApiOperation({ summary: 'Check if user exists by email (for conference registration)' })
   @ApiBody({ type: CheckUserDto })
   checkUserExists(@Body() checkUserDto: CheckUserDto) {
-    // Debug log to see what's being received
-    console.log('=== DEBUGGING EMAIL CHECK REQUEST ===');
-    console.log('Raw DTO received:', checkUserDto);
-    console.log('DTO type:', typeof checkUserDto);
-    console.log('DTO email:', checkUserDto.email);
-    console.log('Email type:', typeof checkUserDto.email);
-    console.log('=====================================');
-
     return this.eventsService.checkUserExists(checkUserDto.email);
   }
 
@@ -198,7 +190,7 @@ export class EventsController {
   @UseInterceptors(FileInterceptor('featuredImage'))
   updateOne(
     @Param('slug') slug: string,
-    @Body() updateEventDto,
+    @Body() updateEventDto: UpdateEventDto,
     @UploadedFile() file: Express.Multer.File,
   ) {
     return this.eventsService.updateOne(slug, updateEventDto, file);

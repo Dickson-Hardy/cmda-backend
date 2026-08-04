@@ -91,6 +91,7 @@ export class AdminController {
   }
 
   @Post('reset-password')
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @Public()
   @ApiOperation({ summary: 'Resets the password of the admin' })
   @ApiBody({ type: ResetPasswordDto })

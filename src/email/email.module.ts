@@ -24,7 +24,7 @@ import { ConfigService } from '@nestjs/config';
           maxMessages: 100,
           rateLimit: 10, // Max 10 emails per second
           tls: {
-            rejectUnauthorized: false, // Allow self-signed certificates if needed
+            rejectUnauthorized: process.env.NODE_ENV !== 'development',
           },
           // logger: true, // Enable logging
           // debug: true, // Enable debug output

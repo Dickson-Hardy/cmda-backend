@@ -8,6 +8,7 @@ import { Donation } from '../donations/donation.schema';
 import { User } from '../users/schema/users.schema';
 import { PaystackService } from '../paystack/paystack.service';
 import { PaypalService } from '../paypal/paypal.service';
+import { escapeRegex } from '../_common/escape-regex.util';
 
 @Injectable()
 export class PendingPaymentsService {
@@ -80,9 +81,9 @@ export class PendingPaymentsService {
           eventAggregation.push({
             $match: {
               $or: [
-                { 'userDetails.fullName': { $regex: searchBy, $options: 'i' } },
-                { 'userDetails.email': { $regex: searchBy, $options: 'i' } },
-                { 'registeredUsers.paymentReference': { $regex: searchBy, $options: 'i' } },
+                { 'userDetails.fullName': { $regex: escapeRegex(searchBy), $options: 'i' } },
+                { 'userDetails.email': { $regex: escapeRegex(searchBy), $options: 'i' } },
+                { 'registeredUsers.paymentReference': { $regex: escapeRegex(searchBy), $options: 'i' } },
               ],
             } as any,
           });
@@ -120,14 +121,14 @@ export class PendingPaymentsService {
         if (searchBy) {
           const users = await this.userModel.find({
             $or: [
-              { fullName: { $regex: searchBy, $options: 'i' } },
-              { email: { $regex: searchBy, $options: 'i' } },
+              { fullName: { $regex: escapeRegex(searchBy), $options: 'i' } },
+              { email: { $regex: escapeRegex(searchBy), $options: 'i' } },
             ],
           });
           const userIds = users.map((u) => u._id);
           subscriptionMatch.$or = [
             { user: { $in: userIds } },
-            { reference: { $regex: searchBy, $options: 'i' } },
+            { reference: { $regex: escapeRegex(searchBy), $options: 'i' } },
           ];
         }
 
@@ -165,14 +166,14 @@ export class PendingPaymentsService {
         if (searchBy) {
           const users = await this.userModel.find({
             $or: [
-              { fullName: { $regex: searchBy, $options: 'i' } },
-              { email: { $regex: searchBy, $options: 'i' } },
+              { fullName: { $regex: escapeRegex(searchBy), $options: 'i' } },
+              { email: { $regex: escapeRegex(searchBy), $options: 'i' } },
             ],
           });
           const userIds = users.map((u) => u._id);
           donationMatch.$or = [
             { user: { $in: userIds } },
-            { reference: { $regex: searchBy, $options: 'i' } },
+            { reference: { $regex: escapeRegex(searchBy), $options: 'i' } },
           ];
         }
 
@@ -496,9 +497,9 @@ export class PendingPaymentsService {
         aggregation.push({
           $match: {
             $or: [
-              { 'userDetails.fullName': { $regex: searchBy, $options: 'i' } },
-              { 'userDetails.email': { $regex: searchBy, $options: 'i' } },
-              { 'registeredUsers.paymentReference': { $regex: searchBy, $options: 'i' } },
+              { 'userDetails.fullName': { $regex: escapeRegex(searchBy), $options: 'i' } },
+              { 'userDetails.email': { $regex: escapeRegex(searchBy), $options: 'i' } },
+              { 'registeredUsers.paymentReference': { $regex: escapeRegex(searchBy), $options: 'i' } },
             ],
           },
         });
@@ -564,8 +565,8 @@ export class PendingPaymentsService {
       if (region) userFilters.region = region;
       if (searchBy) {
         userFilters.$or = [
-          { fullName: { $regex: searchBy, $options: 'i' } },
-          { email: { $regex: searchBy, $options: 'i' } },
+              { fullName: { $regex: escapeRegex(searchBy), $options: 'i' } },
+              { email: { $regex: escapeRegex(searchBy), $options: 'i' } },
         ];
       }
 
@@ -580,7 +581,7 @@ export class PendingPaymentsService {
       if (searchBy) {
         matchConditions.$or = [
           { user: { $in: userIds } },
-          { reference: { $regex: searchBy, $options: 'i' } },
+          { reference: { $regex: escapeRegex(searchBy), $options: 'i' } },
         ];
       }
 
@@ -644,21 +645,21 @@ export class PendingPaymentsService {
 
       // Filter by areas of need if provided
       if (areasOfNeed) {
-        matchConditions['areasOfNeed.name'] = { $regex: areasOfNeed, $options: 'i' };
+        matchConditions['areasOfNeed.name'] = { $regex: escapeRegex(areasOfNeed), $options: 'i' };
       }
 
       // Build user filters for search
       if (searchBy) {
         const users = await this.userModel.find({
           $or: [
-            { fullName: { $regex: searchBy, $options: 'i' } },
-            { email: { $regex: searchBy, $options: 'i' } },
+            { fullName: { $regex: escapeRegex(searchBy), $options: 'i' } },
+            { email: { $regex: escapeRegex(searchBy), $options: 'i' } },
           ],
         });
         const userIds = users.map((u) => u._id);
         matchConditions.$or = [
           { user: { $in: userIds } },
-          { reference: { $regex: searchBy, $options: 'i' } },
+          { reference: { $regex: escapeRegex(searchBy), $options: 'i' } },
         ];
       }
 

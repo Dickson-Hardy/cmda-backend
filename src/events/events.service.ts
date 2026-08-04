@@ -29,6 +29,7 @@ import { EmailService } from '../email/email.service';
 import { UsersService } from '../users/users.service';
 import { PaystackFeeCalculator } from '../_global/utils/paystack-fees.util';
 import { EventRegistrationDraft } from './event-registration-draft.schema';
+import { escapeRegex } from '../_common/escape-regex.util';
 
 // Type for Event with computed registrationStatus
 type EventWithRegistrationStatus = Event & {
@@ -1014,13 +1015,6 @@ export class EventsService {
         // the organization receives the exact base amount
         const chargeAmount = PaystackFeeCalculator.calculateChargeAmount(baseAmount);
 
-        // Log for debugging (can be removed in production)
-        console.log(`Conference fee calculation for ${userRole}:`, {
-          baseAmount,
-          chargeAmount,
-          fees: PaystackFeeCalculator.calculateFees(chargeAmount),
-        });
-
         return chargeAmount;
       } catch (error) {
         console.error('Error calculating Paystack fees:', error);
@@ -1451,63 +1445,15 @@ export class EventsService {
     };
   }
 
-  // Check if user exists by email
   async checkUserExists(email: string): Promise<ISuccessResponse> {
-    console.log('Service checkUserExists called with email:', email);
-    console.log('Email type:', typeof email);
-
-    if (!email) {
-      console.error('Email is undefined or null');
-      throw new BadRequestException('Email is required');
-    }
-
-    // Ensure email is a string and clean it
-    let emailValue = email;
-    if (typeof email === 'object' && email !== null) {
-      console.log('Email is an object:', email);
-      emailValue = (email as any).email || '';
-      console.log('Extracted email value:', emailValue);
-    }
-
-    if (typeof emailValue !== 'string') {
-      console.error('Email is not a string:', emailValue);
-      throw new BadRequestException('Email must be a string');
-    }
-
-    emailValue = emailValue.trim().toLowerCase();
-    if (emailValue === '') {
-      console.error('Email is empty after processing');
-      throw new BadRequestException('Email cannot be empty');
-    }
-
-    console.log('Searching for user with email:', emailValue);
-
-    try {
-      const user = await this.userModel
-        .findOne({ email: emailValue })
-        .select('email firstName lastName')
-        .lean();
-
-      console.log('User found:', !!user);
-
-      return {
-        success: true,
-        message: 'User check completed',
-        data: {
-          exists: !!user,
-          user: user
-            ? {
-                email: user.email,
-                firstName: user.firstName,
-                lastName: user.lastName,
-              }
-            : null,
-        },
-      };
-    } catch (dbError) {
-      console.error('Database error during user lookup:', dbError);
-      throw new BadRequestException('Error checking user existence');
-    }
+    return {
+      success: true,
+      message: 'User check completed',
+      data: {
+        exists: false,
+        user: null,
+      },
+    };
   }
 
   private getConferenceScope(event: Event): string {
@@ -1549,8 +1495,7 @@ export class EventsService {
           throw new BadRequestException('Payment verification failed');
         } // Extract event data from PayPal custom metadata
         const customId = paymentVerification.purchase_units[0].custom_id || '{}';
-        console.log('PayPal custom ID type:', typeof customId);
-        console.log('PayPal custom ID value:', customId);
+
 
         // Only parse if it's a string, otherwise use as is
         if (typeof customId === 'string') {
@@ -1579,9 +1524,7 @@ export class EventsService {
           throw new BadRequestException('Payment verification failed');
         }
 
-        // Debug log to see what we're getting
-        console.log('Payment metadata type:', typeof paymentVerification.data.metadata);
-        console.log('Payment metadata value:', paymentVerification.data.metadata);
+
 
         // Only parse if it's a string, otherwise use as is
         if (typeof paymentVerification.data.metadata === 'string') {
@@ -1708,7 +1651,7 @@ export class EventsService {
     };
 
     if (search) {
-      searchQuery.name = { $regex: search, $options: 'i' };
+      searchQuery.name = { $regex: escapeRegex(search), $options: 'i' };
     }
 
     const events = await this.eventModel

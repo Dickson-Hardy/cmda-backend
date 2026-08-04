@@ -9,6 +9,7 @@ import { IJwtPayload } from '../_global/interface/jwt-payload';
 import { AdminRole, AllAdminRoles } from '../admin/admin.constant';
 import { ChatBlock } from './schema/chat-block.schema';
 import { MessageReport } from './schema/message-report.schema';
+import { escapeRegex } from '../_common/escape-regex.util';
 
 @Injectable()
 export class ChatsService {
@@ -40,7 +41,7 @@ export class ChatsService {
       if (search) {
         // Find users matching search first
         const matchingUsers = await this.userModel
-          .find({ fullName: { $regex: search, $options: 'i' } })
+          .find({ fullName: { $regex: escapeRegex(search), $options: 'i' } })
           .select('_id')
           .lean();
         matchQuery.user = { $in: matchingUsers.map((u) => u._id) };
@@ -81,7 +82,7 @@ export class ChatsService {
 
       if (search) {
         const matchingUsers = await this.userModel
-          .find({ fullName: { $regex: search, $options: 'i' } })
+          .find({ fullName: { $regex: escapeRegex(search), $options: 'i' } })
           .select('_id')
           .lean();
         matchQuery.chatWith = { $in: matchingUsers.map((u) => u._id) };

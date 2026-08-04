@@ -29,6 +29,7 @@ import { Admin } from '../admin/admin.schema';
 import { AdminRole, AllAdminRoles } from '../admin/admin.constant';
 import { IJwtPayload } from '../_global/interface/jwt-payload';
 import { createHash, randomUUID } from 'crypto';
+import { escapeRegex } from '../_common/escape-regex.util';
 
 @Injectable()
 export class AuthService {
@@ -117,7 +118,10 @@ export class AuthService {
       const { randomUUID } = new ShortUniqueId({ length: 6, dictionary: 'number' });
       const code = randomUUID();
       // Save verification code first, then send email in background
-      await user.updateOne({ verificationCode: code });
+      await user.updateOne({
+        verificationCode: code,
+        verificationCodeExpires: new Date(Date.now() + 15 * 60 * 1000), // 15 minutes
+      });
 
       // Send email asynchronously without blocking
       this.emailService
@@ -146,7 +150,7 @@ export class AuthService {
   async login(loginDto: LoginDto): Promise<ISuccessResponse> {
     const { email, password } = loginDto;
     // check if user with email exists
-    const user = await this.userModel.findOne({ email: { $regex: `^${email}$`, $options: 'i' } });
+    const user = await this.userModel.findOne({ email: { $regex: `^${escapeRegex(email)}$`, $options: 'i' } });
     if (!user) throw new UnauthorizedException('Invalid email or password');
     // check if password matches
     const isPasswordMatched = await bcrypt.compare(password, user.password);
@@ -245,7 +249,7 @@ export class AuthService {
 
   async resendVerifyCode(resendCodeDto: ForgotPasswordDto): Promise<ISuccessResponse> {
     const { email } = resendCodeDto;
-    const user = await this.userModel.findOne({ email: { $regex: `^${email}$`, $options: 'i' } });
+    const user = await this.userModel.findOne({ email: { $regex: `^${escapeRegex(email)}$`, $options: 'i' } });
     if (!user) {
       throw new NotFoundException('Email does not exist');
     }
@@ -255,7 +259,10 @@ export class AuthService {
     const { randomUUID } = new ShortUniqueId({ length: 6, dictionary: 'number' });
     const code = randomUUID();
     // Save verification code first, then send email in background
-    await user.updateOne({ verificationCode: code });
+    await user.updateOne({
+      verificationCode: code,
+      verificationCodeExpires: new Date(Date.now() + 15 * 60 * 1000), // 15 minutes
+    });
 
     // Send email asynchronously without blocking
     this.emailService
@@ -277,13 +284,14 @@ export class AuthService {
   async verifyEmail(verifyEmailDto: VerifyEmailDto): Promise<ISuccessResponse> {
     const { code, email } = verifyEmailDto;
     const user = await this.userModel.findOne({
-      email: { $regex: `^${email}$`, $options: 'i' },
+      email: { $regex: `^${escapeRegex(email)}$`, $options: 'i' },
       verificationCode: code.toUpperCase(),
+      verificationCodeExpires: { $gt: new Date() },
     });
     if (!user) {
-      throw new BadRequestException('Email verification code is invalid');
+      throw new BadRequestException('Email verification code is invalid or expired');
     }
-    await user.updateOne({ emailVerified: true, verificationCode: '' });
+    await user.updateOne({ emailVerified: true, verificationCode: '', verificationCodeExpires: null });
     return {
       success: true,
       message: 'Email verified successfully',
@@ -292,7 +300,7 @@ export class AuthService {
 
   async forgotPassword(forgotPasswordDto: ForgotPasswordDto): Promise<ISuccessResponse> {
     const { email } = forgotPasswordDto;
-    const user = await this.userModel.findOne({ email: { $regex: `^${email}$`, $options: 'i' } });
+    const user = await this.userModel.findOne({ email: { $regex: `^${escapeRegex(email)}$`, $options: 'i' } });
     if (!user) {
       throw new NotFoundException('Email does not exist');
     }
@@ -300,7 +308,10 @@ export class AuthService {
       const { randomUUID } = new ShortUniqueId({ length: 6, dictionary: 'number' });
       const code = randomUUID();
       // Save the token first, then send email in background (non-blocking)
-      await user.updateOne({ passwordResetToken: code });
+      await user.updateOne({
+        passwordResetToken: code,
+        passwordResetTokenExpires: new Date(Date.now() + 15 * 60 * 1000), // 15 minutes
+      });
 
       // Send email asynchronously without blocking the response
       this.emailService
@@ -316,7 +327,7 @@ export class AuthService {
     }
     return {
       success: true,
-      message: "Password reset token has been sent to your email if it exists'",
+      message: "Password reset token has been sent to your email if it exists",
     };
   }
 
@@ -325,15 +336,19 @@ export class AuthService {
     if (newPassword !== confirmPassword) {
       throw new BadRequestException('confirmPassword does not match newPassword');
     }
-    const user = await this.userModel.findOne({ passwordResetToken: token.toUpperCase() });
+    const user = await this.userModel.findOne({
+      passwordResetToken: token.toUpperCase(),
+      passwordResetTokenExpires: { $gt: new Date() },
+    });
     if (!user) {
-      throw new BadRequestException('Password reset token is invalid');
+      throw new BadRequestException('Password reset token is invalid or expired');
     }
     const hashedPassword = await bcrypt.hash(newPassword, 10);
     await user.updateOne({
       $set: {
         password: hashedPassword,
         passwordResetToken: '',
+        passwordResetTokenExpires: null,
         refreshSessions: [],
       },
       $inc: { tokenVersion: 1 },
@@ -391,14 +406,11 @@ export class AuthService {
   }
 
   async checkUserExists(checkUserDto: CheckUserDto): Promise<ISuccessResponse> {
-    const { email } = checkUserDto;
-    const user = await this.userModel.findOne({ email });
     return {
       success: true,
       message: 'User check completed',
       data: {
-        exists: !!user,
-        email,
+        exists: false,
       },
     };
   }

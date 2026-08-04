@@ -29,7 +29,7 @@ export class PaypalService {
       return response.data.access_token;
     } catch (error) {
       console.error('PAYPAL_TOKEN', error.message);
-      console.log('ERROR', error.response.data.error_description);
+      console.error('PayPal error description:', error.response.data.error_description);
       throw new InternalServerErrorException(error.response.data.error_description);
     }
   }

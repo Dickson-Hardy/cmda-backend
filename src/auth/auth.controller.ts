@@ -82,6 +82,7 @@ export class AuthController {
   }
 
   @Post('resend-verify-code')
+  @Throttle({ default: { limit: 3, ttl: 60_000 } })
   @Public()
   @ApiOperation({ summary: 'Resend email verification code' })
   @ApiBody({ type: ForgotPasswordDto })
@@ -99,6 +100,7 @@ export class AuthController {
   }
 
   @Post('reset-password')
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @Public()
   @ApiOperation({ summary: 'Resets the password of the user' })
   @ApiBody({ type: ResetPasswordDto })

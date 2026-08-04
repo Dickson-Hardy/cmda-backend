@@ -30,6 +30,9 @@ export class Admin extends Document {
   @Prop()
   passwordResetToken: string;
 
+  @Prop()
+  passwordResetTokenExpires: Date;
+
   @Prop({ default: 0 })
   tokenVersion: number;
 

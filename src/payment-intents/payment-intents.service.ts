@@ -6,6 +6,7 @@ import { PaymentIntent, PaymentIntentStatus } from './payment-intent.schema';
 import { CreatePaymentIntentDto } from './dto/create-payment-intent.dto';
 import { PaginationQueryDto } from '../_global/dto/pagination-query.dto';
 import { LookupPaymentIntentDto } from './dto/lookup-payment-intent.dto';
+import { escapeRegex } from '../_common/escape-regex.util';
 
 @Injectable()
 export class PaymentIntentsService {
@@ -111,7 +112,7 @@ export class PaymentIntentsService {
 
     const filter: Record<string, any> = { user: userId };
     if (query.searchBy) {
-      filter.intentCode = { $regex: query.searchBy, $options: 'i' };
+      filter.intentCode = { $regex: escapeRegex(query.searchBy), $options: 'i' };
     }
 
     const [items, totalItems] = await Promise.all([

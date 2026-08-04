@@ -12,6 +12,7 @@ import { ISuccessResponse } from '../_global/interface/success-response';
 import { TrainingQueryDto } from './dto/training-query.dto';
 import { User } from '../users/schema/users.schema';
 import { UserRole } from '../users/user.constant';
+import { escapeRegex } from '../_common/escape-regex.util';
 
 @Injectable()
 export class TrainingService {
@@ -39,7 +40,7 @@ export class TrainingService {
 
   async findAll(query: TrainingQueryDto): Promise<ISuccessResponse> {
     const { searchBy, membersGroup } = query;
-    const searchCriteria: any = searchBy ? { name: { $regex: searchBy, $options: 'i' } } : {};
+    const searchCriteria: any = searchBy ? { name: { $regex: escapeRegex(searchBy), $options: 'i' } } : {};
     if (membersGroup) searchCriteria.membersGroup = membersGroup;
 
     const trainings = await this.trainingModel.find(searchCriteria).sort({ createdAt: -1 });

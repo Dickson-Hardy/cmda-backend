@@ -14,6 +14,7 @@ import { ResourceCategory, WordPressCategories, YoutubeCategories } from './reso
 import axios from 'axios';
 import { ConfigService } from '@nestjs/config';
 import { ResourcePaginationQueryDto } from './dto/resource-pagination-query-dto';
+import { escapeRegex } from '../_common/escape-regex.util';
 
 @Injectable()
 export class ResourcesService {
@@ -72,7 +73,7 @@ export class ResourcesService {
     const currentPage = Number(page) || 1;
     // Build the search criteria
     const searchCriteria: any = {};
-    if (searchBy) searchCriteria.title = { $regex: searchBy, $options: 'i' };
+    if (searchBy) searchCriteria.title = { $regex: escapeRegex(searchBy), $options: 'i' };
     if (category) searchCriteria.category = category;
 
     const resources = await this.resourceModel

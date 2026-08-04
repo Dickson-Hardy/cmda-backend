@@ -117,23 +117,4 @@ export class PaystackFeeCalculator {
   }
 }
 
-// Example usage and testing
-export function testPaystackFeeCalculator(): void {
-  console.log('=== Paystack Fee Calculator Test ===');
 
-  const testAmounts = [4000, 5000, 10000, 15000];
-
-  testAmounts.forEach((amount) => {
-    const breakdown = PaystackFeeCalculator.getDetailedBreakdown(amount);
-
-    console.log(`\n--- Test for ₦${amount} ---`);
-    console.log(`Base Amount: ₦${breakdown.baseAmount}`);
-    console.log(`Amount to Charge User: ₦${breakdown.chargeAmount}`);
-    console.log(
-      `Paystack Fees: ₦${breakdown.fees.totalFees} (₦${breakdown.fees.percentageFee} + ₦${breakdown.fees.fixedFee})`,
-    );
-    console.log(`Net Amount Received: ₦${breakdown.verification.netAmount}`);
-    console.log(`Calculation Correct: ${breakdown.verification.isCorrect}`);
-    console.log(`Difference: ₦${breakdown.verification.difference}`);
-  });
-}

@@ -12,10 +12,6 @@ export class PaystackService {
       const apiUrl = this.configService.get('PAYSTACK_API_URL');
       const apiKey = this.configService.get('PAYSTACK_API_KEY');
 
-      console.log('Paystack API URL:', apiUrl);
-      console.log('Paystack API Key exists:', !!apiKey);
-      console.log('Transaction data:', JSON.stringify(data, null, 2));
-
       const response = await axios.post(`${apiUrl}/transaction/initialize`, data, {
         headers: {
           Authorization: `Bearer ${apiKey}`,
@@ -39,8 +35,6 @@ export class PaystackService {
     try {
       const apiUrl = this.configService.get('PAYSTACK_API_URL');
       const apiKey = this.configService.get('PAYSTACK_API_KEY');
-
-      console.log('Verifying Paystack transaction:', reference);
 
       const response = await axios.get(`${apiUrl}/transaction/verify/${reference}`, {
         headers: {
@@ -66,8 +60,6 @@ export class PaystackService {
     try {
       const apiUrl = this.configService.get('PAYSTACK_API_URL');
       const apiKey = this.configService.get('PAYSTACK_API_KEY');
-
-      console.log('Searching Paystack transactions for email:', email);
 
       const response = await axios.get(`${apiUrl}/transaction`, {
         headers: {

@@ -15,6 +15,42 @@ import { AuthGuard } from '../auth/guards/auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { UserRole } from '../users/user.constant';
+import {
+  MemberQueryDto,
+  CreateNoteDto,
+  UpdateNoteDto,
+  LogCommunicationDto,
+  CommunicationQueryDto,
+  CreateFollowUpDto,
+  UpdateFollowUpDto,
+  CompleteFollowUpDto,
+  FollowUpQueryDto,
+  CreateTicketDto,
+  UpdateTicketDto,
+  AddTicketCommentDto,
+  TicketQueryDto,
+  ActivateLifetimeDto,
+  CreateEmailTemplateDto,
+  UpdateEmailTemplateDto,
+  EmailTemplateQueryDto,
+  SendBulkEmailDto,
+  CreateTaskDto,
+  UpdateTaskDto,
+  CompleteTaskDto,
+  TaskQueryDto,
+  AnalyticsQueryDto,
+  ExportQueryDto,
+  CreateMemberManualDto,
+  BanMemberDto,
+  DeactivateMemberDto,
+  VerifyMemberDto,
+  ModerateContentDto,
+  ModerationQueryDto,
+  CreateAnnouncementDto,
+  UpdateAnnouncementDto,
+  AnnouncementQueryDto,
+  FinancialQueryDto,
+} from './dto';
 
 @Controller('member-manager')
 @UseGuards(AuthGuard, RolesGuard)
@@ -24,7 +60,7 @@ export class MemberManagerController {
 
   // Members
   @Get('members')
-  async getAllMembers(@Query() query: any) {
+  async getAllMembers(@Query() query: MemberQueryDto) {
     return this.memberManagerService.getAllMembers(query);
   }
 
@@ -39,7 +75,7 @@ export class MemberManagerController {
   }
 
   @Get('members/export')
-  async exportMembers(@Query() query: any) {
+  async exportMembers(@Query() query: ExportQueryDto) {
     return this.memberManagerService.exportMembers(query);
   }
 
@@ -50,12 +86,12 @@ export class MemberManagerController {
   }
 
   @Post('notes/:memberId')
-  async createNote(@Param('memberId') memberId: string, @Body() body: any, @Req() req: any) {
+  async createNote(@Param('memberId') memberId: string, @Body() body: CreateNoteDto, @Req() req: any) {
     return this.memberManagerService.createNote(memberId, body, req.user._id);
   }
 
   @Patch('notes/:noteId')
-  async updateNote(@Param('noteId') noteId: string, @Body() body: any) {
+  async updateNote(@Param('noteId') noteId: string, @Body() body: UpdateNoteDto) {
     return this.memberManagerService.updateNote(noteId, body);
   }
 
@@ -66,7 +102,7 @@ export class MemberManagerController {
 
   // Communications
   @Get('communications')
-  async getAllCommunications(@Query() query: any) {
+  async getAllCommunications(@Query() query: CommunicationQueryDto) {
     return this.memberManagerService.getAllCommunications(query);
   }
 
@@ -76,13 +112,13 @@ export class MemberManagerController {
   }
 
   @Post('communications')
-  async logCommunication(@Body() body: any, @Req() req: any) {
+  async logCommunication(@Body() body: LogCommunicationDto, @Req() req: any) {
     return this.memberManagerService.logCommunication(body, req.user._id);
   }
 
   // Follow-ups
   @Get('follow-ups')
-  async getAllFollowUps(@Query() query: any) {
+  async getAllFollowUps(@Query() query: FollowUpQueryDto) {
     return this.memberManagerService.getAllFollowUps(query);
   }
 
@@ -92,23 +128,23 @@ export class MemberManagerController {
   }
 
   @Post('follow-ups')
-  async createFollowUp(@Body() body: any, @Req() req: any) {
+  async createFollowUp(@Body() body: CreateFollowUpDto, @Req() req: any) {
     return this.memberManagerService.createFollowUp(body, req.user._id);
   }
 
   @Patch('follow-ups/:id')
-  async updateFollowUp(@Param('id') id: string, @Body() body: any) {
+  async updateFollowUp(@Param('id') id: string, @Body() body: UpdateFollowUpDto) {
     return this.memberManagerService.updateFollowUp(id, body);
   }
 
   @Patch('follow-ups/:id/complete')
-  async completeFollowUp(@Param('id') id: string, @Body() body: any) {
+  async completeFollowUp(@Param('id') id: string, @Body() body: CompleteFollowUpDto) {
     return this.memberManagerService.completeFollowUp(id, body);
   }
 
   // Tickets
   @Get('tickets')
-  async getAllTickets(@Query() query: any) {
+  async getAllTickets(@Query() query: TicketQueryDto) {
     return this.memberManagerService.getAllTickets(query);
   }
 
@@ -118,17 +154,17 @@ export class MemberManagerController {
   }
 
   @Post('tickets')
-  async createTicket(@Body() body: any, @Req() req: any) {
+  async createTicket(@Body() body: CreateTicketDto, @Req() req: any) {
     return this.memberManagerService.createTicket(body, req.user._id);
   }
 
   @Patch('tickets/:id')
-  async updateTicket(@Param('id') id: string, @Body() body: any) {
+  async updateTicket(@Param('id') id: string, @Body() body: UpdateTicketDto) {
     return this.memberManagerService.updateTicket(id, body);
   }
 
   @Post('tickets/:ticketId/comments')
-  async addTicketComment(@Param('ticketId') ticketId: string, @Body() body: any, @Req() req: any) {
+  async addTicketComment(@Param('ticketId') ticketId: string, @Body() body: AddTicketCommentDto, @Req() req: any) {
     return this.memberManagerService.addTicketComment(ticketId, body, req.user._id);
   }
 
@@ -139,13 +175,13 @@ export class MemberManagerController {
   }
 
   @Post('subscriptions/activate-lifetime/:userId')
-  async activateLifetimeMembership(@Param('userId') userId: string, @Body() body: any) {
+  async activateLifetimeMembership(@Param('userId') userId: string, @Body() body: ActivateLifetimeDto) {
     return this.memberManagerService.activateLifetimeMembership(userId, body);
   }
 
   // Email Templates
   @Get('email-templates')
-  async getAllEmailTemplates(@Query() query: any) {
+  async getAllEmailTemplates(@Query() query: EmailTemplateQueryDto) {
     return this.memberManagerService.getAllEmailTemplates(query);
   }
 
@@ -155,12 +191,12 @@ export class MemberManagerController {
   }
 
   @Post('email-templates')
-  async createEmailTemplate(@Body() body: any, @Req() req: any) {
+  async createEmailTemplate(@Body() body: CreateEmailTemplateDto, @Req() req: any) {
     return this.memberManagerService.createEmailTemplate(body, req.user._id);
   }
 
   @Patch('email-templates/:id')
-  async updateEmailTemplate(@Param('id') id: string, @Body() body: any, @Req() req: any) {
+  async updateEmailTemplate(@Param('id') id: string, @Body() body: UpdateEmailTemplateDto, @Req() req: any) {
     return this.memberManagerService.updateEmailTemplate(id, body, req.user._id);
   }
 
@@ -171,13 +207,13 @@ export class MemberManagerController {
 
   // Bulk Email
   @Post('bulk-email')
-  async sendBulkEmail(@Body() body: any, @Req() req: any) {
+  async sendBulkEmail(@Body() body: SendBulkEmailDto, @Req() req: any) {
     return this.memberManagerService.sendBulkEmail(body, req.user._id);
   }
 
   // Tasks
   @Get('tasks')
-  async getAllTasks(@Query() query: any) {
+  async getAllTasks(@Query() query: TaskQueryDto) {
     return this.memberManagerService.getAllTasks(query);
   }
 
@@ -192,17 +228,17 @@ export class MemberManagerController {
   }
 
   @Post('tasks')
-  async createTask(@Body() body: any, @Req() req: any) {
+  async createTask(@Body() body: CreateTaskDto, @Req() req: any) {
     return this.memberManagerService.createTask(body, req.user._id);
   }
 
   @Patch('tasks/:id')
-  async updateTask(@Param('id') id: string, @Body() body: any) {
+  async updateTask(@Param('id') id: string, @Body() body: UpdateTaskDto) {
     return this.memberManagerService.updateTask(id, body);
   }
 
   @Patch('tasks/:id/complete')
-  async completeTask(@Param('id') id: string, @Body() body: any) {
+  async completeTask(@Param('id') id: string, @Body() body: CompleteTaskDto) {
     return this.memberManagerService.completeTask(id, body);
   }
 
@@ -213,7 +249,7 @@ export class MemberManagerController {
 
   // Analytics & Reports
   @Get('analytics/detailed')
-  async getDetailedAnalytics(@Query() query: any) {
+  async getDetailedAnalytics(@Query() query: AnalyticsQueryDto) {
     return this.memberManagerService.getDetailedAnalytics(query);
   }
 
@@ -224,57 +260,57 @@ export class MemberManagerController {
 
   // CSV Export
   @Get('export/members/csv')
-  async exportMembersToCSV(@Query() query: any) {
+  async exportMembersToCSV(@Query() query: ExportQueryDto) {
     return this.memberManagerService.exportMembersToCSV(query);
   }
 
   // Manual Member Creation
   @Post('members/create')
-  async createMemberManually(@Body() body: any, @Req() req: any) {
+  async createMemberManually(@Body() body: CreateMemberManualDto, @Req() req: any) {
     return this.memberManagerService.createMemberManually(body, req.user._id);
   }
 
   // Ban/Deactivate Member
   @Patch('members/:memberId/ban')
-  async banMember(@Param('memberId') memberId: string, @Body() body: any, @Req() req: any) {
+  async banMember(@Param('memberId') memberId: string, @Body() body: BanMemberDto, @Req() req: any) {
     return this.memberManagerService.banMember(memberId, body, req.user._id);
   }
 
   @Patch('members/:memberId/deactivate')
-  async deactivateMember(@Param('memberId') memberId: string, @Body() body: any) {
+  async deactivateMember(@Param('memberId') memberId: string, @Body() body: DeactivateMemberDto) {
     return this.memberManagerService.deactivateMember(memberId, body);
   }
 
   // Member Verification
   @Patch('members/:memberId/verify')
-  async verifyMember(@Param('memberId') memberId: string, @Body() body: any, @Req() req: any) {
+  async verifyMember(@Param('memberId') memberId: string, @Body() body: VerifyMemberDto, @Req() req: any) {
     return this.memberManagerService.verifyMember(memberId, body, req.user._id);
   }
 
   @Get('members/pending-verification')
-  async getPendingVerifications(@Query() query: any) {
+  async getPendingVerifications(@Query() query: MemberQueryDto) {
     return this.memberManagerService.getPendingVerifications(query);
   }
 
   // Content Moderation
   @Get('moderation/reported-content')
-  async getReportedContent(@Query() query: any) {
+  async getReportedContent(@Query() query: ModerationQueryDto) {
     return this.memberManagerService.getReportedContent(query);
   }
 
   @Post('moderation/moderate')
-  async moderateContent(@Body() body: any, @Req() req: any) {
+  async moderateContent(@Body() body: ModerateContentDto, @Req() req: any) {
     return this.memberManagerService.moderateContent(body, req.user._id);
   }
 
   @Get('moderation/logs')
-  async getModerationLogs(@Query() query: any) {
+  async getModerationLogs(@Query() query: ModerationQueryDto) {
     return this.memberManagerService.getModerationLogs(query);
   }
 
   // Announcements/Pop-ups
   @Get('announcements')
-  async getAllAnnouncements(@Query() query: any) {
+  async getAllAnnouncements(@Query() query: AnnouncementQueryDto) {
     return this.memberManagerService.getAllAnnouncements(query);
   }
 
@@ -284,12 +320,12 @@ export class MemberManagerController {
   }
 
   @Post('announcements')
-  async createAnnouncement(@Body() body: any, @Req() req: any) {
+  async createAnnouncement(@Body() body: CreateAnnouncementDto, @Req() req: any) {
     return this.memberManagerService.createAnnouncement(body, req.user._id);
   }
 
   @Patch('announcements/:id')
-  async updateAnnouncement(@Param('id') id: string, @Body() body: any) {
+  async updateAnnouncement(@Param('id') id: string, @Body() body: UpdateAnnouncementDto) {
     return this.memberManagerService.updateAnnouncement(id, body);
   }
 
@@ -300,12 +336,12 @@ export class MemberManagerController {
 
   // Financial Reports
   @Get('reports/financial')
-  async getFinancialReports(@Query() query: any) {
+  async getFinancialReports(@Query() query: FinancialQueryDto) {
     return this.memberManagerService.getFinancialReports(query);
   }
 
   @Get('export/financial/csv')
-  async exportFinancialData(@Query() query: any) {
+  async exportFinancialData(@Query() query: FinancialQueryDto) {
     return this.memberManagerService.exportFinancialData(query);
   }
 

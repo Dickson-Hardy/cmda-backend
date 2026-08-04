@@ -6,6 +6,7 @@ import { DonationsService } from '../donations/donations.service';
 import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 import { EventsService } from '../events/events.service';
 import { OrdersService } from '../orders/orders.service';
+import { PaystackWebhookDto } from './dto/paystack-webhook.dto';
 
 @Controller('paystack')
 export class PaystackController {
@@ -24,7 +25,7 @@ export class PaystackController {
   @Post('webhook')
   @Public()
   async handleWebhook(
-    @Body() payload: any, // Extract request body
+    @Body() payload: PaystackWebhookDto,
     @Headers('x-paystack-signature') signature: string, // Extract signature
   ) {
     try {
@@ -37,11 +38,8 @@ export class PaystackController {
         throw new HttpException('Invalid signature', HttpStatus.UNAUTHORIZED);
       }
 
-      console.log('🔔 Paystack Webhook Received:', payload.event);
-
       if (payload.event === 'charge.success') {
         const [reference, desc] = [payload.data.reference, payload.data.metadata.desc];
-        console.log('✅ Payment Successful:', { reference, desc });
         if (desc === 'DONATION') {
           await this.donationsService.create({ reference, source: 'PAYSTACK' });
         }

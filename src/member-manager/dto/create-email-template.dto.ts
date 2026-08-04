@@ -1,15 +1,19 @@
-import { IsString, IsEnum, IsArray, IsOptional, IsBoolean } from 'class-validator';
+import { IsNotEmpty, IsString, IsEnum, IsArray, IsOptional, IsBoolean } from 'class-validator';
 
 export class CreateEmailTemplateDto {
+  @IsNotEmpty()
   @IsString()
   name: string;
 
+  @IsNotEmpty()
   @IsString()
   subject: string;
 
+  @IsNotEmpty()
   @IsString()
   body: string;
 
+  @IsNotEmpty()
   @IsEnum(['welcome', 'renewal', 'follow-up', 'event', 'general', 'announcement', 'newsletter'])
   category: string;
 

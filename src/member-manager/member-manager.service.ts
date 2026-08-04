@@ -15,6 +15,7 @@ import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 import { EmailService } from '../email/email.service';
 import { ChatLog } from '../chats/schema/chat-log.schema';
 import { Message } from '../chats/schema/message.schema';
+import { escapeRegex } from '../_common/escape-regex.util';
 
 @Injectable()
 export class MemberManagerService {
@@ -42,9 +43,9 @@ export class MemberManagerService {
     const filter: any = {};
     if (searchBy) {
       filter.$or = [
-        { fullName: { $regex: searchBy, $options: 'i' } },
-        { email: { $regex: searchBy, $options: 'i' } },
-        { membershipId: { $regex: searchBy, $options: 'i' } },
+        { fullName: { $regex: escapeRegex(searchBy), $options: 'i' } },
+        { email: { $regex: escapeRegex(searchBy), $options: 'i' } },
+        { membershipId: { $regex: escapeRegex(searchBy), $options: 'i' } },
       ];
     }
     if (role) filter.role = role;

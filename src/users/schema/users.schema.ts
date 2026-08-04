@@ -122,7 +122,13 @@ export class User extends Document {
   verificationCode: string;
 
   @Prop()
+  verificationCodeExpires: Date;
+
+  @Prop()
   passwordResetToken: string;
+
+  @Prop()
+  passwordResetTokenExpires: Date;
 
   @Prop({ type: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Vacancy' }] })
   volunteerships: Vacancy[];
