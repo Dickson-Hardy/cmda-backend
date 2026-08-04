@@ -43,6 +43,18 @@ export class Subscription extends Document {
 
   @Prop({ default: false })
   isVisionPartner?: boolean; // for donations/vision partners
+
+  @Prop({ default: false })
+  cancelled: boolean;
+
+  @Prop()
+  cancelledAt: Date;
+
+  @Prop({ default: false })
+  autoRenew: boolean;
+
+  @Prop()
+  nextBillingDate: Date;
 }
 
 export const SubscriptionShema = SchemaFactory.createForClass(Subscription);

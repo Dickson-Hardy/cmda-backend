@@ -1,10 +1,11 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Req } from '@nestjs/common';
 import { ApiBearerAuth, ApiBody, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { ResourcesService } from './resources.service';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { AllAdminRoles } from '../admin/admin.constant';
 import { CreateResourceFromUrlDto } from './dto/create-resource-from-url.dto';
 import { ResourcePaginationQueryDto } from './dto/resource-pagination-query-dto';
+import { IJwtPayload } from '../_global/interface/jwt-payload';
 
 @ApiTags('Resources')
 @Controller('resources')
@@ -32,6 +33,13 @@ export class ResourcesController {
   @ApiOperation({ summary: 'Returns total count for each resource category' })
   getStats() {
     return this.resourcesService.getStats();
+  }
+
+  @Get(':slug/download')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get download info for a resource' })
+  getResourceForDownload(@Param('slug') slug: string, @Req() req: { user: IJwtPayload }) {
+    return this.resourcesService.getResourceForDownload(slug, req.user.id);
   }
 
   @Get(':slug')

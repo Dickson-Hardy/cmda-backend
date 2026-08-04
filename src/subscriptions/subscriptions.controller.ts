@@ -97,6 +97,30 @@ export class SubscriptionsController {
     return this.subscriptionsService.activateLifetime(userId, body.isNigerian, body.lifetimeType);
   }
 
+  @Post('cancel')
+  @Roles(AllUserRoles)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Cancel current user subscription' })
+  cancelSubscription(@Req() req: { user: IJwtPayload }) {
+    return this.subscriptionsService.cancelSubscription(req.user.id);
+  }
+
+  @Post('renew')
+  @Roles(AllUserRoles)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Renew current user subscription' })
+  renewSubscription(@Req() req: { user: IJwtPayload }) {
+    return this.subscriptionsService.renewSubscription(req.user.id);
+  }
+
+  @Get('status')
+  @Roles(AllUserRoles)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get current user subscription status' })
+  getSubscriptionStatus(@Req() req: { user: IJwtPayload }) {
+    return this.subscriptionsService.getSubscriptionStatus(req.user.id);
+  }
+
   @Get('stats')
   @Roles(AllAdminRoles)
   @ApiBearerAuth()

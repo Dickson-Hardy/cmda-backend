@@ -15,6 +15,7 @@ import { RolesGuard } from './auth/guards/roles.guard';
 import { DevotionalsModule } from './devotionals/devotionals.module';
 import { FaithEntryModule } from './faithentry/faithentry.module';
 import { VacancyModule } from './vacancy/vacancy.module';
+import { VolunteersModule } from './volunteers/volunteers.module';
 import { EmailModule } from './email/email.module';
 import { ChatsModule } from './chats/chats.module';
 import { CloudinaryModule } from './cloudinary/cloudinary.module';
@@ -34,6 +35,7 @@ import { ProjectDeliverablesModule } from './project-deliverables/project-delive
 import { DevelopmentInvoicesModule } from './development-invoices/development-invoices.module';
 import { ServiceSubscriptionsModule } from './service-subscriptions/service-subscriptions.module';
 import { ChaptersModule } from './chapters/chapters.module';
+import { CommentsReactionsModule } from './comments-reactions/comments-reactions.module';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 
 @Module({
@@ -60,7 +62,7 @@ import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
     ProductsModule,
     DevotionalsModule,
     FaithEntryModule,
-    VacancyModule,
+    VolunteersModule,
     EmailModule,
     ChatsModule,
     CloudinaryModule,
@@ -80,6 +82,7 @@ import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
     ProjectDeliverablesModule,
     ServiceSubscriptionsModule,
     ChaptersModule,
+    CommentsReactionsModule,
   ],
   controllers: [AppController],
   providers: [

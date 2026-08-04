@@ -30,6 +30,18 @@ export class Resource extends Document {
 
   @Prop()
   publishedAt: Date;
+
+  @Prop({ default: '' })
+  fileUrl: string;
+
+  @Prop({ default: '' })
+  fileType: string;
+
+  @Prop({ default: 0 })
+  fileSize: number;
+
+  @Prop({ default: 0 })
+  downloadCount: number;
 }
 
 export const ResourceSchema = SchemaFactory.createForClass(Resource);

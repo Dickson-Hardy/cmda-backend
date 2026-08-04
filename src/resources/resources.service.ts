@@ -161,6 +161,56 @@ export class ResourcesService {
     };
   }
 
+  async getResourceForDownload(
+    slug: string,
+    userId: string,
+  ): Promise<ISuccessResponse> {
+    const resource = await this.resourceModel.findOne({ slug });
+    if (!resource) throw new NotFoundException('Resource with slug does not exist');
+
+    if (!resource.fileUrl && !resource.sourceUrl) {
+      throw new NotFoundException('No downloadable file available for this resource');
+    }
+
+    if (resource.sourceUrl && !resource.fileUrl) {
+      const isYouTube = resource.sourceUrl.includes('youtube') || resource.sourceUrl.includes('youtu.be');
+      const isWordPress = resource.sourceUrl.includes('wp-content') || resource.sourceUrl.includes('wordpress');
+      if (isYouTube || isWordPress) {
+        throw new BadRequestException('This resource type cannot be downloaded directly');
+      }
+    }
+
+    await this.resourceModel.findByIdAndUpdate(resource._id, {
+      $inc: { downloadCount: 1 },
+    });
+
+    return {
+      success: true,
+      message: 'Download info fetched successfully',
+      data: {
+        fileUrl: resource.fileUrl || resource.sourceUrl,
+        fileType: resource.fileType || '',
+        fileSize: resource.fileSize || 0,
+        title: resource.title,
+      },
+    };
+  }
+
+  async trackDownload(slug: string): Promise<ISuccessResponse> {
+    const resource = await this.resourceModel.findOneAndUpdate(
+      { slug },
+      { $inc: { downloadCount: 1 } },
+      { new: true },
+    );
+    if (!resource) throw new NotFoundException('Resource with slug does not exist');
+
+    return {
+      success: true,
+      message: 'Download tracked successfully',
+      data: { downloadCount: resource.downloadCount },
+    };
+  }
+
   private async fetchWordPressPost(url: string): Promise<Partial<Resource>> {
     try {
       const wordPressSource = this.config.get('WORDPRESS_SOURCE');

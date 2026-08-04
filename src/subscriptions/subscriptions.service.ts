@@ -981,6 +981,63 @@ export class SubscriptionsService {
       data: subscription,
     };
   }
+  async cancelSubscription(userId: string): Promise<ISuccessResponse> {
+    const subscription = await this.subscriptionModel.findOne({
+      user: userId,
+      isPaid: true,
+      cancelled: { $ne: true },
+    });
+
+    if (!subscription) {
+      throw new NotFoundException('No active subscription found to cancel');
+    }
+
+    subscription.cancelled = true;
+    subscription.cancelledAt = new Date();
+    subscription.autoRenew = false;
+    await subscription.save();
+
+    return {
+      success: true,
+      message: 'Subscription cancelled successfully',
+      data: subscription,
+    };
+  }
+
+  async renewSubscription(userId: string): Promise<ISuccessResponse> {
+    return this.init(userId);
+  }
+
+  async getSubscriptionStatus(userId: string): Promise<ISuccessResponse> {
+    const subscription = await this.subscriptionModel
+      .findOne({ user: userId, isPaid: true })
+      .sort({ createdAt: -1 });
+
+    if (!subscription) {
+      throw new NotFoundException('No subscription found for this user');
+    }
+
+    const now = new Date();
+    const expiryDate = subscription.expiryDate;
+    const isActive = expiryDate > now && !subscription.cancelled;
+    const daysUntilExpiry = expiryDate
+      ? Math.max(0, Math.ceil((expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)))
+      : 0;
+
+    return {
+      success: true,
+      message: 'Subscription status fetched successfully',
+      data: {
+        isActive,
+        expiryDate,
+        cancelled: subscription.cancelled || false,
+        autoRenew: subscription.autoRenew || false,
+        nextBillingDate: subscription.nextBillingDate || null,
+        daysUntilExpiry,
+      },
+    };
+  }
+
   async syncPaymentStatus(userId: string, reference: string): Promise<ISuccessResponse> {
     try {
       // Check if subscription already exists with this reference
