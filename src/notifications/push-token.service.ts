@@ -34,11 +34,8 @@ export class PushTokenService {
     }
 
     try {
-      // Check if token already exists for another user/device and deactivate it
-      await this.pushTokenModel.updateMany(
-        { token, $or: [{ userId: { $ne: userId } }, { deviceId: { $ne: deviceId } }] },
-        { active: false },
-      );
+      // Deactivate ALL existing entries for this token (prevents unique index conflict)
+      await this.pushTokenModel.updateMany({ token }, { active: false });
 
       // Upsert the token for this user/device combination
       const pushToken = await this.pushTokenModel.findOneAndUpdate(
