@@ -43,6 +43,7 @@ export class DonationsService {
 
     // GLOBAL NETWORK DOCTORS
     if (user.role === UserRole.GLOBALNETWORK) {
+      const paymentSuccessUrl = this.configService.get<string>('PAYMENT_SUCCESS_URL');
       donation = await this.donationModel.create({
         reference: 'UNPAID-' + randomUUID(),
         isPaid: false,
@@ -65,6 +66,12 @@ export class DonationsService {
           amount,
           quantity: 1,
         })),
+        ...(paymentSuccessUrl
+          ? {
+              returnUrl: `${paymentSuccessUrl}?type=donation&source=paypal`,
+              cancelUrl: `${paymentSuccessUrl}?type=donation&source=paypal&cancelled=true`,
+            }
+          : {}),
       });
       donation = await this.donationModel.findByIdAndUpdate(
         donation._id,

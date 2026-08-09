@@ -35,7 +35,15 @@ export class PaypalService {
   }
 
   // Method to create an order
-  async createOrder({ amount, currency, description, metadata, items }: IPaypalCreateOrder) {
+  async createOrder({
+    amount,
+    currency,
+    description,
+    metadata,
+    items,
+    returnUrl,
+    cancelUrl,
+  }: IPaypalCreateOrder) {
     const accessToken = await this.getAccessToken();
     const orderData = {
       intent: 'CAPTURE',
@@ -61,6 +69,8 @@ export class PaypalService {
         brand_name: 'CMDA Nigeria',
         user_action: 'PAY_NOW',
         shipping_preference: 'NO_SHIPPING',
+        ...(returnUrl ? { return_url: returnUrl } : {}),
+        ...(cancelUrl ? { cancel_url: cancelUrl } : {}),
       },
     };
 

@@ -221,6 +221,7 @@ export class SubscriptionsService {
 
     let transaction: any;
     if (user.role === UserRole.GLOBALNETWORK) {
+      const paymentSuccessUrl = this.configService.get<string>('PAYMENT_SUCCESS_URL');
       // Determine the appropriate PayPal description type
       const paypalDescription: 'DONATION' | 'SUBSCRIPTION' =
         subscriptionData?.selectedTab === 'donations' ? 'DONATION' : 'SUBSCRIPTION';
@@ -250,6 +251,12 @@ export class SubscriptionsService {
             amount,
           },
         ],
+        ...(paymentSuccessUrl
+          ? {
+              returnUrl: `${paymentSuccessUrl}?type=subscription&source=paypal`,
+              cancelUrl: `${paymentSuccessUrl}?type=subscription&source=paypal&cancelled=true`,
+            }
+          : {}),
       };
 
       transaction = await this.paypalService.createOrder(orderData);
