@@ -111,13 +111,23 @@ export class PaypalService {
     }
   }
 
+  async captureOrGetCompletedOrder(orderId: string) {
+    const capturedOrder = await this.captureOrder(orderId);
+    if (capturedOrder?.status === 'COMPLETED') {
+      return capturedOrder;
+    }
+
+    const existingOrder = await this.getOrderDetails(orderId);
+    return existingOrder?.status === 'COMPLETED' ? existingOrder : capturedOrder || existingOrder;
+  }
+
   // Method to get order details
   async getOrderDetails(orderId: string) {
     if (!orderId || orderId === 'null' || orderId === 'undefined') {
       console.error('ERR: Invalid orderId provided to getOrderDetails:', orderId);
       return null;
     }
-    
+
     try {
       const accessToken = await this.getAccessToken();
       const response = await axios.get(`${this.baseUrl}/v2/checkout/orders/${orderId}`, {

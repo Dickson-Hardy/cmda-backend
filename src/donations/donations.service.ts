@@ -1,9 +1,4 @@
-import {
-  ConflictException,
-  Injectable,
-  InternalServerErrorException,
-  NotFoundException,
-} from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { CreateDonationDto } from './dto/create-donation.dto';
 import { InjectModel } from '@nestjs/mongoose';
 import { User } from '../users/schema/users.schema';
@@ -71,6 +66,11 @@ export class DonationsService {
           quantity: 1,
         })),
       });
+      donation = await this.donationModel.findByIdAndUpdate(
+        donation._id,
+        { reference: transaction.id },
+        { new: true },
+      );
     } else {
       // STUDENT AND DOCTORS - Create payment intent
       const intent = await this.paymentIntentsService.createIntent({
@@ -141,18 +141,28 @@ export class DonationsService {
     };
   }
 
-  async create(createDonationDto: CreateDonationDto): Promise<ISuccessResponse> {
+  async create(
+    userId: string | undefined,
+    createDonationDto: CreateDonationDto,
+  ): Promise<ISuccessResponse> {
     const { reference, source } = createDonationDto;
     let donation: Donation;
     let user: User;
 
     const alreadyExist = await this.donationModel.findOne({ reference });
-    if (alreadyExist) {
+    if (alreadyExist?.isPaid) {
+      if (!userId) {
+        return {
+          success: true,
+          message: 'Donation payment was already confirmed',
+          data: alreadyExist,
+        };
+      }
       throw new ConflictException('Donation with this reference has already been confirmed');
     }
 
     if (source && source?.toLowerCase() === 'paypal') {
-      const transaction = await this.paypalService.captureOrder(reference);
+      const transaction = await this.paypalService.captureOrGetCompletedOrder(reference);
 
       if (transaction?.status !== 'COMPLETED') {
         throw new Error(transaction.message || 'Payment with Paypal was NOT successful');
@@ -164,6 +174,14 @@ export class DonationsService {
       const { donationId, memId } = metadata;
 
       user = await this.userModel.findOne({ membershipId: memId });
+      if (!user || (userId && user._id.toString() !== userId)) {
+        throw new NotFoundException('Donation reference not found for this user');
+      }
+
+      const pendingDonation = await this.donationModel.findById(donationId);
+      if (!pendingDonation || (userId && pendingDonation.user.toString() !== userId)) {
+        throw new NotFoundException('Donation record not found for this user');
+      }
 
       donation = await this.donationModel.findByIdAndUpdate(
         donationId,
@@ -182,9 +200,16 @@ export class DonationsService {
       } = transaction.data;
 
       user = await this.userModel.findOne({ membershipId: memId });
+      if (!user || (userId && user._id.toString() !== userId)) {
+        throw new NotFoundException('Donation reference not found for this user');
+      }
 
       // Update existing intent if it exists, otherwise create new
       if (donationId) {
+        const pendingDonation = await this.donationModel.findById(donationId);
+        if (!pendingDonation || (userId && pendingDonation.user.toString() !== userId)) {
+          throw new NotFoundException('Donation record not found for this user');
+        }
         donation = await this.donationModel.findByIdAndUpdate(
           donationId,
           { reference, isPaid: true },
@@ -210,15 +235,13 @@ export class DonationsService {
       }
     }
 
-    const res = await this.emailService.sendDonationConfirmedEmail({
-      name: user.fullName,
-      email: user.email,
-    });
-
-    if (!res.success) {
-      throw new InternalServerErrorException(
-        'Donation confirmed. Error occured while sending email',
-      );
+    try {
+      await this.emailService.sendDonationConfirmedEmail({
+        name: user.fullName,
+        email: user.email,
+      });
+    } catch (emailError) {
+      console.error('Failed to send donation confirmation email:', emailError);
     }
 
     return {
@@ -244,7 +267,7 @@ export class DonationsService {
         { reference: { $regex: escapeRegex(searchBy), $options: 'i' } },
         !isNaN(searchNumber) ? { totalAmount: searchNumber } : false,
       ].filter(Boolean);
-      
+
       // Combine isPaid filter with search conditions
       searchCriteria.$and = [
         { $or: [{ isPaid: true }, { isPaid: { $exists: false } }] },
@@ -319,7 +342,7 @@ export class DonationsService {
         { reference: { $regex: escapeRegex(searchBy), $options: 'i' } },
         !isNaN(searchNumber) ? { totalAmount: searchNumber } : false,
       ].filter(Boolean);
-      
+
       // Combine isPaid filter with search conditions
       searchCriteria.$and = [
         { $or: [{ isPaid: true }, { isPaid: { $exists: false } }] },
@@ -518,114 +541,104 @@ export class DonationsService {
     };
   }
   async syncPaymentStatus(userId: string, reference: string): Promise<ISuccessResponse> {
-    try {
-      // Skip verification for unpaid placeholder references (UNPAID-XXXXXX)
-      // These are internal references that were never sent to Paystack
-      if (reference.startsWith('UNPAID-')) {
+    if (reference.startsWith('UNPAID-')) {
+      return {
+        success: false,
+        message: 'This donation was never initiated with payment gateway',
+        data: null,
+      };
+    }
+
+    const requestedReference = reference;
+    let providerReference = reference;
+    let linkedIntent: any = null;
+
+    if (reference.startsWith('INT-')) {
+      linkedIntent = await this.paymentIntentsService.findByCode(reference);
+      if (
+        !linkedIntent ||
+        linkedIntent.userId?.toString() !== userId ||
+        linkedIntent.context !== PaymentIntentContext.DONATION
+      ) {
+        throw new NotFoundException('Donation payment intent not found for this user');
+      }
+      if (!linkedIntent.providerReference) {
         return {
           success: false,
-          message: 'This donation was never initiated with payment gateway',
+          message: 'Payment provider reference is not available yet',
+          data: null,
+        };
+      }
+      providerReference = linkedIntent.providerReference;
+    }
+
+    const existingDonation = await this.donationModel.findOne({
+      user: userId,
+      reference: { $in: [requestedReference, providerReference] },
+    });
+
+    if (existingDonation?.isPaid) {
+      return {
+        success: true,
+        message: 'Donation payment is already confirmed',
+        data: existingDonation,
+      };
+    }
+
+    const requestingUser = await this.userModel.findById(userId);
+    if (!requestingUser) {
+      throw new NotFoundException('User not found');
+    }
+
+    if (existingDonation?.source === 'PAYPAL' || requestingUser.role === UserRole.GLOBALNETWORK) {
+      const paypalOrder = await this.paypalService.captureOrGetCompletedOrder(providerReference);
+      if (paypalOrder?.status !== 'COMPLETED') {
+        return {
+          success: false,
+          message: 'Payment verification failed - PayPal order is not completed',
           data: null,
         };
       }
 
-      // Check if donation already exists with this reference
-      const existingDonation = await this.donationModel.findOne({
-        reference,
-        user: userId,
-      });
-
-      if (existingDonation) {
-        if (existingDonation.isPaid) {
-          return {
-            success: true,
-            message: 'Donation payment is already confirmed',
-            data: existingDonation,
-          };
-        }
-      } else {
-        // If donation doesn't exist, we need to verify and create it
-        const transaction = await this.paystackService.verifyTransaction(reference);
-
-        if (!transaction.status) {
-          return {
-            success: false,
-            message: 'Payment verification failed - transaction not successful',
-            data: null,
-          };
-        }
-
-        const {
-          amount,
-          metadata: { recurring, frequency, currency, areasOfNeed, memId },
-        } = transaction.data;
-
-        // Verify user
-        const user = await this.userModel.findOne({ membershipId: memId });
-        if (!user || user._id.toString() !== userId) {
-          throw new NotFoundException('User mismatch - donation reference not valid for this user');
-        }
-
-        // Create new donation
-        const newDonation = await this.donationModel.create({
-          reference,
-          totalAmount: amount / 100,
-          currency,
-          isPaid: true,
-          recurring: recurring && frequency ? true : false,
-          ...(frequency ? { frequency } : {}),
-          areasOfNeed,
-          user: userId,
-          source: 'PAYSTACK',
-        });
-
-        // Send confirmation email
-        try {
-          await this.emailService.sendDonationConfirmedEmail({
-            name: user.fullName,
-            email: user.email,
-          });
-        } catch (emailError) {
-          console.error('Failed to send donation confirmation email:', emailError);
-        }
-
-        return {
-          success: true,
-          message: 'Donation payment status synchronized successfully',
-          data: newDonation,
-        };
+      const details = paypalOrder.purchase_units?.[0]?.payments?.captures?.[0];
+      if (!details?.custom_id) {
+        throw new NotFoundException('PayPal donation metadata is missing');
       }
 
-      // If donation exists but not paid, verify and update
-      const transaction = await this.paystackService.verifyTransaction(reference);
-
-      if (!transaction.status) {
-        return {
-          success: false,
-          message: 'Payment verification failed - transaction not successful',
-          data: null,
-        };
+      let metadata: Record<string, any>;
+      try {
+        metadata = JSON.parse(Buffer.from(details.custom_id, 'base64').toString('utf-8'));
+      } catch {
+        throw new NotFoundException('PayPal donation metadata is invalid');
       }
 
-      // Update donation status
-      const updatedDonation = await this.donationModel.findByIdAndUpdate(
-        existingDonation._id,
+      if (metadata.memId !== requestingUser.membershipId) {
+        throw new NotFoundException('Donation reference not found for this user');
+      }
+
+      const targetDonation = await this.donationModel.findById(
+        metadata.donationId || existingDonation?._id,
+      );
+      if (!targetDonation || targetDonation.user.toString() !== userId) {
+        throw new NotFoundException('Donation record not found for this user');
+      }
+
+      const donation = await this.donationModel.findByIdAndUpdate(
+        targetDonation._id,
         {
+          reference: providerReference,
           isPaid: true,
-          totalAmount: transaction.data.amount / 100,
+          totalAmount: Number(details.amount?.value) || targetDonation.totalAmount,
+          currency: details.amount?.currency_code || targetDonation.currency,
         },
         { new: true },
       );
 
-      // Send confirmation email
       try {
-        const user = await this.userModel.findById(userId);
-        if (user) {
-          await this.emailService.sendDonationConfirmedEmail({
-            name: user.fullName,
-            email: user.email,
-          });
-        }
+        await this.emailService.sendDonationConfirmedEmail({
+          name: requestingUser.fullName,
+          email: requestingUser.email,
+        });
       } catch (emailError) {
         console.error('Failed to send donation confirmation email:', emailError);
       }
@@ -633,10 +646,81 @@ export class DonationsService {
       return {
         success: true,
         message: 'Donation payment status synchronized successfully',
-        data: updatedDonation,
+        data: donation,
       };
-    } catch (error) {
-      throw error;
     }
+
+    const transaction = await this.paystackService.verifyTransaction(providerReference);
+    if (!transaction.status) {
+      return {
+        success: false,
+        message: 'Payment verification failed - transaction not successful',
+        data: null,
+      };
+    }
+
+    const { amount, metadata = {} } = transaction.data;
+    const { recurring, frequency, currency, areasOfNeed, memId, donationId, intentId } = metadata;
+    const user = await this.userModel.findOne({ membershipId: memId });
+
+    if (!user || user._id.toString() !== userId) {
+      throw new NotFoundException('User mismatch - donation reference not valid for this user');
+    }
+
+    const targetDonationId = donationId || existingDonation?._id;
+    let donation: Donation;
+
+    if (targetDonationId) {
+      const targetDonation = await this.donationModel.findById(targetDonationId);
+      if (!targetDonation || targetDonation.user.toString() !== userId) {
+        throw new NotFoundException('Donation record not found for this user');
+      }
+
+      donation = await this.donationModel.findByIdAndUpdate(
+        targetDonationId,
+        {
+          reference: providerReference,
+          isPaid: true,
+          totalAmount: amount / 100,
+          currency: currency || targetDonation.currency || 'NGN',
+          recurring: recurring && frequency ? true : false,
+          ...(frequency ? { frequency } : {}),
+          ...(Array.isArray(areasOfNeed) ? { areasOfNeed } : {}),
+        },
+        { new: true },
+      );
+    } else {
+      donation = await this.donationModel.create({
+        reference: providerReference,
+        totalAmount: amount / 100,
+        currency: currency || 'NGN',
+        isPaid: true,
+        recurring: recurring && frequency ? true : false,
+        ...(frequency ? { frequency } : {}),
+        areasOfNeed,
+        user: userId,
+        source: 'PAYSTACK',
+      });
+    }
+
+    const resolvedIntentId = intentId || linkedIntent?.id;
+    if (resolvedIntentId) {
+      await this.paymentIntentsService.markAsSuccessful(resolvedIntentId, transaction.data);
+    }
+
+    try {
+      await this.emailService.sendDonationConfirmedEmail({
+        name: user.fullName,
+        email: user.email,
+      });
+    } catch (emailError) {
+      console.error('Failed to send donation confirmation email:', emailError);
+    }
+
+    return {
+      success: true,
+      message: 'Donation payment status synchronized successfully',
+      data: donation,
+    };
   }
 }

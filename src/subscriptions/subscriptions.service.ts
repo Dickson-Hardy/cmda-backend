@@ -173,7 +173,7 @@ export class SubscriptionsService {
     let lifetimeType: string | undefined;
     let incomeBracket: string | undefined;
     let isNigerianLifetime = false;
-    const targetYear = this.getCurrentYear();
+    const targetYear = this.resolveTargetYear(subscriptionData?.targetYear);
 
     // Handle Nigerian lifetime membership
     if (subscriptionData?.isNigerianLifetime && user.role !== UserRole.GLOBALNETWORK) {
@@ -331,11 +331,21 @@ export class SubscriptionsService {
           : { checkout_url: transaction.data.authorization_url },
     };
   }
-  async create(createSubscriptionDto: CreateSubscriptionDto): Promise<ISuccessResponse> {
+  async create(
+    userId: string | undefined,
+    createSubscriptionDto: CreateSubscriptionDto,
+  ): Promise<ISuccessResponse> {
     const { reference, source } = createSubscriptionDto;
 
     const alreadyExist = await this.subscriptionModel.findOne({ reference });
     if (alreadyExist) {
+      if (!userId && alreadyExist.isPaid) {
+        return {
+          success: true,
+          message: 'Subscription payment was already confirmed',
+          data: { subscription: alreadyExist },
+        };
+      }
       throw new ConflictException('Subscription with this reference has already been confirmed');
     }
 
@@ -344,7 +354,7 @@ export class SubscriptionsService {
     let expiryDate: Date;
 
     if (source && source?.toLowerCase() === 'paypal') {
-      const transaction = await this.paypalService.captureOrder(reference);
+      const transaction = await this.paypalService.captureOrGetCompletedOrder(reference);
 
       if (transaction?.status !== 'COMPLETED') {
         throw new Error(transaction.message || 'Payment with Paypal was NOT successful');
@@ -366,6 +376,12 @@ export class SubscriptionsService {
       } = metadata;
 
       user = await this.userModel.findOne({ membershipId: memId });
+      if (!user || (userId && user._id.toString() !== userId)) {
+        throw new NotFoundException('Subscription reference not found for this user');
+      }
+      const paidAt = details?.create_time || details?.update_time;
+      const paidAtDate = paidAt ? new Date(paidAt) : undefined;
+      const targetYear = this.resolveTargetYear(metadataTargetYear, paidAtDate);
 
       // Calculate expiry date based on subscription type
       if (isLifetime) {
@@ -383,13 +399,9 @@ export class SubscriptionsService {
       } else if (selectedTab === 'donations') {
         expiryDate = new Date(new Date().setMonth(new Date().getMonth() + 1));
       } else {
-        const paidAt = details?.create_time || details?.update_time;
-        const targetYear = this.resolvePaymentYear(paidAt);
         expiryDate = this.getCalendarYearExpiryDate(targetYear);
       }
 
-      const paidAt = details?.create_time || details?.update_time;
-      const targetYear = this.resolvePaymentYear(paidAt);
       const isVisionPartner = selectedTab === 'donations';
 
       subscription = await this.subscriptionModel.create({
@@ -399,7 +411,7 @@ export class SubscriptionsService {
         user: user._id,
         currency: amount.currency_code,
         source: 'PAYPAL',
-        frequency: isVisionPartner ? 'Monthly' : 'Annually',
+        frequency: isLifetime ? 'Lifetime' : isVisionPartner ? 'Monthly' : 'Annually',
         subscriptionYear: isLifetime || isVisionPartner ? undefined : targetYear,
         incomeBracket,
         isLifetime: isLifetime || false,
@@ -446,15 +458,26 @@ export class SubscriptionsService {
 
       const {
         amount,
-        metadata: { memId, currency, subscriptionId, intentId, isLifetime },
+        metadata: {
+          memId,
+          currency,
+          subscriptionId,
+          intentId,
+          isLifetime,
+          targetYear: metadataTargetYear,
+        },
       } = transaction.data;
 
       user = await this.userModel.findOne({ membershipId: memId });
+      if (!user || (userId && user._id.toString() !== userId)) {
+        throw new NotFoundException('Subscription reference not found for this user');
+      }
 
       // Set expiry date based on lifetime or calendar-year annual subscription
       const isNigerianLifetime = isLifetime === true || isLifetime === 'true';
       const paidAt = transaction?.data?.paid_at || transaction?.data?.created_at;
-      const targetYear = this.resolvePaymentYear(paidAt);
+      const paidAtDate = paidAt ? new Date(paidAt) : undefined;
+      const targetYear = this.resolveTargetYear(metadataTargetYear, paidAtDate);
       expiryDate = isNigerianLifetime
         ? new Date(
             new Date().setFullYear(
@@ -465,6 +488,10 @@ export class SubscriptionsService {
 
       // Update existing intent if it exists, otherwise create new
       if (subscriptionId) {
+        const pendingSubscription = await this.subscriptionModel.findById(subscriptionId);
+        if (!pendingSubscription || (userId && pendingSubscription.user.toString() !== userId)) {
+          throw new NotFoundException('Subscription record not found for this user');
+        }
         subscription = await this.subscriptionModel.findByIdAndUpdate(
           subscriptionId,
           {
@@ -514,36 +541,33 @@ export class SubscriptionsService {
     }
 
     // Send appropriate email based on subscription type
-    let res: { success: boolean };
-    if (user.hasLifetimeMembership && subscription.frequency === 'Lifetime') {
-      res = await this.emailService.sendLifetimeMembershipEmail({
-        name: user.fullName,
-        email: user.email,
-        membershipType:
-          user.lifetimeMembershipType === 'lifetime'
-            ? 'Nigerian Lifetime Membership'
-            : `Lifetime ${user.lifetimeMembershipType.charAt(0).toUpperCase() + user.lifetimeMembershipType.slice(1)}`,
-        years:
-          user.lifetimeMembershipType === 'lifetime'
-            ? NIGERIAN_LIFETIME_MEMBERSHIP.lifetime.years
-            : LIFETIME_MEMBERSHIPS[user.lifetimeMembershipType]?.years || 25,
-        expiryDate: user.lifetimeMembershipExpiry.toLocaleDateString('en-US', {
-          year: 'numeric',
-          month: 'long',
-          day: 'numeric',
-        }),
-      });
-    } else {
-      res = await this.emailService.sendSubscriptionConfirmedEmail({
-        name: user.fullName,
-        email: user.email,
-      });
-    }
-
-    if (!res.success) {
-      throw new InternalServerErrorException(
-        'Subscription confirmed. Error occured while sending email',
-      );
+    try {
+      if (user.hasLifetimeMembership && subscription.frequency === 'Lifetime') {
+        await this.emailService.sendLifetimeMembershipEmail({
+          name: user.fullName,
+          email: user.email,
+          membershipType:
+            user.lifetimeMembershipType === 'lifetime'
+              ? 'Nigerian Lifetime Membership'
+              : `Lifetime ${user.lifetimeMembershipType.charAt(0).toUpperCase() + user.lifetimeMembershipType.slice(1)}`,
+          years:
+            user.lifetimeMembershipType === 'lifetime'
+              ? NIGERIAN_LIFETIME_MEMBERSHIP.lifetime.years
+              : LIFETIME_MEMBERSHIPS[user.lifetimeMembershipType]?.years || 25,
+          expiryDate: user.lifetimeMembershipExpiry.toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+          }),
+        });
+      } else {
+        await this.emailService.sendSubscriptionConfirmedEmail({
+          name: user.fullName,
+          email: user.email,
+        });
+      }
+    } catch (emailError) {
+      console.error('Failed to send subscription confirmation email:', emailError);
     }
 
     return {
@@ -1040,13 +1064,36 @@ export class SubscriptionsService {
 
   async syncPaymentStatus(userId: string, reference: string): Promise<ISuccessResponse> {
     try {
+      const requestedReference = reference;
+      let providerReference = reference;
+      let linkedIntent: any = null;
+
+      if (reference.startsWith('INT-')) {
+        linkedIntent = await this.paymentIntentsService.findByCode(reference);
+        if (
+          !linkedIntent ||
+          linkedIntent.userId?.toString() !== userId ||
+          linkedIntent.context !== PaymentIntentContext.SUBSCRIPTION
+        ) {
+          throw new NotFoundException('Subscription payment intent not found for this user');
+        }
+        if (!linkedIntent.providerReference) {
+          return {
+            success: false,
+            message: 'Payment provider reference is not available yet',
+            data: null,
+          };
+        }
+        providerReference = linkedIntent.providerReference;
+      }
+
       // Check if subscription already exists with this reference
       const existingSubscription = await this.subscriptionModel.findOne({
-        reference,
+        reference: { $in: [requestedReference, providerReference] },
         user: userId,
       });
 
-      if (existingSubscription) {
+      if (existingSubscription?.isPaid) {
         return {
           success: true,
           message: 'Subscription payment is already confirmed',
@@ -1062,34 +1109,30 @@ export class SubscriptionsService {
 
       // Verify payment with payment provider
       let transaction: any;
-      let source = 'PAYSTACK';
+      const source = user.role === UserRole.GLOBALNETWORK ? 'PAYPAL' : 'PAYSTACK';
 
       try {
-        // Try Paystack first
-        transaction = await this.paystackService.verifyTransaction(reference);
-        if (!transaction.status) {
-          // If Paystack fails, try PayPal for global network users
-          if (user.role === UserRole.GLOBALNETWORK) {
-            try {
-              transaction = await this.paypalService.captureOrder(reference);
-              source = 'PAYPAL';
-              if (transaction?.status !== 'COMPLETED') {
-                throw new Error('Payment verification failed with both providers');
-              }
-            } catch (paypalError) {
-              throw new Error('Payment verification failed with both providers');
-            }
-          } else {
-            throw new Error('Payment verification failed - transaction not successful');
+        if (source === 'PAYPAL') {
+          transaction = await this.paypalService.captureOrGetCompletedOrder(providerReference);
+          if (transaction?.status !== 'COMPLETED') {
+            throw new Error('PayPal payment is not completed');
+          }
+        } else {
+          transaction = await this.paystackService.verifyTransaction(providerReference);
+          if (!transaction.status) {
+            throw new Error('Paystack payment is not successful');
           }
         }
-      } catch (error) {
-        throw new Error('Payment verification failed - unable to verify with payment providers');
+      } catch {
+        throw new BadRequestException('Payment verification failed with the configured provider');
       }
 
       // Create subscription record based on payment provider
       let newSubscription: Subscription;
       let resolvedTargetYear = this.getCurrentYear();
+      let resolvedExpiryDate = this.getCalendarYearExpiryDate(resolvedTargetYear);
+      let syncedLifetime = false;
+      let syncedLifetimeType: string | undefined;
 
       if (source === 'PAYPAL') {
         const details = transaction.purchase_units[0].payments.captures[0];
@@ -1103,51 +1146,129 @@ export class SubscriptionsService {
             metadata = {};
           }
         }
+        if (metadata.memId && metadata.memId !== user.membershipId) {
+          throw new NotFoundException('Subscription reference not found for this user');
+        }
         const paidAt = details?.create_time || details?.update_time;
-        resolvedTargetYear = this.resolvePaymentYear(paidAt);
-        const expiryDate = this.getCalendarYearExpiryDate(resolvedTargetYear);
+        const paidAtDate = paidAt ? new Date(paidAt) : undefined;
+        resolvedTargetYear = this.resolveTargetYear(metadata.targetYear, paidAtDate);
+        syncedLifetime = metadata.isLifetime === true || metadata.isLifetime === 'true';
+        syncedLifetimeType = syncedLifetime ? metadata.lifetimeType || 'gold' : undefined;
+        const isVisionPartner = metadata.selectedTab === 'donations';
 
-        newSubscription = await this.subscriptionModel.create({
-          reference,
+        if (syncedLifetime) {
+          const lifetimePlan = LIFETIME_MEMBERSHIPS[syncedLifetimeType];
+          if (!lifetimePlan) {
+            throw new BadRequestException('Invalid lifetime membership type');
+          }
+          resolvedExpiryDate = new Date(
+            new Date().setFullYear(new Date().getFullYear() + lifetimePlan.years),
+          );
+        } else if (isVisionPartner) {
+          resolvedExpiryDate = new Date(new Date().setMonth(new Date().getMonth() + 1));
+        } else {
+          resolvedExpiryDate = this.getCalendarYearExpiryDate(resolvedTargetYear);
+        }
+
+        const paypalSubscriptionData = {
+          reference: providerReference,
           amount: +amount.value,
-          expiryDate,
-          subscriptionYear: resolvedTargetYear,
+          expiryDate: resolvedExpiryDate,
+          subscriptionYear: syncedLifetime || isVisionPartner ? undefined : resolvedTargetYear,
           user: userId,
           currency: amount.currency_code,
           source: 'PAYPAL',
-          frequency: 'Annually',
+          frequency: syncedLifetime ? 'Lifetime' : isVisionPartner ? 'Monthly' : 'Annually',
+          incomeBracket: metadata.incomeBracket,
+          isLifetime: syncedLifetime,
+          lifetimeType: syncedLifetimeType,
+          isVisionPartner,
           isPaid: true,
-        });
+        };
+
+        newSubscription = existingSubscription
+          ? await this.subscriptionModel.findByIdAndUpdate(
+              existingSubscription._id,
+              paypalSubscriptionData,
+              { new: true },
+            )
+          : await this.subscriptionModel.create(paypalSubscriptionData);
       } else {
-        const { amount, metadata } = transaction.data;
+        const { amount, metadata = {} } = transaction.data;
+        if (metadata.memId && metadata.memId !== user.membershipId) {
+          throw new NotFoundException('Subscription reference not found for this user');
+        }
 
         const paidAt = transaction?.data?.paid_at || transaction?.data?.created_at;
-        resolvedTargetYear = this.resolvePaymentYear(paidAt);
-        const expiryDate = this.getCalendarYearExpiryDate(resolvedTargetYear);
+        const paidAtDate = paidAt ? new Date(paidAt) : undefined;
+        resolvedTargetYear = this.resolveTargetYear(metadata.targetYear, paidAtDate);
+        syncedLifetime = metadata.isLifetime === true || metadata.isLifetime === 'true';
+        syncedLifetimeType = syncedLifetime ? 'lifetime' : undefined;
+        resolvedExpiryDate = syncedLifetime
+          ? new Date(
+              new Date().setFullYear(
+                new Date().getFullYear() + NIGERIAN_LIFETIME_MEMBERSHIP.lifetime.years,
+              ),
+            )
+          : this.getCalendarYearExpiryDate(resolvedTargetYear);
 
-        newSubscription = await this.subscriptionModel.create({
-          reference,
-          amount: amount / 100,
-          expiryDate,
-          subscriptionYear: resolvedTargetYear,
-          user: userId,
-          currency: metadata?.currency || 'NGN',
-          source: 'PAYSTACK',
-          frequency: 'Annually',
-          isPaid: true,
-        });
+        const targetSubscriptionId = metadata.subscriptionId || existingSubscription?._id;
+        if (targetSubscriptionId) {
+          const targetSubscription = await this.subscriptionModel.findById(targetSubscriptionId);
+          if (!targetSubscription || targetSubscription.user.toString() !== userId) {
+            throw new NotFoundException('Subscription record not found for this user');
+          }
+
+          newSubscription = await this.subscriptionModel.findByIdAndUpdate(
+            targetSubscriptionId,
+            {
+              reference: providerReference,
+              amount: amount / 100,
+              expiryDate: resolvedExpiryDate,
+              subscriptionYear: syncedLifetime ? undefined : resolvedTargetYear,
+              currency: metadata.currency || targetSubscription.currency || 'NGN',
+              source: 'PAYSTACK',
+              frequency: syncedLifetime ? 'Lifetime' : 'Annually',
+              isLifetime: syncedLifetime,
+              isPaid: true,
+            },
+            { new: true },
+          );
+        } else {
+          newSubscription = await this.subscriptionModel.create({
+            reference: providerReference,
+            amount: amount / 100,
+            expiryDate: resolvedExpiryDate,
+            subscriptionYear: syncedLifetime ? undefined : resolvedTargetYear,
+            user: userId,
+            currency: metadata.currency || 'NGN',
+            source: 'PAYSTACK',
+            frequency: syncedLifetime ? 'Lifetime' : 'Annually',
+            isLifetime: syncedLifetime,
+            isPaid: true,
+          });
+        }
+
+        const resolvedIntentId = metadata.intentId || linkedIntent?.id;
+        if (resolvedIntentId) {
+          await this.paymentIntentsService.markAsSuccessful(resolvedIntentId, transaction.data);
+        }
       }
 
       // Update user subscription status
       const hasCurrentYearCoverage = await this.hasActiveCurrentYearSubscription(userId);
-      await this.userModel.findByIdAndUpdate(
-        userId,
-        {
-          subscribed: hasCurrentYearCoverage,
-          subscriptionExpiry: this.getCalendarYearExpiryDate(resolvedTargetYear),
-        },
-        { new: true },
-      );
+      const updateData: any = {
+        subscribed: syncedLifetime ? true : hasCurrentYearCoverage,
+        subscriptionExpiry: resolvedExpiryDate,
+      };
+
+      if (syncedLifetime) {
+        updateData.hasLifetimeMembership = true;
+        updateData.lifetimeMembershipType = syncedLifetimeType;
+        updateData.lifetimeMembershipExpiry = resolvedExpiryDate;
+      }
+
+      await this.userModel.findByIdAndUpdate(userId, updateData, { new: true });
 
       // Send confirmation email
       try {

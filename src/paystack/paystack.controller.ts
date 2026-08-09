@@ -41,10 +41,10 @@ export class PaystackController {
       if (payload.event === 'charge.success') {
         const [reference, desc] = [payload.data.reference, payload.data.metadata.desc];
         if (desc === 'DONATION') {
-          await this.donationsService.create({ reference, source: 'PAYSTACK' });
+          await this.donationsService.create(undefined, { reference, source: 'PAYSTACK' });
         }
         if (desc === 'SUBSCRIPTION') {
-          await this.subscriptionsService.create({ reference, source: 'PAYSTACK' });
+          await this.subscriptionsService.create(undefined, { reference, source: 'PAYSTACK' });
         }
         if (desc === 'EVENT') {
           await this.eventsService.confirmEventPayment({ reference, source: 'PAYSTACK' });

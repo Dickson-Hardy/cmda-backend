@@ -6,7 +6,6 @@ export const ALLOWED_ORIGINS = [
   'https://cmdanigeria.net',
   'https://www.cmdanigeria.net',
   'https://admin.cmdanigeria.net',
-  'https://api.cmdanigeria.net',
 ];
 
 export const SOCKET_IO_CORS = {

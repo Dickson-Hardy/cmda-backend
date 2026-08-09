@@ -13,11 +13,12 @@ import { CONFERENCE_REGISTRATION_CONFIRMATION_TEMPLATE } from './templates/confe
 import { CONFERENCE_PAYMENT_CONFIRMATION_TEMPLATE } from './templates/conference-payment.template';
 import { CONFERENCE_UPDATE_NOTIFICATION_TEMPLATE } from './templates/conference-update.template';
 import { PASSWORD_CHANGE_REMINDER_TEMPLATE } from './templates/password-reminder.template';
+import { ConfigService } from '@nestjs/config';
 
 enum EmailPriority {
-  CRITICAL = 'critical',   // Onboarding, password resets - use Resend
-  NORMAL = 'normal',       // General notifications - use Resend if available
-  LOW = 'low',             // Birthday, reminders - use SMTP
+  CRITICAL = 'critical', // Onboarding, password resets - use Resend
+  NORMAL = 'normal', // General notifications - use Resend if available
+  LOW = 'low', // Birthday, reminders - use SMTP
 }
 
 @Injectable()
@@ -27,6 +28,7 @@ export class EmailService {
   constructor(
     private mailerService: MailerService,
     private resendFallback: ResendFallbackService,
+    private configService: ConfigService,
   ) {}
 
   /**
@@ -69,16 +71,17 @@ export class EmailService {
     return this.sendViaSmtp(to, subject, html);
   }
 
-  private async sendViaSmtp(to: string, subject: string, html: string): Promise<{ success: boolean }> {
+  private async sendViaSmtp(
+    to: string,
+    subject: string,
+    html: string,
+  ): Promise<{ success: boolean }> {
     try {
       const timeoutPromise = new Promise((_, reject) =>
         setTimeout(() => reject(new Error('SMTP timeout')), 30000),
       );
 
-      await Promise.race([
-        this.mailerService.sendMail({ to, subject, html }),
-        timeoutPromise,
-      ]);
+      await Promise.race([this.mailerService.sendMail({ to, subject, html }), timeoutPromise]);
 
       this.logger.log(`Email sent to ${to} via SMTP`);
       return { success: true };
@@ -101,7 +104,10 @@ export class EmailService {
   }
 
   async sendPasswordResetTokenEmail({ name, email, code }): Promise<{ success: boolean }> {
-    const html = PASSWORD_RESET_REQUEST_EMAIL_TEMPLATE.replace('[Name]', name).replace('[ResetToken]', code);
+    const html = PASSWORD_RESET_REQUEST_EMAIL_TEMPLATE.replace('[Name]', name).replace(
+      '[ResetToken]',
+      code,
+    );
     return this.routeEmail({
       to: email,
       subject: 'Password Reset Request',
@@ -121,7 +127,10 @@ export class EmailService {
   }
 
   async sendVerificationCodeEmail({ name, email, code }): Promise<{ success: boolean }> {
-    const html = VERIFICATION_CODE_EMAIL_TEMPLATE.replace('[Name]', name).replace('[VerificationCode]', code);
+    const html = VERIFICATION_CODE_EMAIL_TEMPLATE.replace('[Name]', name).replace(
+      '[VerificationCode]',
+      code,
+    );
     return this.routeEmail({
       to: email,
       subject: 'Complete your CMDA Nigeria registration',
@@ -130,9 +139,18 @@ export class EmailService {
     });
   }
 
-  async sendMemberCredentialsEmail({ name, email, password, userId }): Promise<{ success: boolean }> {
+  async sendMemberCredentialsEmail({
+    name,
+    email,
+    password,
+    userId,
+  }): Promise<{ success: boolean }> {
+    const publicApiUrl = (
+      this.configService.get<string>('PUBLIC_API_URL') ||
+      'https://cmdabackend-38258a63fa98.herokuapp.com'
+    ).replace(/\/$/, '');
     const trackingPixel = userId
-      ? `<img src="https://api.cmdanigeria.net/api/admin/members/track-email/${userId}" width="1" height="1" alt="" style="display:none" />`
+      ? `<img src="${publicApiUrl}/admin/members/track-email/${userId}" width="1" height="1" alt="" style="display:none" />`
       : '';
 
     const html = MEMBER_CREDENTIALS_TEMPLATE.replace('[Name]', name)
@@ -183,7 +201,15 @@ export class EmailService {
     });
   }
 
-  async sendTransitionSuccessEmal({ name, email, oldRole, newRole, licenseNumber, newRegion, specialty }): Promise<{ success: boolean }> {
+  async sendTransitionSuccessEmal({
+    name,
+    email,
+    oldRole,
+    newRole,
+    licenseNumber,
+    newRegion,
+    specialty,
+  }): Promise<{ success: boolean }> {
     const html = TRANSITION_SUCCESS_EMAIL_TEMPLATE.replace('[Name]', name)
       .replace('[TransitionFrom]', oldRole)
       .replace('[TransitionTo]', newRole)
@@ -199,7 +225,17 @@ export class EmailService {
     });
   }
 
-  async sendConferenceRegistrationConfirmationEmail({ name, email, conferenceName, conferenceType, conferenceScope, conferenceDate, conferenceVenue, registrationPeriod, conferenceUrl }): Promise<{ success: boolean }> {
+  async sendConferenceRegistrationConfirmationEmail({
+    name,
+    email,
+    conferenceName,
+    conferenceType,
+    conferenceScope,
+    conferenceDate,
+    conferenceVenue,
+    registrationPeriod,
+    conferenceUrl,
+  }): Promise<{ success: boolean }> {
     const html = CONFERENCE_REGISTRATION_CONFIRMATION_TEMPLATE.replace('[Name]', name)
       .replace(/\[ConferenceName\]/g, conferenceName)
       .replace('[ConferenceType]', conferenceType)
@@ -217,7 +253,21 @@ export class EmailService {
     });
   }
 
-  async sendConferencePaymentConfirmationEmail({ name, email, conferenceName, amountPaid, registrationPeriod, paymentMethod, transactionId, paymentDate, conferenceDate, conferenceVenue, conferenceType, conferenceScope, conferenceUrl }): Promise<{ success: boolean }> {
+  async sendConferencePaymentConfirmationEmail({
+    name,
+    email,
+    conferenceName,
+    amountPaid,
+    registrationPeriod,
+    paymentMethod,
+    transactionId,
+    paymentDate,
+    conferenceDate,
+    conferenceVenue,
+    conferenceType,
+    conferenceScope,
+    conferenceUrl,
+  }): Promise<{ success: boolean }> {
     const html = CONFERENCE_PAYMENT_CONFIRMATION_TEMPLATE.replace('[Name]', name)
       .replace(/\[ConferenceName\]/g, conferenceName)
       .replace('[AmountPaid]', amountPaid)
@@ -239,7 +289,16 @@ export class EmailService {
     });
   }
 
-  async sendConferenceUpdateNotificationEmail({ name, email, conferenceName, updateMessage, conferenceDate, conferenceVenue, conferenceType, conferenceUrl }): Promise<{ success: boolean }> {
+  async sendConferenceUpdateNotificationEmail({
+    name,
+    email,
+    conferenceName,
+    updateMessage,
+    conferenceDate,
+    conferenceVenue,
+    conferenceType,
+    conferenceUrl,
+  }): Promise<{ success: boolean }> {
     const html = CONFERENCE_UPDATE_NOTIFICATION_TEMPLATE.replace('[Name]', name)
       .replace(/\[ConferenceName\]/g, conferenceName)
       .replace('[UpdateMessage]', updateMessage)
@@ -256,7 +315,15 @@ export class EmailService {
     });
   }
 
-  async sendEmail({ to, subject, html }: { to: string; subject: string; html: string }): Promise<{ success: boolean; messageId?: string }> {
+  async sendEmail({
+    to,
+    subject,
+    html,
+  }: {
+    to: string;
+    subject: string;
+    html: string;
+  }): Promise<{ success: boolean; messageId?: string }> {
     const result = await this.routeEmail({ to, subject, html, priority: EmailPriority.NORMAL });
     return { success: result.success };
   }
@@ -281,7 +348,11 @@ export class EmailService {
     });
   }
 
-  async sendPasswordChangeReminderEmail({ name, email, createdDate }): Promise<{ success: boolean }> {
+  async sendPasswordChangeReminderEmail({
+    name,
+    email,
+    createdDate,
+  }): Promise<{ success: boolean }> {
     const html = PASSWORD_CHANGE_REMINDER_TEMPLATE.replace('[Name]', name)
       .replace('[Email]', email)
       .replace('[CreatedDate]', createdDate);
@@ -294,7 +365,13 @@ export class EmailService {
     });
   }
 
-  async sendLifetimeMembershipEmail({ name, email, membershipType, years, expiryDate }): Promise<{ success: boolean }> {
+  async sendLifetimeMembershipEmail({
+    name,
+    email,
+    membershipType,
+    years,
+    expiryDate,
+  }): Promise<{ success: boolean }> {
     const html = `
 <div style="margin: 0; padding: 0; font-family: 'Roboto', sans-serif">
 <table
@@ -339,14 +416,18 @@ export class EmailService {
                 <p style="color: #666666; font-size: 16px; line-height: 1.8; margin: 5px 0">
                     <strong>Membership Type:</strong> ${membershipType}
                 </p>
-                ${membershipType.includes('Nigerian') ? '' : `
+                ${
+                  membershipType.includes('Nigerian')
+                    ? ''
+                    : `
                 <p style="color: #666666; font-size: 16px; line-height: 1.8; margin: 5px 0">
                     <strong>Duration:</strong> ${years} years
                 </p>
                 <p style="color: #666666; font-size: 16px; line-height: 1.8; margin: 5px 0">
                     <strong>Expiry Date:</strong> ${expiryDate}
                 </p>
-                `}
+                `
+                }
             </div>
             
             <p style="color: #666666; font-size: 16px; line-height: 1.5; margin: 20px 0">
