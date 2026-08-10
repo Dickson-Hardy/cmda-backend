@@ -1032,42 +1032,6 @@ export class SubscriptionsService {
       data: subscription,
     };
   }
-  async cancelSubscription(userId: string): Promise<ISuccessResponse> {
-    const subscription = await this.subscriptionModel.findOne({
-      user: userId,
-      isPaid: true,
-      cancelled: { $ne: true },
-    });
-
-    if (!subscription) {
-      throw new NotFoundException('No active subscription found to cancel');
-    }
-
-    subscription.cancelled = true;
-    subscription.cancelledAt = new Date();
-    subscription.autoRenew = false;
-    await subscription.save();
-    void this.notificationDispatcher?.notify({
-      userId,
-      type: NotificationType.SUBSCRIPTION,
-      title: 'Subscription cancelled',
-      body: 'Auto-renewal is off. Your access remains active until the current expiry date.',
-      idempotencyKey: `subscription:${subscription._id}:cancelled`,
-      preference: 'payments',
-      data: { subscriptionId: subscription._id.toString() },
-    });
-
-    return {
-      success: true,
-      message: 'Subscription cancelled successfully',
-      data: subscription,
-    };
-  }
-
-  async renewSubscription(userId: string): Promise<ISuccessResponse> {
-    return this.init(userId);
-  }
-
   async getSubscriptionStatus(userId: string): Promise<ISuccessResponse> {
     const subscription = await this.subscriptionModel
       .findOne({ user: userId, isPaid: true })
