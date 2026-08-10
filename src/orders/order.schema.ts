@@ -46,6 +46,9 @@ export class Order extends Document {
   @Prop({ default: false })
   isPaid: boolean;
 
+  @Prop({ default: false })
+  stockDeducted: boolean;
+
   @Prop()
   source: string;
 

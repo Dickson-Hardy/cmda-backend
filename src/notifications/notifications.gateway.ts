@@ -11,7 +11,9 @@ export class NotificationsGateway {
   constructor(private readonly notificationsService: NotificationsService) {}
 
   async sendNotificationToUser(userId: string, notificationData: any) {
-    this.server.to(`user:${userId}`).emit(`newNotification_${userId}`, notificationData);
+    const room = this.server.to(`user:${userId}`);
+    room.emit('notification:new', notificationData);
+    room.emit(`newNotification_${userId}`, notificationData);
   }
 
   async broadcastNewMessageNotification({ userId, ...others }: any) {

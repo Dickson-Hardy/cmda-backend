@@ -10,9 +10,7 @@ import { PaginationQueryDto } from '../_global/dto/pagination-query.dto';
 @ApiTags('Admin Notifications')
 @Controller('admin/notifications')
 export class AdminNotificationsController {
-  constructor(
-    private readonly adminNotificationService: AdminNotificationService,
-  ) {}
+  constructor(private readonly adminNotificationService: AdminNotificationService) {}
 
   @Post()
   @Roles(AllAdminRoles)
@@ -32,6 +30,14 @@ export class AdminNotificationsController {
   @ApiOperation({ summary: 'Get notification history with pagination' })
   async getHistory(@Query() query: PaginationQueryDto) {
     return this.adminNotificationService.getHistory(query);
+  }
+
+  @Get('health')
+  @Roles(AllAdminRoles)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get notification queue and delivery health' })
+  async getDeliveryHealth() {
+    return this.adminNotificationService.getDeliveryHealth();
   }
 
   @Get(':id/stats')

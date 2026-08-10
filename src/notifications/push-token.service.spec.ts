@@ -7,9 +7,9 @@ describe('PushTokenService', () => {
       find: jest.fn((query) => {
         capturedUserQuery = query;
         return {
-          select: jest.fn().mockResolvedValue([
-            { _id: { toString: () => '674849f1e0aaf61ef50bd64b' } },
-          ]),
+          select: jest
+            .fn()
+            .mockResolvedValue([{ _id: { toString: () => '674849f1e0aaf61ef50bd64b' } }]),
         };
       }),
     };
@@ -21,20 +21,16 @@ describe('PushTokenService', () => {
         },
       ]),
     };
-    const service = new PushTokenService(
-      pushTokenModel as never,
-      userModel as never,
-    );
+    const service = new PushTokenService(pushTokenModel as never, userModel as never);
 
-    const result = await service.getTokensForTarget(
-      'user',
-      'dicksonhardy7@gmail.com',
-    );
+    const result = await service.getTokensForTarget('user', 'dicksonhardy7@gmail.com');
 
-    expect(capturedUserQuery).toEqual(expect.objectContaining({
-      isActive: { $ne: false },
-      email: 'dicksonhardy7@gmail.com',
-    }));
+    expect(capturedUserQuery).toEqual(
+      expect.objectContaining({
+        isActive: { $ne: false },
+        email: 'dicksonhardy7@gmail.com',
+      }),
+    );
     expect(result).toEqual([
       {
         userId: '674849f1e0aaf61ef50bd64b',

@@ -43,6 +43,7 @@ export class TrainingController {
   }
 
   @Patch(':id/completed')
+  @Roles(AllAdminRoles)
   @ApiBearerAuth()
   @ApiOperation({
     summary: 'Updates the completed users list of a training using an array of emails',

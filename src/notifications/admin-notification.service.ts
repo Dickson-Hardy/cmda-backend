@@ -7,9 +7,11 @@ import { CreateAdminNotificationDto } from './dto/create-admin-notification.dto'
 import { PushTokenService } from './push-token.service';
 import { ISuccessResponse } from '../_global/interface/success-response';
 import { PaginationQueryDto } from '../_global/dto/pagination-query.dto';
-import { Expo, ExpoPushMessage, ExpoPushTicket, ExpoPushReceipt } from 'expo-server-sdk';
+import { Expo, ExpoPushMessage } from 'expo-server-sdk';
 import { NotificationsService } from './notifications.service';
 import { NotificationType as InAppNotificationType } from './notification.constant';
+import { PushDelivery } from './push-delivery.schema';
+import { NotificationOutbox } from './notification-outbox.schema';
 
 interface DeliveryResult {
   success: boolean;
@@ -22,10 +24,31 @@ interface DeliveryResult {
 export class AdminNotificationService {
   private readonly logger = new Logger(AdminNotificationService.name);
   private readonly expo: Expo;
+  private readonly allowedDataKeys = new Set([
+    'type',
+    'notificationId',
+    'eventId',
+    'eventSlug',
+    'slug',
+    'orderId',
+    'paymentId',
+    'subscriptionId',
+    'donationId',
+    'trainingId',
+    'volunteerId',
+    'messageId',
+    'senderId',
+    'senderName',
+    'screen',
+  ]);
 
   constructor(
     @InjectModel(AdminNotification.name)
     private readonly adminNotificationModel: Model<AdminNotification>,
+    @InjectModel(PushDelivery.name)
+    private readonly pushDeliveryModel: Model<PushDelivery>,
+    @InjectModel(NotificationOutbox.name)
+    private readonly notificationOutboxModel: Model<NotificationOutbox>,
     private readonly pushTokenService: PushTokenService,
     private readonly notificationsService: NotificationsService,
   ) {
@@ -39,7 +62,11 @@ export class AdminNotificationService {
     messageId: string;
     content: string;
   }): Promise<{ total: number; delivered: number; failed: number }> {
-    const targetedUsers = await this.pushTokenService.getTokensForTarget('user', params.userId);
+    const targetedUsers = await this.pushTokenService.getTokensForTarget(
+      'user',
+      params.userId,
+      'newMessage',
+    );
     const tokens = targetedUsers.flatMap((user) => user.tokens);
 
     if (!tokens.length) {
@@ -50,7 +77,7 @@ export class AdminNotificationService {
     const results = await this.sendPushNotifications(
       tokens,
       `New message from ${params.senderName}`,
-      params.content.slice(0, 200),
+      'You have a new private message. Open CMDA to read it.',
       {
         type: 'message_received',
         messageId: params.messageId,
@@ -73,13 +100,12 @@ export class AdminNotificationService {
     adminId: string,
     dto: CreateAdminNotificationDto,
   ): Promise<ISuccessResponse> {
-    const { title, body, type, targetType, targetValue, scheduledAt, data } = dto;
+    const { title, body, type, targetType, targetValue, scheduledAt } = dto;
+    const data = this.sanitizeData(dto.data);
 
     // Validate target value for non-all targets
     if (targetType !== 'all' && !targetValue) {
-      throw new BadRequestException(
-        `Target value is required for target type: ${targetType}`,
-      );
+      throw new BadRequestException(`Target value is required for target type: ${targetType}`);
     }
 
     // Create the notification record
@@ -97,9 +123,7 @@ export class AdminNotificationService {
 
     // If scheduled for future, don't send now
     if (scheduledAt && new Date(scheduledAt) > new Date()) {
-      this.logger.log(
-        `Notification ${notification._id} scheduled for ${scheduledAt}`,
-      );
+      this.logger.log(`Notification ${notification._id} scheduled for ${scheduledAt}`);
       return {
         success: true,
         message: 'Notification scheduled successfully',
@@ -108,7 +132,16 @@ export class AdminNotificationService {
     }
 
     // Send immediately
-    const result = await this.sendNotification(notification._id.toString());
+    let result: AdminNotification;
+    try {
+      result = await this.sendNotification(notification._id.toString());
+    } catch (error) {
+      await this.adminNotificationModel.updateOne(
+        { _id: notification._id },
+        { $set: { processing: false }, $inc: { retryCount: 1 } },
+      );
+      throw error;
+    }
 
     return {
       success: true,
@@ -124,15 +157,37 @@ export class AdminNotificationService {
    * Send a notification to all targeted users
    */
   async sendNotification(notificationId: string): Promise<AdminNotification> {
-    const notification = await this.adminNotificationModel.findById(notificationId);
+    const staleClaim = new Date(Date.now() - 10 * 60 * 1000);
+    const notification = await this.adminNotificationModel.findOneAndUpdate(
+      {
+        _id: notificationId,
+        sent: false,
+        $or: [
+          { processing: false },
+          { processing: { $exists: false } },
+          { processingAt: { $lt: staleClaim } },
+        ],
+      },
+      { processing: true, processingAt: new Date() },
+      { new: true },
+    );
     if (!notification) {
+      const existing = await this.adminNotificationModel.findById(notificationId);
+      if (existing?.sent || existing?.processing) return existing;
       throw new BadRequestException('Notification not found');
     }
 
-    // Get all tokens for the target
+    const preference = this.preferenceForType(notification.type);
+    const inAppUserIds = await this.pushTokenService.getTargetUserIds(
+      notification.targetType,
+      notification.targetValue,
+      false,
+      preference,
+    );
     const targetedUsers = await this.pushTokenService.getTokensForTarget(
       notification.targetType,
       notification.targetValue,
+      preference,
     );
 
     // The bell is backed by the Notification collection, not Expo delivery.
@@ -142,7 +197,13 @@ export class AdminNotificationService {
       type: notification.type as unknown as InAppNotificationType,
       content: notification.body,
       typeId: notification._id.toString(),
-      userIds: targetedUsers.map((user) => user.userId),
+      title: notification.title,
+      data: {
+        type: notification.type,
+        notificationId: notification._id.toString(),
+        ...notification.data,
+      },
+      userIds: inAppUserIds,
     });
 
     // Flatten all tokens
@@ -154,6 +215,7 @@ export class AdminNotificationService {
     if (allTokens.length === 0) {
       this.logger.warn(`No push tokens found for notification ${notificationId}`);
       notification.sent = true;
+      notification.processing = false;
       notification.sentAt = new Date();
       notification.deliveryStats = { total: 0, delivered: 0, failed: 0 };
       await notification.save();
@@ -170,27 +232,45 @@ export class AdminNotificationService {
         notificationId: notification._id.toString(),
         ...notification.data,
       },
+      notification._id.toString(),
     );
 
     // Update delivery stats
-    const delivered = results.filter((r) => r.success).length;
+    const accepted = results.filter((r) => r.success).length;
     const failed = results.filter((r) => !r.success).length;
-    const failedTokens = results
-      .filter((r) => !r.success)
-      .map((r) => r.token);
+    const failedTokens = results.filter((r) => !r.success).map((r) => r.token);
+
+    await this.pushDeliveryModel.bulkWrite(
+      results.map((result) => ({
+        updateOne: {
+          filter: { notificationId: notification._id.toString(), token: result.token },
+          update: {
+            $set: {
+              ticketId: result.ticketId,
+              status: result.success ? 'accepted' : 'failed',
+              error: result.error,
+            },
+            $inc: { attempts: 1 },
+          },
+          upsert: true,
+        },
+      })),
+    );
 
     notification.sent = true;
+    notification.processing = false;
     notification.sentAt = new Date();
     notification.deliveryStats = {
       total: allTokens.length,
-      delivered,
+      accepted,
+      delivered: 0,
       failed,
     };
     notification.failedTokens = failedTokens;
     await notification.save();
 
     this.logger.log(
-      `Notification ${notificationId} sent: ${delivered}/${allTokens.length} delivered`,
+      `Notification ${notificationId} accepted by Expo: ${accepted}/${allTokens.length}`,
     );
 
     return notification;
@@ -204,6 +284,7 @@ export class AdminNotificationService {
     title: string,
     body: string,
     data: Record<string, any>,
+    adminNotificationId?: string,
   ): Promise<DeliveryResult[]> {
     const results: DeliveryResult[] = [];
 
@@ -247,7 +328,12 @@ export class AdminNotificationService {
 
     // Check receipts after a delay to catch delivery failures
     if (ticketIds.length > 0) {
-      this.checkReceiptsAsync(ticketIds);
+      this.checkReceiptsAsync(
+        results.filter((result) => result.ticketId) as Required<
+          Pick<DeliveryResult, 'token' | 'ticketId'>
+        >[],
+        adminNotificationId,
+      );
     }
 
     return results;
@@ -257,30 +343,66 @@ export class AdminNotificationService {
    * Check push notification receipts asynchronously (fire-and-forget)
    * This catches devices that rejected the notification after Expo accepted it
    */
-  private async checkReceiptsAsync(ticketIds: string[]): Promise<void> {
+  private async checkReceiptsAsync(
+    deliveries: Required<Pick<DeliveryResult, 'token' | 'ticketId'>>[],
+    adminNotificationId?: string,
+  ): Promise<void> {
     try {
       // Wait 5 seconds for Expo to process receipts
       await this.sleep(5000);
 
-      const receiptChunks = this.expo.chunkPushNotificationReceiptIds(ticketIds);
-      
+      const tokenByTicket = new Map(
+        deliveries.map((delivery) => [delivery.ticketId, delivery.token]),
+      );
+      const receiptChunks = this.expo.chunkPushNotificationReceiptIds(
+        deliveries.map((delivery) => delivery.ticketId),
+      );
+
       for (const chunk of receiptChunks) {
         try {
           const receipts = await this.expo.getPushNotificationReceiptsAsync(chunk);
-          
+
+          let delivered = 0;
+          let failed = 0;
+          const failedTokens: string[] = [];
           for (const receiptId of Object.keys(receipts)) {
             const receipt = receipts[receiptId];
-            
+            if (receipt.status === 'ok') delivered++;
             if (receipt.status === 'error') {
+              failed++;
+              const failedToken = tokenByTicket.get(receiptId);
+              if (failedToken) failedTokens.push(failedToken);
               this.logger.warn(`Push receipt error for ticket ${receiptId}: ${receipt.message}`);
-              
+
               // If device is no longer registered, deactivate the token
               if (receipt.details?.error === 'DeviceNotRegistered') {
-                // Find the token associated with this ticket and deactivate it
-                // We need to look up by ticket ID in our delivery results
-                this.logger.warn(`Device not registered for ticket ${receiptId}, deactivating token`);
+                const token = tokenByTicket.get(receiptId);
+                if (token) await this.pushTokenService.deactivateToken(token);
               }
             }
+            await this.pushDeliveryModel.updateOne(
+              { ticketId: receiptId },
+              {
+                status: receipt.status === 'ok' ? 'delivered' : 'failed',
+                ...(receipt.status === 'error'
+                  ? { error: receipt.message }
+                  : { $unset: { error: 1 } }),
+              },
+            );
+          }
+          if (adminNotificationId && (delivered || failed)) {
+            await this.adminNotificationModel.updateOne(
+              { _id: adminNotificationId },
+              {
+                $inc: {
+                  'deliveryStats.delivered': delivered,
+                  'deliveryStats.failed': failed,
+                },
+                ...(failedTokens.length
+                  ? { $addToSet: { failedTokens: { $each: failedTokens } } }
+                  : {}),
+              },
+            );
           }
         } catch (error) {
           this.logger.error(`Error checking receipts: ${error.message}`);
@@ -393,11 +515,7 @@ export class AdminNotificationService {
    * Check if error indicates device/token issue
    */
   private isDeviceError(error: string): boolean {
-    const deviceErrors = [
-      'DeviceNotRegistered',
-      'InvalidCredentials',
-      'MessageTooBig',
-    ];
+    const deviceErrors = ['DeviceNotRegistered', 'InvalidCredentials', 'MessageTooBig'];
     return deviceErrors.some((e) => error.includes(e));
   }
 
@@ -463,6 +581,23 @@ export class AdminNotificationService {
     };
   }
 
+  async getDeliveryHealth(): Promise<ISuccessResponse> {
+    const [pending, processing, deadLetter, failedPushLast24Hours] = await Promise.all([
+      this.notificationOutboxModel.countDocuments({ status: 'pending' }),
+      this.notificationOutboxModel.countDocuments({ status: 'processing' }),
+      this.notificationOutboxModel.countDocuments({ status: 'dead_letter' }),
+      this.pushDeliveryModel.countDocuments({
+        status: 'failed',
+        createdAt: { $gte: new Date(Date.now() - 24 * 60 * 60 * 1000) },
+      }),
+    ]);
+    return {
+      success: true,
+      message: 'Notification delivery health fetched successfully',
+      data: { pending, processing, deadLetter, failedPushLast24Hours },
+    };
+  }
+
   /**
    * Process scheduled notifications (called by cron job every 5 minutes)
    */
@@ -472,21 +607,40 @@ export class AdminNotificationService {
 
     const scheduledNotifications = await this.adminNotificationModel.find({
       sent: false,
+      processing: { $ne: true },
       scheduledAt: { $lte: now },
     });
 
-    this.logger.log(
-      `Processing ${scheduledNotifications.length} scheduled notifications`,
-    );
+    this.logger.log(`Processing ${scheduledNotifications.length} scheduled notifications`);
 
     for (const notification of scheduledNotifications) {
       try {
         await this.sendNotification(notification._id.toString());
       } catch (error) {
+        await this.adminNotificationModel.updateOne(
+          { _id: notification._id },
+          { $set: { processing: false }, $inc: { retryCount: 1 } },
+        );
         this.logger.error(
           `Failed to send scheduled notification ${notification._id}: ${error.message}`,
         );
       }
     }
+  }
+
+  private preferenceForType(type: AdminNotification['type']): string {
+    if (type === 'event_reminder') return 'events';
+    if (type === 'payment_reminder') return 'payments';
+    return 'announcements';
+  }
+
+  private sanitizeData(data?: Record<string, unknown>): Record<string, unknown> {
+    if (!data) return {};
+    return Object.fromEntries(
+      Object.entries(data).filter(
+        ([key, value]) =>
+          this.allowedDataKeys.has(key) && ['string', 'number', 'boolean'].includes(typeof value),
+      ),
+    );
   }
 }

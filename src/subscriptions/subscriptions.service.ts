@@ -32,6 +32,8 @@ import {
   PaymentIntentProvider,
 } from '../payment-intents/payment-intent.schema';
 import { escapeRegex } from '../_common/escape-regex.util';
+import { NotificationDispatcherService } from '../notifications/notification-dispatcher.service';
+import { NotificationType } from '../notifications/notification.constant';
 
 @Injectable()
 export class SubscriptionsService {
@@ -43,6 +45,7 @@ export class SubscriptionsService {
     private configService: ConfigService,
     private emailService: EmailService,
     private paymentIntentsService: PaymentIntentsService,
+    private notificationDispatcher?: NotificationDispatcherService,
   ) {}
 
   private getCurrentYear(): number {
@@ -549,6 +552,12 @@ export class SubscriptionsService {
 
     // Send appropriate email based on subscription type
     try {
+      if (
+        (user as any).notificationPreferences?.emailNotifications === false ||
+        (user as any).notificationPreferences?.payments === false
+      ) {
+        throw new Error('NOTIFICATION_PREFERENCE_DISABLED');
+      }
       if (user.hasLifetimeMembership && subscription.frequency === 'Lifetime') {
         await this.emailService.sendLifetimeMembershipEmail({
           name: user.fullName,
@@ -574,8 +583,19 @@ export class SubscriptionsService {
         });
       }
     } catch (emailError) {
-      console.error('Failed to send subscription confirmation email:', emailError);
+      if ((emailError as Error).message !== 'NOTIFICATION_PREFERENCE_DISABLED') {
+        console.error('Failed to send subscription confirmation email:', emailError);
+      }
     }
+    void this.notificationDispatcher?.notify({
+      userId: user._id.toString(),
+      type: NotificationType.SUBSCRIPTION,
+      title: 'Membership payment confirmed',
+      body: 'Your CMDA membership subscription is active.',
+      idempotencyKey: `subscription:${subscription._id}:active`,
+      preference: 'payments',
+      data: { subscriptionId: subscription._id.toString() },
+    });
 
     return {
       success: true,
@@ -1027,6 +1047,15 @@ export class SubscriptionsService {
     subscription.cancelledAt = new Date();
     subscription.autoRenew = false;
     await subscription.save();
+    void this.notificationDispatcher?.notify({
+      userId,
+      type: NotificationType.SUBSCRIPTION,
+      title: 'Subscription cancelled',
+      body: 'Auto-renewal is off. Your access remains active until the current expiry date.',
+      idempotencyKey: `subscription:${subscription._id}:cancelled`,
+      preference: 'payments',
+      data: { subscriptionId: subscription._id.toString() },
+    });
 
     return {
       success: true,

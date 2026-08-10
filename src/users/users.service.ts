@@ -22,7 +22,6 @@ import { EmailService } from '../email/email.service';
 import { PipelineStage } from 'mongoose';
 import { CreateMemberDto } from './dto/create-member.dto';
 import { UpdateMemberDto } from './dto/update-member.dto';
-import ShortUniqueId from 'short-unique-id';
 import * as bcrypt from 'bcryptjs';
 import { EventAudience } from '../events/events.constant';
 import { escapeRegex } from '../_common/escape-regex.util';
@@ -212,15 +211,38 @@ export class UsersService {
     user: string,
     updateUserSettingsDto: UpdateUserSettingsDto,
   ): Promise<ISuccessResponse> {
-    let settings: any;
-    const exists = await this.userSettingsModel.findOne({ user });
+    const settings = await this.userSettingsModel.findOneAndUpdate(
+      { user },
+      { $set: updateUserSettingsDto, $setOnInsert: { user } },
+      { new: true, upsert: true, setDefaultsOnInsert: true },
+    );
 
-    if (exists) {
-      settings = await this.userSettingsModel.findOneAndUpdate({ user }, updateUserSettingsDto, {
-        new: true,
-      });
-    } else {
-      settings = await this.userSettingsModel.create({ ...updateUserSettingsDto, user });
+    const notificationFields = [
+      'pushNotifications',
+      'emailNotifications',
+      'events',
+      'payments',
+      'announcements',
+      'reminders',
+      'marketing',
+    ];
+    const notificationPreferences = Object.fromEntries(
+      notificationFields
+        .filter((field) => updateUserSettingsDto[field] !== undefined)
+        .map((field) => [field, updateUserSettingsDto[field]]),
+    );
+    if (Object.keys(notificationPreferences).length) {
+      await this.userModel.updateOne(
+        { _id: user },
+        {
+          $set: Object.fromEntries(
+            Object.entries(notificationPreferences).map(([field, value]) => [
+              `notificationPreferences.${field}`,
+              value,
+            ]),
+          ),
+        },
+      );
     }
 
     return {

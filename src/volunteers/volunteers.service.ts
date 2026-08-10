@@ -11,9 +11,11 @@ import { VolunteerShift } from './volunteer-shift.schema';
 import { CreateVolunteerJobDto } from './dto/create-volunteer-job.dto';
 import { UpdateVolunteerJobDto } from './dto/update-volunteer-job.dto';
 import { CreateShiftDto } from './dto/create-shift.dto';
-import { UpdateShiftStatusDto, ShiftVolunteerStatus } from './dto/update-shift-status.dto';
+import { UpdateShiftStatusDto } from './dto/update-shift-status.dto';
 import { VolunteerQueryDto } from './dto/volunteer-query.dto';
 import { ISuccessResponse } from '../_global/interface/success-response';
+import { NotificationDispatcherService } from '../notifications/notification-dispatcher.service';
+import { NotificationType } from '../notifications/notification.constant';
 
 @Injectable()
 export class VolunteersService {
@@ -22,12 +24,14 @@ export class VolunteersService {
     private volunteerJobModel: Model<VolunteerJob>,
     @InjectModel(VolunteerShift.name)
     private volunteerShiftModel: Model<VolunteerShift>,
+    private notificationDispatcher?: NotificationDispatcherService,
   ) {}
 
   // ── Job methods ────────────────────────────────────────────────────
 
   async findAllJobs(query: VolunteerQueryDto): Promise<ISuccessResponse> {
-    const { page, limit, search, category } = query;
+    const { page, limit, searchBy, category } = query;
+    const search = query.search || searchBy;
     const perPage = Number(limit) || 10;
     const currentPage = Number(page) || 1;
 
@@ -129,6 +133,15 @@ export class VolunteersService {
       },
       { new: true },
     );
+    void this.notificationDispatcher?.notify({
+      userId,
+      type: NotificationType.VOLUNTEER,
+      title: 'Volunteer application received',
+      body: `Your application for ${job.title} has been submitted.`,
+      idempotencyKey: `volunteer:${jobId}:application:${userId}`,
+      preference: 'announcements',
+      data: { volunteerId: jobId },
+    });
 
     return {
       success: true,
@@ -332,6 +345,15 @@ export class VolunteersService {
 
     shift.volunteers[volunteerIndex].status = dto.status;
     await shift.save();
+    void this.notificationDispatcher?.notify({
+      userId: dto.userId,
+      type: NotificationType.VOLUNTEER,
+      title: 'Volunteer shift updated',
+      body: `${shift.title} is now marked ${dto.status.replace('_', ' ')}.`,
+      idempotencyKey: `volunteer-shift:${shift._id}:${dto.userId}:${dto.status}`,
+      preference: 'announcements',
+      data: { volunteerId: shift._id.toString() },
+    });
 
     return {
       success: true,

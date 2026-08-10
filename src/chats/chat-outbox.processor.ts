@@ -8,6 +8,7 @@ import { User } from '../users/schema/users.schema';
 import { NotificationsGateway } from '../notifications/notifications.gateway';
 import { NotificationType } from '../notifications/notification.constant';
 import { AdminNotificationService } from '../notifications/admin-notification.service';
+import { PushTokenService } from '../notifications/push-token.service';
 
 @Injectable()
 export class ChatOutboxProcessor {
@@ -19,6 +20,7 @@ export class ChatOutboxProcessor {
     @InjectModel(User.name) private readonly userModel: Model<User>,
     private readonly notificationsGateway: NotificationsGateway,
     private readonly adminNotificationService: AdminNotificationService,
+    private readonly pushTokenService?: PushTokenService,
   ) {}
 
   @Interval(5_000)
@@ -51,19 +53,26 @@ export class ChatOutboxProcessor {
               : await this.userModel.findById(message.sender).select('fullName').lean();
           const senderName = message.sender === 'admin' ? 'Admin' : sender?.fullName || 'Someone';
 
-          await this.notificationsGateway.broadcastNewMessageNotification({
-            userId: event.receiver,
-            type: NotificationType.MESSAGE,
-            typeId: message._id.toString(),
-            content: `You have a new message from ${senderName} with body: "${message.content}"`,
-          });
-          await this.adminNotificationService.sendChatMessagePush({
-            userId: event.receiver,
-            senderId: message.sender,
-            senderName,
-            messageId: message._id.toString(),
-            content: message.content,
-          });
+          const wantsNotifications = this.pushTokenService
+            ? await this.pushTokenService.isPreferenceEnabled(event.receiver, 'newMessage')
+            : true;
+          if (wantsNotifications) {
+            await this.notificationsGateway.broadcastNewMessageNotification({
+              userId: event.receiver,
+              type: NotificationType.MESSAGE,
+              typeId: message._id.toString(),
+              title: `New message from ${senderName}`,
+              content: `You have a new private message from ${senderName}.`,
+              data: { type: 'message_received', senderId: message.sender, senderName },
+            });
+            await this.adminNotificationService.sendChatMessagePush({
+              userId: event.receiver,
+              senderId: message.sender,
+              senderName,
+              messageId: message._id.toString(),
+              content: message.content,
+            });
+          }
           await event.updateOne({
             $set: { status: 'processed', processedAt: new Date() },
             $unset: { lockedAt: 1, lastError: 1 },

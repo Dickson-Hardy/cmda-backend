@@ -1,4 +1,4 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { CreateFaithEntryDto } from './dto/create-faithentry.dto';
 import { UpdateFaithEntryDto } from './dto/update-faithentry.dto';
 import { ISuccessResponse } from '../_global/interface/success-response';
@@ -20,7 +20,8 @@ export class FaithEntryService {
 
       const faithEntry = await this.faithEntryModel.create({
         isAnonymous,
-        user: id,
+        user: isAnonymous ? null : id,
+        owner: id,
         content,
         category,
       });
@@ -28,7 +29,11 @@ export class FaithEntryService {
       return {
         success: true,
         message: `${category} created successfully`,
-        data: faithEntry,
+        data: (() => {
+          const data = faithEntry.toObject ? faithEntry.toObject() : { ...faithEntry };
+          delete data.owner;
+          return data;
+        })(),
       };
     } catch (error) {
       if (error.code === 11000) {
@@ -75,12 +80,36 @@ export class FaithEntryService {
     };
   }
 
-  async update(id: string, updateFaithEntryDto: UpdateFaithEntryDto): Promise<ISuccessResponse> {
+  async update(
+    id: string,
+    userId: string,
+    isAdmin: boolean,
+    updateFaithEntryDto: UpdateFaithEntryDto,
+  ): Promise<ISuccessResponse> {
     const { category, isAnonymous, content } = updateFaithEntryDto;
+
+    const existing = await this.faithEntryModel.findById(id).select('+owner');
+    if (!existing) {
+      throw new NotFoundException('No testimony or prayer request with such id');
+    }
+
+    const ownerId = existing.owner?.toString() || existing.user?.toString();
+    if (!isAdmin && ownerId !== userId) {
+      throw new ForbiddenException('You can only update your own Faith Entry');
+    }
+
+    const nextAnonymous = isAnonymous ?? existing.isAnonymous;
+    const update: Record<string, unknown> = {
+      user: nextAnonymous ? null : ownerId || userId,
+      owner: ownerId || userId,
+    };
+    if (content !== undefined) update.content = content;
+    if (category !== undefined) update.category = category;
+    if (isAnonymous !== undefined) update.isAnonymous = isAnonymous;
 
     const faithEntry = await this.faithEntryModel.findByIdAndUpdate(
       id,
-      { user: isAnonymous ? null : id, content, category },
+      { $set: update },
       { new: true },
     );
     if (!faithEntry) {

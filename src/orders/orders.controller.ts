@@ -32,6 +32,7 @@ export class OrdersController {
   }
 
   @Get('stats')
+  @Roles(AllAdminRoles)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Returns total count for each order status' })
   getStats() {
@@ -75,9 +76,14 @@ export class OrdersController {
   }
 
   @Get(':id')
+  @Roles([...AllUserRoles, ...AllAdminRoles])
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get an order by id' })
-  findOne(@Param('id') id: string) {
-    return this.ordersService.findOne(id);
+  findOne(@Req() req: { user: IJwtPayload }, @Param('id') id: string) {
+    return this.ordersService.findOne(
+      id,
+      req.user.id,
+      AllAdminRoles.includes(req.user.role as any),
+    );
   }
 }

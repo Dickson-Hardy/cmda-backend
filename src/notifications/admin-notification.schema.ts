@@ -36,12 +36,14 @@ export class AdminNotification extends Document {
   @Prop(
     raw({
       total: { type: Number, default: 0 },
+      accepted: { type: Number, default: 0 },
       delivered: { type: Number, default: 0 },
       failed: { type: Number, default: 0 },
     }),
   )
   deliveryStats: {
     total: number;
+    accepted?: number;
     delivered: number;
     failed: number;
   };
@@ -57,6 +59,12 @@ export class AdminNotification extends Document {
 
   @Prop({ default: 0 })
   retryCount: number;
+
+  @Prop({ default: false })
+  processing: boolean;
+
+  @Prop()
+  processingAt: Date;
 }
 
 export const AdminNotificationSchema = SchemaFactory.createForClass(AdminNotification);

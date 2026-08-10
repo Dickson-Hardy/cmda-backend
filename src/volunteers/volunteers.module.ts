@@ -4,6 +4,7 @@ import { VolunteersService } from './volunteers.service';
 import { VolunteersController } from './volunteers.controller';
 import { VolunteerJob, VolunteerJobSchema } from './volunteer-job.schema';
 import { VolunteerShift, VolunteerShiftSchema } from './volunteer-shift.schema';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
   imports: [
@@ -11,6 +12,7 @@ import { VolunteerShift, VolunteerShiftSchema } from './volunteer-shift.schema';
       { name: VolunteerJob.name, schema: VolunteerJobSchema },
       { name: VolunteerShift.name, schema: VolunteerShiftSchema },
     ]),
+    NotificationsModule,
   ],
   controllers: [VolunteersController],
   providers: [VolunteersService],

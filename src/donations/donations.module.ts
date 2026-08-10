@@ -11,6 +11,7 @@ import { PaystackModule } from '../paystack/paystack.module';
 import { EmailModule } from '../email/email.module';
 import { PaypalModule } from '../paypal/paypal.module';
 import { PaymentIntentsModule } from '../payment-intents/payment-intents.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { PaymentIntentsModule } from '../payment-intents/payment-intents.module'
     EmailModule,
     PaypalModule,
     forwardRef(() => PaymentIntentsModule),
+    NotificationsModule,
   ],
   controllers: [DonationsController],
   providers: [

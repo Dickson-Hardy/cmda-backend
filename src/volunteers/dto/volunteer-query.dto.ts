@@ -18,6 +18,11 @@ export class VolunteerQueryDto {
   @IsString()
   search?: string;
 
+  @ApiPropertyOptional({ description: 'Legacy alias for search', type: String })
+  @IsOptional()
+  @IsString()
+  searchBy?: string;
+
   @ApiPropertyOptional({ enum: VolunteerJobCategory, description: 'Filter by category' })
   @IsOptional()
   @IsEnum(VolunteerJobCategory)

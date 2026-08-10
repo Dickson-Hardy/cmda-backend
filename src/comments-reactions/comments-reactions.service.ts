@@ -1,4 +1,11 @@
-import { ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { ISuccessResponse } from '../_global/interface/success-response';
@@ -9,9 +16,16 @@ import { PersonalEvent } from './personal-event.schema';
 import { EventReminder } from './event-reminder.schema';
 import { Event } from '../events/events.schema';
 import { User } from '../users/schema/users.schema';
+import { Cron, CronExpression } from '@nestjs/schedule';
+import { EmailService } from '../email/email.service';
+import { PushTokenService } from '../notifications/push-token.service';
+import { NotificationsService } from '../notifications/notifications.service';
+import { NotificationType } from '../notifications/notification.constant';
 
 @Injectable()
 export class CommentsReactionsService {
+  private readonly logger = new Logger(CommentsReactionsService.name);
+
   constructor(
     @InjectModel(Comment.name) private commentModel: Model<Comment>,
     @InjectModel(Reaction.name) private reactionModel: Model<Reaction>,
@@ -20,6 +34,9 @@ export class CommentsReactionsService {
     @InjectModel(EventReminder.name) private reminderModel: Model<EventReminder>,
     @InjectModel(Event.name) private eventModel: Model<Event>,
     @InjectModel(User.name) private userModel: Model<User>,
+    private readonly emailService: EmailService,
+    private readonly pushTokenService: PushTokenService,
+    private readonly notificationsService: NotificationsService,
   ) {}
 
   async createComment(
@@ -135,6 +152,14 @@ export class CommentsReactionsService {
   }
 
   async submitEventFeedback(userId: string, eventId: string, rating: number, comment?: string): Promise<ISuccessResponse> {
+    const event = await this.eventModel.findOne({
+      _id: new Types.ObjectId(eventId),
+      'registeredUsers.userId': new Types.ObjectId(userId),
+    });
+    if (!event) {
+      throw new ForbiddenException('Only registered attendees can submit event feedback');
+    }
+
     const feedback = await this.feedbackModel.findOneAndUpdate(
       { user: new Types.ObjectId(userId), event: new Types.ObjectId(eventId) },
       { $set: { rating, comment: comment ?? '' } },
@@ -237,10 +262,19 @@ export class CommentsReactionsService {
 
   async createEventReminder(userId: string, eventId: string, reminderDate: string, method?: string): Promise<ISuccessResponse> {
     try {
+      const event = await this.eventModel.findById(eventId).select('eventDateTime');
+      if (!event) throw new NotFoundException('Event not found');
+      const scheduledFor = new Date(reminderDate);
+      if (Number.isNaN(scheduledFor.getTime()) || scheduledFor <= new Date()) {
+        throw new BadRequestException('Reminder date must be in the future');
+      }
+      if (event.eventDateTime && scheduledFor >= new Date(event.eventDateTime)) {
+        throw new BadRequestException('Reminder must be scheduled before the event starts');
+      }
       const reminder = await this.reminderModel.create({
         user: new Types.ObjectId(userId),
         event: new Types.ObjectId(eventId),
-        reminderDate: new Date(reminderDate),
+        reminderDate: scheduledFor,
         method: method ?? 'push',
       });
       return { success: true, message: 'Reminder created successfully', data: reminder };
@@ -249,6 +283,91 @@ export class CommentsReactionsService {
         throw new ConflictException('Reminder already exists for this event');
       }
       throw error;
+    }
+  }
+
+  @Cron(CronExpression.EVERY_MINUTE)
+  async deliverDueEventReminders(): Promise<void> {
+    const due = await this.reminderModel
+      .find({
+        sent: false,
+        reminderDate: { $lte: new Date() },
+        $or: [{ attempts: { $lt: 5 } }, { attempts: { $exists: false } }],
+      })
+      .limit(100)
+      .populate('event', '_id name eventDateTime slug')
+      .populate('user', '_id fullName email notificationPreferences');
+
+    for (const reminder of due as any[]) {
+      const claim = await this.reminderModel.updateOne(
+        { _id: reminder._id, sent: false },
+        {
+          $set: { sent: true, sentAt: new Date() },
+          $inc: { attempts: 1 },
+          $unset: { lastError: 1 },
+        },
+      );
+      if (claim.modifiedCount !== 1) continue;
+
+      try {
+        const user = reminder.user;
+        const event = reminder.event;
+        if (!user || !event) throw new Error('Reminder user or event no longer exists');
+        const preferences = user.notificationPreferences || {};
+        const title = `Event reminder: ${event.name}`;
+        const body = `${event.name} starts ${new Date(event.eventDateTime).toLocaleString('en-NG', {
+          timeZone: 'Africa/Lagos',
+        })}.`;
+        const wantsPush =
+          (reminder.method === 'push' || reminder.method === 'both') &&
+          preferences.pushNotifications !== false &&
+          preferences.reminders !== false;
+        const wantsEmail =
+          (reminder.method === 'email' || reminder.method === 'both') &&
+          preferences.emailNotifications !== false &&
+          preferences.reminders !== false;
+
+        if (preferences.reminders === false || (!wantsPush && !wantsEmail)) {
+          continue;
+        }
+
+        await this.notificationsService.create({
+          userId: user._id.toString(),
+          type: NotificationType.EVENT_REMINDER,
+          title,
+          content: body,
+          typeId: `event:${event._id}:reminder:${reminder._id}`,
+          data: { type: 'event_reminder', eventId: event._id.toString(), slug: event.slug },
+        } as any);
+
+        const results: boolean[] = [];
+        if (wantsPush) {
+          results.push(
+            await this.pushTokenService.sendToUser(user._id.toString(), title, body, {
+              type: 'event_reminder',
+              eventId: event._id.toString(),
+              slug: event.slug,
+            }, 'reminders'),
+          );
+        }
+        if (wantsEmail) {
+          const result = await this.emailService.sendReminderEmail({
+            to: user.email,
+            subject: title,
+            html: `<p>Hello ${user.fullName || 'CMDA member'},</p><p>${body}</p>`,
+          });
+          results.push(result.success);
+        }
+        if (!results.some(Boolean)) {
+          throw new Error('No enabled reminder channel could be delivered');
+        }
+      } catch (error) {
+        this.logger.error(`Failed to deliver event reminder ${reminder._id}: ${error.message}`);
+        await this.reminderModel.updateOne(
+          { _id: reminder._id },
+          { $set: { sent: false, lastError: error.message }, $unset: { sentAt: 1 } },
+        );
+      }
     }
   }
 
@@ -283,7 +402,7 @@ export class CommentsReactionsService {
 
     const users = await this.userModel
       .find({ _id: { $in: userIds } })
-      .select('_id fullName email avatarUrl membershipId');
+      .select('_id fullName email avatarUrl membershipId role region');
 
     return {
       success: true,

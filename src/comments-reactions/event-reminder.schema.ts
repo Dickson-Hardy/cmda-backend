@@ -19,6 +19,15 @@ export class EventReminder {
 
   @Prop({ default: false })
   sent: boolean;
+
+  @Prop()
+  sentAt?: Date;
+
+  @Prop()
+  lastError?: string;
+
+  @Prop({ default: 0 })
+  attempts: number;
 }
 
 export const EventReminderSchema = SchemaFactory.createForClass(EventReminder);

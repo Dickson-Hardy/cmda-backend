@@ -38,10 +38,20 @@ export class FaithEntryController {
   }
 
   @Patch(':id')
+  @Roles([...AllUserRoles, ...AllAdminRoles])
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Updates a testimony or prayer request  by id' })
-  update(@Param('id') id: string, @Body() updateFaithentryDto: UpdateFaithEntryDto) {
-    return this.faithEntryService.update(id, updateFaithentryDto);
+  update(
+    @Req() req: { user: IJwtPayload },
+    @Param('id') id: string,
+    @Body() updateFaithentryDto: UpdateFaithEntryDto,
+  ) {
+    return this.faithEntryService.update(
+      id,
+      req.user.id,
+      AllAdminRoles.includes(req.user.role as any),
+      updateFaithentryDto,
+    );
   }
 
   @Delete(':id')

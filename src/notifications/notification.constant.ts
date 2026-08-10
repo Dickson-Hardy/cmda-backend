@@ -5,4 +5,11 @@ export enum NotificationType {
   EVENT_REMINDER = 'event_reminder',
   PAYMENT_REMINDER = 'payment_reminder',
   CUSTOM = 'custom',
+  ORDER = 'order',
+  PAYMENT = 'payment',
+  SUBSCRIPTION = 'subscription',
+  DONATION = 'donation',
+  VOLUNTEER = 'volunteer',
+  TRAINING = 'training',
+  REPLY = 'reply',
 }

@@ -11,6 +11,7 @@ import { Expo } from 'expo-server-sdk';
 @Injectable()
 export class PushTokenService {
   private readonly logger = new Logger(PushTokenService.name);
+  private readonly expo = new Expo();
 
   constructor(
     @InjectModel(PushToken.name) private readonly pushTokenModel: Model<PushToken>,
@@ -20,16 +21,13 @@ export class PushTokenService {
   /**
    * Register or update a push token for a user device
    */
-  async registerToken(
-    userId: string,
-    dto: RegisterPushTokenDto,
-  ): Promise<ISuccessResponse> {
+  async registerToken(userId: string, dto: RegisterPushTokenDto): Promise<ISuccessResponse> {
     const { token, platform, deviceId } = dto;
 
     // Validate Expo push token format
     if (!Expo.isExpoPushToken(token)) {
       throw new BadRequestException(
-        `Invalid Expo push token format: ${String(token).substring(0, 20)}...`
+        `Invalid Expo push token format: ${String(token).substring(0, 20)}...`,
       );
     }
 
@@ -60,11 +58,7 @@ export class PushTokenService {
   /**
    * Update an existing push token (when token changes, e.g., app reinstall)
    */
-  async updateToken(
-    userId: string,
-    deviceId: string,
-    newToken: string,
-  ): Promise<ISuccessResponse> {
+  async updateToken(userId: string, deviceId: string, newToken: string): Promise<ISuccessResponse> {
     try {
       const result = await this.pushTokenModel.findOneAndUpdate(
         { userId, deviceId },
@@ -132,9 +126,46 @@ export class PushTokenService {
   /**
    * Get all active push tokens for a specific user
    */
-  async getTokensForUser(userId: string): Promise<string[]> {
+  async getTokensForUser(userId: string, preference?: string): Promise<string[]> {
+    if (preference) {
+      const user = await this.userModel.findById(userId).select('notificationPreferences');
+      const preferences = (user as any)?.notificationPreferences || {};
+      if (preferences.pushNotifications === false || preferences[preference] === false) {
+        return [];
+      }
+    }
     const tokens = await this.pushTokenModel.find({ userId, active: true });
     return tokens.map((t) => t.token);
+  }
+
+  async isPreferenceEnabled(userId: string, preference: string): Promise<boolean> {
+    const user = await this.userModel.findById(userId).select('notificationPreferences');
+    return (user as any)?.notificationPreferences?.[preference] !== false;
+  }
+
+  async sendToUser(
+    userId: string,
+    title: string,
+    body: string,
+    data: Record<string, unknown> = {},
+    preference?: string,
+  ): Promise<boolean> {
+    const tokens = (await this.getTokensForUser(userId, preference)).filter((token) =>
+      Expo.isExpoPushToken(token),
+    );
+    if (!tokens.length) return false;
+
+    const messages = tokens.map((to) => ({ to, sound: 'default' as const, title, body, data }));
+    const tickets = await this.expo.sendPushNotificationsAsync(messages);
+    await Promise.all(
+      tickets.map((ticket, index) => {
+        if (ticket.status === 'error' && ticket.details?.error === 'DeviceNotRegistered') {
+          return this.deactivateToken(tokens[index]);
+        }
+        return Promise.resolve();
+      }),
+    );
+    return tickets.some((ticket) => ticket.status === 'ok');
   }
 
   /**
@@ -144,11 +175,29 @@ export class PushTokenService {
   async getTokensForTarget(
     targetType: 'all' | 'role' | 'region' | 'user',
     targetValue?: string,
+    preference?: string,
   ): Promise<{ userId: string; tokens: string[] }[]> {
+    const userIds = await this.getTargetUserIds(targetType, targetValue, true, preference);
+    const tokens = await this.pushTokenModel.find({ userId: { $in: userIds }, active: true });
+    const tokensByUser = new Map<string, string[]>();
+    for (const token of tokens) {
+      const existing = tokensByUser.get(token.userId) || [];
+      existing.push(token.token);
+      tokensByUser.set(token.userId, existing);
+    }
+    return userIds.map((userId) => ({ userId, tokens: tokensByUser.get(userId) || [] }));
+  }
+
+  async getTargetUserIds(
+    targetType: 'all' | 'role' | 'region' | 'user',
+    targetValue?: string,
+    pushOnly = false,
+    preference?: string,
+  ): Promise<string[]> {
     // `isActive` was added after many production users already existed.
     // Treat only an explicit false as inactive so legacy members remain
     // targetable by email, role, region, and all-user broadcasts.
-    let userQuery: any = { isActive: { $ne: false } };
+    const userQuery: any = { isActive: { $ne: false } };
 
     switch (targetType) {
       case 'all':
@@ -199,39 +248,11 @@ export class PushTokenService {
         throw new Error(`Invalid target type: ${targetType}`);
     }
 
-    // Only include users who have push notifications enabled
-    // Handle both new users (with preferences), legacy users (without preferences),
-    // and users with empty notificationPreferences object
-    userQuery.$or = [
-      { 'notificationPreferences.pushNotifications': true },
-      { notificationPreferences: { $exists: false } }, // Legacy users
-      { notificationPreferences: {} }, // Empty preferences object
-      { 'notificationPreferences.pushNotifications': { $ne: false } }, // Not explicitly disabled
-    ];
+    if (pushOnly) userQuery['notificationPreferences.pushNotifications'] = { $ne: false };
+    if (preference) userQuery[`notificationPreferences.${preference}`] = { $ne: false };
 
     const users = await this.userModel.find(userQuery).select('_id');
-    const userIds = users.map((u) => u._id.toString());
-
-    // Get tokens for all targeted users
-    const tokens = await this.pushTokenModel.find({
-      userId: { $in: userIds },
-      active: true,
-    });
-
-    // Group tokens by user
-    const tokensByUser = new Map<string, string[]>();
-    for (const token of tokens) {
-      const existing = tokensByUser.get(token.userId) || [];
-      existing.push(token.token);
-      tokensByUser.set(token.userId, existing);
-    }
-
-    // Preserve targeted users that do not have a registered device. Admin
-    // notifications still need to appear in their in-app notification bell.
-    return userIds.map((userId) => ({
-      userId,
-      tokens: tokensByUser.get(userId) || [],
-    }));
+    return users.map((u) => u._id.toString());
   }
 
   /**

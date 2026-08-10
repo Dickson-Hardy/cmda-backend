@@ -8,8 +8,11 @@ import {
   IsEmail,
   IsPhoneNumber,
   IsOptional,
+  IsInt,
+  Min,
+  IsIn,
 } from 'class-validator';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import * as mongoose from 'mongoose';
 
 export class ProductQuantityDto {
@@ -20,7 +23,8 @@ export class ProductQuantityDto {
 
   @ApiProperty({ example: 2, description: 'The quantity of the product' })
   @IsNotEmpty()
-  @IsNumber()
+  @IsInt()
+  @Min(1)
   quantity: number;
 
   @ApiPropertyOptional({ example: 'Red', description: 'The color of the product' })
@@ -45,10 +49,13 @@ export class InitOrderDto {
   @Type(() => ProductQuantityDto)
   products: ProductQuantityDto[];
 
-  @ApiProperty({ example: 100, description: 'The total amount of the order' })
-  @IsNotEmpty()
+  @ApiPropertyOptional({
+    example: 100,
+    description: 'Legacy client estimate. The server always calculates the payable total.',
+  })
+  @IsOptional()
   @IsNumber()
-  totalAmount: number;
+  totalAmount?: number;
 
   @ApiProperty({ example: 'John Doe', description: 'The name of the shipping contact' })
   @IsNotEmpty()
@@ -78,5 +85,7 @@ export class InitOrderDto {
   @ApiProperty({ example: 'PAYPAL | PAYSTACK' })
   @IsNotEmpty()
   @IsString()
+  @Transform(({ value }) => (typeof value === 'string' ? value.toUpperCase() : value))
+  @IsIn(['PAYPAL', 'PAYSTACK'])
   source: string;
 }

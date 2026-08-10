@@ -1,4 +1,10 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
@@ -18,6 +24,8 @@ import {
   PaymentIntentContext,
   PaymentIntentProvider,
 } from '../payment-intents/payment-intent.schema';
+import { NotificationDispatcherService } from '../notifications/notification-dispatcher.service';
+import { NotificationType } from '../notifications/notification.constant';
 
 @Injectable()
 export class OrdersService {
@@ -28,11 +36,133 @@ export class OrdersService {
     private paypalService: PaypalService,
     private configService: ConfigService,
     private paymentIntentsService: PaymentIntentsService,
+    private notificationDispatcher?: NotificationDispatcherService,
   ) {}
+
+  private async priceAndValidateProducts(products: InitOrderDto['products'], currency: 'NGN' | 'USD') {
+    if (!products?.length) throw new BadRequestException('At least one product is required');
+
+    const ids = [...new Set(products.map((item) => item.product.toString()))];
+    const records = await this.productModel.find({ _id: { $in: ids } });
+    const byId = new Map(records.map((product) => [product._id.toString(), product]));
+    const normalized = [];
+    let totalAmount = 0;
+
+    for (const item of products) {
+      const product = byId.get(item.product.toString());
+      if (!product) throw new NotFoundException(`Product ${item.product} does not exist`);
+      if (!Number.isInteger(item.quantity) || item.quantity < 1) {
+        throw new BadRequestException('Product quantity must be a positive whole number');
+      }
+      if (product.stock < item.quantity) {
+        throw new ConflictException(`${product.name} does not have enough stock`);
+      }
+      if (item.size && product.sizes?.length && !product.sizes.includes(item.size)) {
+        throw new BadRequestException(`${item.size} is not a valid size for ${product.name}`);
+      }
+      if (
+        item.color &&
+        product.additionalImages?.length &&
+        !product.additionalImages.some(
+          (image) => image.color === item.color || image.name === item.color,
+        )
+      ) {
+        throw new BadRequestException(`${item.color} is not a valid color for ${product.name}`);
+      }
+
+      const unitPrice = currency === 'USD' ? product.priceUSD : product.price;
+      if (!Number.isFinite(unitPrice) || unitPrice < 0) {
+        throw new BadRequestException(`${product.name} has no valid ${currency} price`);
+      }
+      totalAmount += unitPrice * item.quantity;
+      normalized.push({
+        product: product._id,
+        quantity: item.quantity,
+        color: item.color,
+        size: item.size,
+        productDetails: product,
+      });
+    }
+
+    return { normalized, totalAmount: Math.round(totalAmount * 100) / 100 };
+  }
+
+  private assertPaymentAmount(order: Order, amount: number, currency: string) {
+    if (order.currency !== currency || Math.round(order.totalAmount * 100) !== Math.round(amount * 100)) {
+      throw new BadRequestException('Payment amount or currency does not match this order');
+    }
+  }
+
+  private async deductStockOnce(order: Order): Promise<void> {
+    const claimed = await this.orderModel.findOneAndUpdate(
+      { _id: order._id, stockDeducted: { $ne: true } },
+      { $set: { stockDeducted: true } },
+      { new: true },
+    );
+    if (!claimed) {
+      const latest = await this.orderModel.findById(order._id);
+      if (latest?.isPaid) return;
+      throw new ConflictException('This payment is already being processed');
+    }
+
+    const deducted: Array<{ product: any; quantity: number }> = [];
+    try {
+      for (const item of order.products) {
+        const updated = await this.productModel.findOneAndUpdate(
+          { _id: item.product, stock: { $gte: item.quantity } },
+          { $inc: { stock: -item.quantity } },
+          { new: true },
+        );
+        if (!updated) throw new ConflictException('One or more products are no longer in stock');
+        deducted.push({ product: item.product, quantity: item.quantity });
+      }
+    } catch (error) {
+      await Promise.all(
+        deducted.map((item) =>
+          this.productModel.updateOne({ _id: item.product }, { $inc: { stock: item.quantity } }),
+        ),
+      );
+      await this.orderModel.updateOne({ _id: order._id }, { $set: { stockDeducted: false } });
+      throw error;
+    }
+  }
+
+  private async completePayment(
+    order: Order,
+    reference: string,
+    amount: number,
+    currency: string,
+    paidAt?: string,
+  ) {
+    this.assertPaymentAmount(order, amount, currency);
+    await this.deductStockOnce(order);
+    const paidOrder = await this.orderModel.findByIdAndUpdate(
+      order._id,
+      {
+        $set: {
+          isPaid: true,
+          paymentReference: reference,
+          paymentDate: paidAt ? new Date(paidAt) : new Date(),
+        },
+      },
+      { new: true },
+    );
+    if (paidOrder) {
+      void this.notificationDispatcher?.notify({
+        userId: paidOrder.user.toString(),
+        type: NotificationType.PAYMENT,
+        title: 'Payment confirmed',
+        body: 'Your store payment was confirmed and your order is being processed.',
+        idempotencyKey: `order:${paidOrder._id}:paid`,
+        preference: 'payments',
+        data: { orderId: paidOrder._id.toString(), paymentId: reference },
+      });
+    }
+    return paidOrder;
+  }
 
   async init(id: string, initOrderDto: InitOrderDto): Promise<ISuccessResponse> {
     const {
-      totalAmount,
       products,
       shippingAddress,
       shippingContactEmail,
@@ -42,17 +172,20 @@ export class OrdersService {
     } = initOrderDto;
 
     let transaction: any;
+    const currency = source && source.toLowerCase() === 'paypal' ? 'USD' : 'NGN';
+    const { normalized, totalAmount } = await this.priceAndValidateProducts(products, currency);
+    const orderProducts = normalized.map(({ product, quantity, color, size }) => ({
+      product,
+      quantity,
+      color,
+      size,
+    }));
 
-    if (source && source.toLowerCase() === 'paypal') {
-      const productsData = [];
-      for (const prod of products) {
-        const productDetails = await this.productModel.findById(prod.product);
-        productsData.push({ ...prod, product: productDetails });
-      }
-      const items = productsData.map((item) => ({
-        name: `${item.product.name} ${item.size ? ' - ' + item.size : ''} ${item.color ? ' - ' + item.color : ''}`.trim(),
+    if (currency === 'USD') {
+      const items = normalized.map((item) => ({
+        name: `${item.productDetails.name} ${item.size ? ' - ' + item.size : ''} ${item.color ? ' - ' + item.color : ''}`.trim(),
         quantity: item.quantity,
-        amount: item.product.priceUSD,
+        amount: item.productDetails.priceUSD,
       }));
 
       const { randomUUID } = new ShortUniqueId({ length: 6, dictionary: 'alphanum_upper' });
@@ -62,7 +195,7 @@ export class OrdersService {
         totalAmount,
         source: 'PAYPAL',
         currency: 'USD',
-        products,
+        products: orderProducts,
         shippingAddress,
         shippingContactEmail,
         shippingContactName,
@@ -87,7 +220,7 @@ export class OrdersService {
         provider: PaymentIntentProvider.PAYSTACK,
         context: PaymentIntentContext.ORDER,
         contextData: {
-          products,
+          products: orderProducts,
           shippingAddress,
           shippingContactName,
           shippingContactPhone,
@@ -100,7 +233,7 @@ export class OrdersService {
         totalAmount,
         source: 'PAYSTACK',
         currency: 'NGN',
-        products,
+        products: orderProducts,
         shippingAddress,
         shippingContactEmail,
         shippingContactName,
@@ -111,12 +244,12 @@ export class OrdersService {
       await this.paymentIntentsService.linkContextEntity(intent.id, order._id.toString());
 
       transaction = await this.paystackService.initializeTransaction({
-        amount: totalAmount * 100,
+        amount: Math.round(totalAmount * 100),
         email: shippingContactEmail,
         callback_url: this.configService.get('ORDER_SUCCESS_URL'),
         metadata: JSON.stringify({
           intentId: intent.id,
-          products,
+          products: orderProducts,
           shippingAddress,
           shippingContactEmail,
           shippingContactName,
@@ -142,7 +275,7 @@ export class OrdersService {
 
     return {
       success: true,
-      message: 'Subscription session initiated',
+      message: 'Order payment session initiated',
       data: transaction,
     };
   }
@@ -166,66 +299,93 @@ export class OrdersService {
         let metadata: any = Buffer.from(custom_id, 'base64').toString('utf-8');
         metadata = JSON.parse(metadata);
         const { orderId } = metadata;
-
-        order = await this.orderModel.findByIdAndUpdate(
-          orderId,
-          {
-            isPaid: true,
-            paymentReference: reference,
-            paidAt: update_time || new Date().toISOString(),
-            totalAmount: amount.value,
-            currency: amount.currency_code,
-          },
-          { new: true },
-        );
+        const pendingOrder = await this.orderModel.findById(orderId);
+        if (!pendingOrder) throw new NotFoundException('Order not found');
+        if (pendingOrder.user.toString() !== id) {
+          throw new ForbiddenException('This payment does not belong to your order');
+        }
+        order = pendingOrder.isPaid
+          ? pendingOrder
+          : await this.completePayment(
+              pendingOrder,
+              reference,
+              Number(amount.value),
+              amount.currency_code,
+              update_time,
+            );
       } else {
         const transaction = await this.paystackService.verifyTransaction(reference);
-        if (!transaction.status) {
+        if (!transaction.status || transaction.data?.status !== 'success') {
           throw new Error(transaction.message);
         }
+        const { amount } = transaction.data;
+        const paidAt = transaction.data.paidAt || transaction.data.paid_at;
+        let metadata = transaction.data.metadata || {};
+        if (typeof metadata === 'string') {
+          try {
+            metadata = JSON.parse(metadata);
+          } catch {
+            throw new BadRequestException('Payment metadata is invalid');
+          }
+        }
         const {
-          amount,
-          paidAt,
-          metadata: {
-            products,
-            shippingAddress,
-            shippingContactEmail,
-            shippingContactName,
-            shippingContactPhone,
-            orderId,
-            intentId,
-          },
-        } = transaction.data;
+          products,
+          shippingAddress,
+          shippingContactEmail,
+          shippingContactName,
+          shippingContactPhone,
+          orderId,
+          intentId,
+        } = metadata;
 
         // Update existing intent if it exists, otherwise create new
         if (orderId) {
-          order = await this.orderModel.findByIdAndUpdate(
-            orderId,
-            {
-              isPaid: true,
-              paymentReference: reference,
-              paymentDate: paidAt || new Date().toISOString(),
-            },
-            { new: true },
-          );
+          const pendingOrder = await this.orderModel.findById(orderId);
+          if (!pendingOrder) throw new NotFoundException('Order not found');
+          if (pendingOrder.user.toString() !== id) {
+            throw new ForbiddenException('This payment does not belong to your order');
+          }
+          order = pendingOrder.isPaid
+            ? pendingOrder
+            : await this.completePayment(
+                pendingOrder,
+                reference,
+                Number(amount) / 100,
+                'NGN',
+                paidAt,
+              );
 
           if (intentId) {
             await this.paymentIntentsService.markAsSuccessful(intentId, transaction.data);
           }
         } else {
-          // Fallback for old payments without intent
-          order = await this.orderModel.create({
+          // Backward-compatible path for legacy transactions, still repriced server-side.
+          const priced = await this.priceAndValidateProducts(products, 'NGN');
+          const legacyOrder = await this.orderModel.create({
             paymentReference: reference,
-            paymentDate: paidAt,
-            isPaid: true,
-            totalAmount: amount / 100,
-            products,
+            isPaid: false,
+            totalAmount: priced.totalAmount,
+            currency: 'NGN',
+            source: 'PAYSTACK',
+            products: priced.normalized.map(({ product, quantity, color, size }) => ({
+              product,
+              quantity,
+              color,
+              size,
+            })),
             shippingAddress,
             shippingContactEmail,
             shippingContactName,
             shippingContactPhone,
             user: id,
           });
+          order = await this.completePayment(
+            legacyOrder,
+            reference,
+            Number(amount) / 100,
+            'NGN',
+            paidAt,
+          );
         }
       }
 
@@ -266,7 +426,7 @@ export class OrdersService {
       .skip(perPage * (currentPage - 1))
       .populate('user', ['_id', 'fullName', 'email']);
 
-    const totalItems = await this.orderModel.countDocuments(searchCriteria);
+    const totalItems = await this.orderModel.countDocuments({ ...searchCriteria, isPaid: true });
     const totalPages = Math.ceil(totalItems / perPage);
 
     return {
@@ -346,14 +506,15 @@ export class OrdersService {
     };
   }
 
-  async findOne(id: string): Promise<ISuccessResponse> {
+  async findOne(id: string, requesterId: string, isAdmin: boolean): Promise<ISuccessResponse> {
     const order = await this.orderModel
-      .findById(id)
+      .findOne({ _id: id, ...(isAdmin ? {} : { user: requesterId }) })
       .populate('products.product', '_id name price priceUSD featuredImageUrl');
 
     if (!order) {
       throw new NotFoundException('Order with such id does not exist');
     }
+
     return {
       success: true,
       message: 'Order fetched successfully',
@@ -373,6 +534,16 @@ export class OrdersService {
       throw new NotFoundException('Order with id does not exist');
     }
 
+    void this.notificationDispatcher?.notify({
+      userId: order.user.toString(),
+      type: NotificationType.ORDER,
+      title: `Order ${String(status).toLowerCase()}`,
+      body: comment || `Your order status is now ${String(status).toLowerCase()}.`,
+      idempotencyKey: `order:${order._id}:status:${status}`,
+      preference: 'payments',
+      data: { orderId: order._id.toString() },
+    });
+
     return {
       success: true,
       message: 'Order updated successfully',
@@ -383,10 +554,25 @@ export class OrdersService {
   async syncPaymentStatus(userId: string, reference: string): Promise<ISuccessResponse> {
     try {
       // Find pending order with this reference for this user
-      const existingOrder = await this.orderModel.findOne({
+      let existingOrder = await this.orderModel.findOne({
         paymentReference: reference,
         user: userId,
       });
+
+      let intent = null;
+      if (!existingOrder) {
+        intent = await this.paymentIntentsService.findByReference(reference);
+        if (
+          intent?.context === PaymentIntentContext.ORDER &&
+          intent.user?.toString() === userId &&
+          intent.contextEntity
+        ) {
+          existingOrder = await this.orderModel.findOne({
+            _id: intent.contextEntity,
+            user: userId,
+          });
+        }
+      }
 
       if (!existingOrder) {
         throw new NotFoundException('Order with this payment reference not found');
@@ -403,7 +589,7 @@ export class OrdersService {
       // Verify with payment provider
       const transaction = await this.paystackService.verifyTransaction(reference);
 
-      if (!transaction.status) {
+      if (!transaction.status || transaction.data?.status !== 'success') {
         return {
           success: false,
           message: 'Payment verification failed - transaction not successful',
@@ -411,16 +597,16 @@ export class OrdersService {
         };
       }
 
-      // Update order status
-      const updatedOrder = await this.orderModel.findByIdAndUpdate(
-        existingOrder._id,
-        {
-          isPaid: true,
-          paymentDate: transaction.data.paidAt ? new Date(transaction.data.paidAt) : new Date(),
-          totalAmount: transaction.data.amount / 100,
-        },
-        { new: true },
+      const updatedOrder = await this.completePayment(
+        existingOrder,
+        reference,
+        Number(transaction.data.amount) / 100,
+        'NGN',
+        transaction.data.paidAt || transaction.data.paid_at,
       );
+      if (intent) {
+        await this.paymentIntentsService.markAsSuccessful(intent._id.toString(), transaction.data);
+      }
 
       return {
         success: true,

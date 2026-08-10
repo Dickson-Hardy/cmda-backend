@@ -9,9 +9,13 @@ import { PersonalEvent, PersonalEventSchema } from './personal-event.schema';
 import { EventReminder, EventReminderSchema } from './event-reminder.schema';
 import { Event, EventSchema } from '../events/events.schema';
 import { User, UserSchema } from '../users/schema/users.schema';
+import { EmailModule } from '../email/email.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
   imports: [
+    EmailModule,
+    NotificationsModule,
     MongooseModule.forFeature([
       { name: Comment.name, schema: CommentSchema },
       { name: Reaction.name, schema: ReactionSchema },

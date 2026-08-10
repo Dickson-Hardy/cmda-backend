@@ -28,38 +28,60 @@ export class NotificationsController {
     return this.notificationService.getNotificationsStats(req.user);
   }
 
-  @Patch(':id/read')
+  @Get('unread-count')
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Mark a notification as read' })
-  async markAsRead(@Req() req: { user: IJwtPayload }, @Param('id') id: string) {
-    return this.notificationService.markAsRead(req.user.id, id);
+  @ApiOperation({ summary: 'Get unread notification count' })
+  async getUnreadCount(@Req() req: { user: IJwtPayload }) {
+    return this.notificationService.getUnreadCount(req.user);
   }
 
-  @Delete(':id')
+  @Patch('mark-all-read')
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Delete a notification' })
-  async deleteNotification(@Req() req: { user: IJwtPayload }, @Param('id') id: string) {
-    return this.notificationService.deleteNotification(req.user.id, id);
+  @ApiOperation({ summary: 'Mark all notifications as read' })
+  async markAllAsRead(@Req() req: { user: IJwtPayload }) {
+    return this.notificationService.markAllAsRead(req.user);
   }
 
   @Post('push-token')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Register or update push token for device' })
   @ApiBody({ type: RegisterPushTokenDto })
-  async registerPushToken(
-    @Req() req: { user: IJwtPayload },
-    @Body() dto: RegisterPushTokenDto,
-  ) {
+  async registerPushToken(@Req() req: { user: IJwtPayload }, @Body() dto: RegisterPushTokenDto) {
     return this.pushTokenService.registerToken(req.user.id, dto);
   }
 
   @Delete('push-token')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Remove push token on logout' })
-  async removePushToken(
-    @Req() req: { user: IJwtPayload },
-    @Query('deviceId') deviceId: string,
-  ) {
+  async removePushToken(@Req() req: { user: IJwtPayload }, @Query('deviceId') deviceId: string) {
     return this.pushTokenService.removeToken(req.user.id, deviceId);
+  }
+
+  @Get(':id')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Fetch one notification' })
+  async getNotification(@Req() req: { user: IJwtPayload }, @Param('id') id: string) {
+    return this.notificationService.findOneNotification(req.user, id);
+  }
+
+  @Patch(':id/read')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Mark a notification as read' })
+  async markAsRead(@Req() req: { user: IJwtPayload }, @Param('id') id: string) {
+    return this.notificationService.markAsRead(req.user, id);
+  }
+
+  @Delete(':id')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Delete a notification' })
+  async deleteNotification(@Req() req: { user: IJwtPayload }, @Param('id') id: string) {
+    return this.notificationService.deleteNotification(req.user, id);
+  }
+
+  @Patch(':id/restore')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Restore a recently deleted notification' })
+  async restoreNotification(@Req() req: { user: IJwtPayload }, @Param('id') id: string) {
+    return this.notificationService.restoreNotification(req.user, id);
   }
 }

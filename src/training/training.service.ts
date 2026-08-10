@@ -13,12 +13,15 @@ import { TrainingQueryDto } from './dto/training-query.dto';
 import { User } from '../users/schema/users.schema';
 import { UserRole } from '../users/user.constant';
 import { escapeRegex } from '../_common/escape-regex.util';
+import { NotificationDispatcherService } from '../notifications/notification-dispatcher.service';
+import { NotificationType } from '../notifications/notification.constant';
 
 @Injectable()
 export class TrainingService {
   constructor(
     @InjectModel(Training.name) private trainingModel: Model<Training>,
     @InjectModel(User.name) private userModel: Model<User>,
+    private notificationDispatcher?: NotificationDispatcherService,
   ) {}
 
   async create(createTrainingDto: CreateTrainingDto): Promise<ISuccessResponse> {
@@ -109,6 +112,17 @@ export class TrainingService {
       id,
       { $addToSet: { completedUsers: { $each: userIds } } },
       { new: true },
+    );
+    void this.notificationDispatcher?.notifyMany(
+      users.map((user: any) => ({
+        userId: user._id.toString(),
+        type: NotificationType.TRAINING,
+        title: 'Training completed',
+        body: `${training.name} has been added to your completed training.`,
+        idempotencyKey: `training:${training._id}:completed:${user._id}`,
+        preference: 'announcements',
+        data: { trainingId: training._id.toString() },
+      })),
     );
 
     return {

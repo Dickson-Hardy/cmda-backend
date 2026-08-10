@@ -10,6 +10,7 @@ import { User, UserSchema } from '../users/schema/users.schema';
 import { PaypalModule } from '../paypal/paypal.module';
 import { EmailModule } from '../email/email.module';
 import { UsersModule } from '../users/users.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 import {
   EventRegistrationDraft,
   EventRegistrationDraftSchema,
@@ -28,6 +29,7 @@ import {
     forwardRef(() => PaystackModule),
     PaypalModule,
     UsersModule,
+    NotificationsModule,
   ],
   controllers: [EventsController],
   providers: [EventsService],

@@ -1,5 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsNotEmpty, IsString } from 'class-validator';
+import { Transform } from 'class-transformer';
+import { IsIn, IsNotEmpty, IsString } from 'class-validator';
 
 export class CreateOrderDto {
   @ApiProperty({ example: 'abc123' })
@@ -10,5 +11,7 @@ export class CreateOrderDto {
   @ApiProperty({ example: 'PAYPAL | PAYSTACK' })
   @IsNotEmpty()
   @IsString()
+  @Transform(({ value }) => (typeof value === 'string' ? value.toUpperCase() : value))
+  @IsIn(['PAYPAL', 'PAYSTACK'])
   source: string;
 }

@@ -10,6 +10,9 @@ import { PushTokenService } from './push-token.service';
 import { User, UserSchema } from '../users/schema/users.schema';
 import { AdminNotification, AdminNotificationSchema } from './admin-notification.schema';
 import { AdminNotificationService } from './admin-notification.service';
+import { NotificationDispatcherService } from './notification-dispatcher.service';
+import { NotificationOutbox, NotificationOutboxSchema } from './notification-outbox.schema';
+import { PushDelivery, PushDeliverySchema } from './push-delivery.schema';
 
 @Module({
   imports: [
@@ -19,10 +22,24 @@ import { AdminNotificationService } from './admin-notification.service';
       { name: PushToken.name, schema: PushTokenSchema },
       { name: User.name, schema: UserSchema },
       { name: AdminNotification.name, schema: AdminNotificationSchema },
+      { name: NotificationOutbox.name, schema: NotificationOutboxSchema },
+      { name: PushDelivery.name, schema: PushDeliverySchema },
     ]),
   ],
   controllers: [NotificationsController],
-  providers: [NotificationsGateway, NotificationsService, PushTokenService, AdminNotificationService],
-  exports: [NotificationsGateway, PushTokenService, AdminNotificationService],
+  providers: [
+    NotificationsGateway,
+    NotificationsService,
+    PushTokenService,
+    AdminNotificationService,
+    NotificationDispatcherService,
+  ],
+  exports: [
+    NotificationsGateway,
+    NotificationsService,
+    PushTokenService,
+    AdminNotificationService,
+    NotificationDispatcherService,
+  ],
 })
 export class NotificationsModule {}

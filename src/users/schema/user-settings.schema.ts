@@ -12,6 +12,24 @@ export class UserSettings extends Document {
   @Prop({ default: true })
   announcements: boolean;
 
+  @Prop({ default: true })
+  pushNotifications: boolean;
+
+  @Prop({ default: true })
+  emailNotifications: boolean;
+
+  @Prop({ default: true })
+  events: boolean;
+
+  @Prop({ default: true })
+  payments: boolean;
+
+  @Prop({ default: true })
+  reminders: boolean;
+
+  @Prop({ default: false })
+  marketing: boolean;
+
   @Prop({ type: Types.ObjectId, ref: 'User' })
   user: string;
 }

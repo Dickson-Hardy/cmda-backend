@@ -4,6 +4,7 @@ import { TrainingController } from './training.controller';
 import { MongooseModule } from '@nestjs/mongoose';
 import { Training, TrainingSchema } from './training.schema';
 import { User, UserSchema } from '../users/schema/users.schema';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
   imports: [
@@ -11,6 +12,7 @@ import { User, UserSchema } from '../users/schema/users.schema';
       { name: Training.name, schema: TrainingSchema },
       { name: User.name, schema: UserSchema },
     ]),
+    NotificationsModule,
   ],
   controllers: [TrainingController],
   providers: [TrainingService],

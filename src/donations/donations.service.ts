@@ -21,6 +21,8 @@ import {
   PaymentIntentProvider,
 } from '../payment-intents/payment-intent.schema';
 import { escapeRegex } from '../_common/escape-regex.util';
+import { NotificationDispatcherService } from '../notifications/notification-dispatcher.service';
+import { NotificationType } from '../notifications/notification.constant';
 
 @Injectable()
 export class DonationsService {
@@ -32,6 +34,7 @@ export class DonationsService {
     private emailService: EmailService,
     private paypalService: PaypalService,
     private paymentIntentsService: PaymentIntentsService,
+    private notificationDispatcher?: NotificationDispatcherService,
   ) {}
 
   async init(id: string, createDonationDto: InitDonationDto): Promise<ISuccessResponse> {
@@ -242,14 +245,28 @@ export class DonationsService {
       }
     }
 
-    try {
-      await this.emailService.sendDonationConfirmedEmail({
-        name: user.fullName,
-        email: user.email,
-      });
-    } catch (emailError) {
-      console.error('Failed to send donation confirmation email:', emailError);
+    if (
+      (user as any).notificationPreferences?.emailNotifications !== false &&
+      (user as any).notificationPreferences?.payments !== false
+    ) {
+      try {
+        await this.emailService.sendDonationConfirmedEmail({
+          name: user.fullName,
+          email: user.email,
+        });
+      } catch (emailError) {
+        console.error('Failed to send donation confirmation email:', emailError);
+      }
     }
+    void this.notificationDispatcher?.notify({
+      userId: user._id.toString(),
+      type: NotificationType.DONATION,
+      title: 'Donation confirmed',
+      body: 'Thank you. Your donation has been received successfully.',
+      idempotencyKey: `donation:${donation._id}:paid`,
+      preference: 'payments',
+      data: { donationId: donation._id.toString(), paymentId: reference },
+    });
 
     return {
       success: true,

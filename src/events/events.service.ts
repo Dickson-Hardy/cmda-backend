@@ -17,6 +17,7 @@ import {
   ConferenceZone,
   ConferenceRegion,
   RegistrationPeriod,
+  getUserEventAudience,
 } from './events.constant';
 import { EventPaginationQueryDto } from './dto/event-pagination.dto';
 import { User } from '../users/schema/users.schema';
@@ -30,6 +31,8 @@ import { UsersService } from '../users/users.service';
 import { PaystackFeeCalculator } from '../_global/utils/paystack-fees.util';
 import { EventRegistrationDraft } from './event-registration-draft.schema';
 import { escapeRegex } from '../_common/escape-regex.util';
+import { NotificationDispatcherService } from '../notifications/notification-dispatcher.service';
+import { NotificationType } from '../notifications/notification.constant';
 
 // Type for Event with computed registrationStatus
 type EventWithRegistrationStatus = Event & {
@@ -57,7 +60,36 @@ export class EventsService {
     private usersService: UsersService,
     @InjectModel(EventRegistrationDraft.name)
     private registrationDraftModel: Model<EventRegistrationDraft>,
+    private notificationDispatcher?: NotificationDispatcherService,
   ) {}
+
+  private async notifyEventAudience(event: Event, action: 'created' | 'updated'): Promise<void> {
+    const users = await this.userModel
+      .find({ isActive: { $ne: false } })
+      .select('_id role yearsOfExperience')
+      .lean();
+    const audiences = (event.membersGroup || []) as unknown as string[];
+    const recipients = users.filter((user: any) => {
+      try {
+        return audiences.includes(getUserEventAudience(user.role, user.yearsOfExperience));
+      } catch {
+        return false;
+      }
+    });
+    await this.notificationDispatcher?.notifyMany(
+      recipients.map((user: any) => ({
+        userId: user._id.toString(),
+        type: NotificationType.EVENT,
+        title: action === 'created' ? 'New CMDA event' : 'Event updated',
+        body: `${event.name} has been ${action}.`,
+        idempotencyKey: `event:${event._id}:${action}:${
+          action === 'updated' ? new Date((event as any).updatedAt).toISOString() : 'initial'
+        }`,
+        preference: 'events',
+        data: { eventId: event._id.toString(), slug: event.slug, eventSlug: event.slug },
+      })),
+    );
+  }
 
   private toBoolean(value: unknown, defaultValue = false): boolean {
     if (value === undefined || value === null || value === '') return defaultValue;
@@ -373,6 +405,7 @@ export class EventsService {
         requiresSubscription: this.toBoolean(createEventDto.requiresSubscription, true),
         virtualMeetingInfo,
       });
+      if (this.notificationDispatcher) void this.notifyEventAudience(event, 'created');
 
       return {
         success: true,
@@ -722,6 +755,7 @@ export class EventsService {
       updates,
       { new: true },
     );
+    if (this.notificationDispatcher) void this.notifyEventAudience(newEvent, 'updated');
 
     return {
       success: true,
@@ -812,6 +846,17 @@ export class EventsService {
     if (amount <= 0) {
       throw new BadRequestException('This registration does not require online payment');
     }
+    void this.notificationDispatcher?.notifyMany(
+      (event.registeredUsers || []).map((registration: any) => ({
+        userId: registration.userId.toString(),
+        type: NotificationType.EVENT,
+        title: 'Event cancelled',
+        body: `${event.name} has been cancelled.`,
+        idempotencyKey: `event:${event._id}:cancelled`,
+        preference: 'events',
+        data: { eventId: event._id.toString(), slug: event.slug, eventSlug: event.slug },
+      })),
+    );
 
     if (user.role === UserRole.GLOBALNETWORK) {
       // Check if conference is configured to use PayPal for global network
@@ -1162,9 +1207,22 @@ export class EventsService {
       customResponses: normalizedResponses,
     });
     await event.save();
+    void this.notificationDispatcher?.notify({
+      userId,
+      type: NotificationType.EVENT,
+      title: 'Registration confirmed',
+      body: `You are registered for ${event.name}.`,
+      idempotencyKey: `event:${event._id}:registration:${userId}`,
+      preference: 'events',
+      data: { eventId: event._id.toString(), slug: event.slug, eventSlug: event.slug },
+    });
 
-    // Send registration confirmation email for conferences
-    if (event.isConference) {
+    // Send registration confirmation email for conferences when the member allows it.
+    if (
+      event.isConference &&
+      (user as any).notificationPreferences?.emailNotifications !== false &&
+      (user as any).notificationPreferences?.events !== false
+    ) {
       try {
         const user = await this.userModel.findById(userId);
         if (user) {

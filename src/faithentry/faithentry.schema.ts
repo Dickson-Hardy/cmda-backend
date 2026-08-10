@@ -15,6 +15,10 @@ export class FaithEntry extends Document {
 
   @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'User' })
   user: string;
+
+  // Kept private from populated public responses so anonymous posts remain anonymous.
+  @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'User', select: false })
+  owner: string;
 }
 
 export const FaithEntrySchema = SchemaFactory.createForClass(FaithEntry);

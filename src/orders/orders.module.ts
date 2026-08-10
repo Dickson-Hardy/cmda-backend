@@ -7,6 +7,7 @@ import { Order, OrderSchema } from './order.schema';
 import { Product, ProductSchema } from '../products/products.schema';
 import { PaypalModule } from '../paypal/paypal.module';
 import { PaymentIntentsModule } from '../payment-intents/payment-intents.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
   imports: [
@@ -17,6 +18,7 @@ import { PaymentIntentsModule } from '../payment-intents/payment-intents.module'
     forwardRef(() => PaystackModule),
     PaypalModule,
     forwardRef(() => PaymentIntentsModule),
+    NotificationsModule,
   ],
   controllers: [OrdersController],
   providers: [OrdersService],

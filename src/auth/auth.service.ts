@@ -204,6 +204,20 @@ export class AuthService {
       yearsOfExperience,
       ...otherUpdateData
     } = updateProfileDto;
+    if (typeof otherUpdateData.socials === 'string') {
+      try {
+        otherUpdateData.socials = JSON.parse(otherUpdateData.socials);
+      } catch {
+        throw new BadRequestException('socials must be valid JSON');
+      }
+    }
+    if (Array.isArray(otherUpdateData.socials)) {
+      otherUpdateData.socials = Object.fromEntries(
+        otherUpdateData.socials
+          .filter((item: any) => item?.platform && item?.url)
+          .map((item: any) => [String(item.platform).toLowerCase(), item.url]),
+      );
+    }
     // remove unpermitted role fields
     if (user.role === UserRole.STUDENT) {
       delete updateProfileDto.licenseNumber;
@@ -406,6 +420,7 @@ export class AuthService {
   }
 
   async checkUserExists(checkUserDto: CheckUserDto): Promise<ISuccessResponse> {
+    void checkUserDto;
     return {
       success: true,
       message: 'User check completed',
