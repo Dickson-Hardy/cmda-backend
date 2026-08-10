@@ -1,4 +1,5 @@
 import { WebSocketGateway, WebSocketServer } from '@nestjs/websockets';
+import { Inject, forwardRef } from '@nestjs/common';
 import { Server } from 'socket.io';
 import { NotificationsService } from './notifications.service';
 import { SOCKET_IO_CORS } from '../_global/constants/cors.constants';
@@ -8,7 +9,10 @@ export class NotificationsGateway {
   @WebSocketServer()
   server: Server;
 
-  constructor(private readonly notificationsService: NotificationsService) {}
+  constructor(
+    @Inject(forwardRef(() => NotificationsService))
+    private readonly notificationsService: NotificationsService,
+  ) {}
 
   async sendNotificationToUser(userId: string, notificationData: any) {
     const room = this.server.to(`user:${userId}`);
