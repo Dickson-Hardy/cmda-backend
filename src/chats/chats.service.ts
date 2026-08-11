@@ -220,7 +220,7 @@ export class ChatsService {
     this.assertMember(user);
     const blocks = await this.chatBlockModel
       .find({ blocker: user.id })
-      .populate({ path: 'blocked', model: this.userModel, select: 'fullName email avatarUrl' })
+      .populate({ path: 'blocked', model: this.userModel, select: 'fullName avatarUrl' })
       .sort({ createdAt: -1 })
       .lean();
     return { success: true, message: 'Blocked users fetched successfully', data: blocks };

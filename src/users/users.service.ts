@@ -25,6 +25,8 @@ import { UpdateMemberDto } from './dto/update-member.dto';
 import * as bcrypt from 'bcryptjs';
 import { EventAudience } from '../events/events.constant';
 import { escapeRegex } from '../_common/escape-regex.util';
+import { AdminRole, AllAdminRoles } from '../admin/admin.constant';
+import { IJwtPayload } from '../_global/interface/jwt-payload';
 
 @Injectable()
 export class UsersService {
@@ -36,8 +38,10 @@ export class UsersService {
     private emailService: EmailService,
   ) {}
 
-  async findAll(query: UserPaginationQueryDto): Promise<ISuccessResponse> {
+  async findAll(query: UserPaginationQueryDto, requester?: IJwtPayload): Promise<ISuccessResponse> {
     const { searchBy, limit, page, role, region } = query;
+    // Calls without a requester originate from the admin-only member-management service.
+    const isAdmin = !requester || AllAdminRoles.includes(requester.role as AdminRole);
     const perPage = Number(limit) || 10;
     const currentPage = Number(page) || 1;
     const searchCriteria: any = {};
@@ -49,7 +53,9 @@ export class UsersService {
         { lastName: { $regex: escapeRegex(trimmedSearchBy), $options: 'i' } },
         { gender: { $regex: escapeRegex(trimmedSearchBy), $options: 'i' } },
         { fullName: { $regex: escapeRegex(trimmedSearchBy), $options: 'i' } },
-        { email: { $regex: escapeRegex(trimmedSearchBy), $options: 'i' } },
+        ...(isAdmin
+          ? [{ email: { $regex: escapeRegex(trimmedSearchBy), $options: 'i' } }]
+          : []),
         { specialty: { $regex: escapeRegex(trimmedSearchBy), $options: 'i' } },
         { licenseNumber: { $regex: escapeRegex(trimmedSearchBy), $options: 'i' } },
         { membershipId: { $regex: escapeRegex(trimmedSearchBy), $options: 'i' } },
@@ -62,7 +68,8 @@ export class UsersService {
       .find(searchCriteria)
       .sort({ createdAt: -1 })
       .limit(perPage)
-      .skip(perPage * (currentPage - 1));
+      .skip(perPage * (currentPage - 1))
+      .lean();
     const totalItems = await this.userModel.countDocuments(searchCriteria);
     const totalPages = Math.ceil(totalItems / perPage);
 
@@ -70,7 +77,7 @@ export class UsersService {
       success: true,
       message: 'Users fetched successfully',
       data: {
-        items: users,
+        items: isAdmin ? users : users.map((user) => this.hideContactDetails(user)),
         meta: { currentPage, itemsPerPage: perPage, totalItems, totalPages },
       },
     };
@@ -181,12 +188,12 @@ export class UsersService {
     };
   }
 
-  async findOne(id: string): Promise<ISuccessResponse> {
-    let user: User;
+  async findOne(id: string, requester: IJwtPayload): Promise<ISuccessResponse> {
+    let user: any;
     if (id.startsWith('CM')) {
-      user = await this.userModel.findOne({ membershipId: id });
+      user = await this.userModel.findOne({ membershipId: id }).lean();
     } else {
-      user = await this.userModel.findById(id);
+      user = await this.userModel.findById(id).lean();
     }
     if (!user) {
       throw new NotFoundException('User with id/membershipId does not exist');
@@ -194,8 +201,17 @@ export class UsersService {
     return {
       success: true,
       message: 'User fetched successfully',
-      data: user,
+      data:
+        AllAdminRoles.includes(requester.role as AdminRole) ||
+        user._id.toString() === requester.id
+          ? user
+          : this.hideContactDetails(user),
     };
+  }
+
+  private hideContactDetails<T extends Record<string, any>>(user: T): Omit<T, 'email' | 'phone'> {
+    const { email: _email, phone: _phone, ...publicProfile } = user;
+    return publicProfile;
   }
 
   async getSettings(user: string): Promise<ISuccessResponse> {

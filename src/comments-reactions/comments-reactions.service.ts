@@ -54,9 +54,9 @@ export class CommentsReactionsService {
       isAnonymous: isAnonymous ?? false,
     });
 
-    const populated = await comment.populate('user', '_id fullName email membershipId');
+    const populated = await comment.populate('user', '_id fullName membershipId');
     const result = isAnonymous
-      ? { ...populated.toObject(), user: { _id: null, fullName: 'Anonymous', email: null, membershipId: null } }
+      ? { ...populated.toObject(), user: { _id: null, fullName: 'Anonymous', membershipId: null } }
       : populated;
 
     return {
@@ -77,13 +77,13 @@ export class CommentsReactionsService {
         .sort({ createdAt: -1 })
         .limit(perPage)
         .skip(perPage * (currentPage - 1))
-        .populate('user', '_id fullName email membershipId'),
+        .populate('user', '_id fullName membershipId'),
       this.commentModel.countDocuments(filter),
     ]);
 
     const sanitized = items.map((c) => {
       if (c.isAnonymous) {
-        return { ...c.toObject(), user: { _id: null, fullName: 'Anonymous', email: null, membershipId: null } };
+        return { ...c.toObject(), user: { _id: null, fullName: 'Anonymous', membershipId: null } };
       }
       return c;
     });
@@ -180,7 +180,7 @@ export class CommentsReactionsService {
         .sort({ createdAt: -1 })
         .limit(perPage)
         .skip(perPage * (currentPage - 1))
-        .populate('user', '_id fullName email membershipId'),
+        .populate('user', '_id fullName membershipId'),
       this.feedbackModel.countDocuments(filter),
     ]);
 
@@ -402,7 +402,7 @@ export class CommentsReactionsService {
 
     const users = await this.userModel
       .find({ _id: { $in: userIds } })
-      .select('_id fullName email avatarUrl membershipId role region');
+      .select('_id fullName avatarUrl membershipId role region');
 
     return {
       success: true,

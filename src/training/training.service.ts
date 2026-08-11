@@ -74,7 +74,7 @@ export class TrainingService {
   async findOne(id: string): Promise<ISuccessResponse> {
     const training = await this.trainingModel
       .findById(id)
-      .populate('completedUsers', '_id membershipId fullName email role region');
+      .populate('completedUsers', '_id membershipId fullName role region');
 
     if (!training) {
       throw new NotFoundException('No training with such id');

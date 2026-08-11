@@ -23,8 +23,8 @@ export class UsersController {
   @Get()
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Fetches all members' })
-  findAll(@Query() query: UserPaginationQueryDto) {
-    return this.usersService.findAll(query);
+  findAll(@Query() query: UserPaginationQueryDto, @Req() req: { user: IJwtPayload }) {
+    return this.usersService.findAll(query, req.user);
   }
 
   @Get('export')
@@ -122,8 +122,8 @@ export class UsersController {
   @Get(':id')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get a user by id or membershipId' })
-  findOne(@Param('id') id: string) {
-    return this.usersService.findOne(id);
+  findOne(@Param('id') id: string, @Req() req: { user: IJwtPayload }) {
+    return this.usersService.findOne(id, req.user);
   }
 
   @Delete(':membershipId')
