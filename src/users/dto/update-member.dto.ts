@@ -1,6 +1,7 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { IsOptional, IsString, IsEnum, IsDateString } from 'class-validator';
 import { UserGender } from '../../users/user.constant';
+import { Transform } from 'class-transformer';
 
 export class UpdateMemberDto {
   @ApiPropertyOptional({ example: 'John', description: "User's first name" })
@@ -34,6 +35,7 @@ export class UpdateMemberDto {
   region?: string;
 
   @ApiPropertyOptional({ example: '2000-01-01', description: 'Date of birth' })
+  @Transform(({ value }) => (value === '' || value === null ? undefined : value))
   @IsOptional()
   @IsDateString()
   dateOfBirth?: string;

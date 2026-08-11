@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsEmail, IsEnum, IsNotEmpty, IsOptional, IsString, IsDateString } from 'class-validator';
 import { UserGender, UserRole, MemberCategory } from '../../users/user.constant';
+import { Transform } from 'class-transformer';
 
 export class CreateMemberByAdminDto {
   @ApiProperty({ example: 'John', description: 'First name of the user' })
@@ -54,7 +55,8 @@ export class CreateMemberByAdminDto {
   @IsEnum(UserRole, { message: 'correct values for role are Student, Doctor or GlobalNetwork' })
   readonly role: UserRole;
 
-  @ApiPropertyOptional({ example: '2000-01-01', description: 'Date of birth (optional for Global Network members)' })
+  @ApiPropertyOptional({ example: '2000-01-01', description: 'Date of birth (optional)' })
+  @Transform(({ value }) => (value === '' || value === null ? undefined : value))
   @IsOptional()
   @IsDateString()
   dateOfBirth?: string;
