@@ -93,11 +93,25 @@ export class EmailService {
 
   // ==================== CRITICAL EMAILS (RESEND) ====================
 
-  async sendWelcomeEmail({ name, email, code }): Promise<{ success: boolean }> {
-    const html = WELCOME_EMAIL_TEMPLATE.replace('[Name]', name).replace('[VerificationCode]', code);
+  async sendWelcomeEmail({ name, email, code, role }): Promise<{ success: boolean }> {
+    const isGlobalNetwork = role === 'GlobalNetwork';
+    const html = WELCOME_EMAIL_TEMPLATE.replace('[Name]', name)
+      .replace('[VerificationCode]', code)
+      .replace(
+        '[WelcomeHeading]',
+        isGlobalNetwork ? 'Welcome to the CMDA Global Network' : 'Welcome to CMDA Nigeria!',
+      )
+      .replace(
+        '[WelcomeIntro]',
+        isGlobalNetwork
+          ? 'We are delighted to begin onboarding you into the CMDA Global Network, our international community of Christian healthcare professionals. Complete your verification below to activate your account and continue your onboarding.'
+          : "Thank you for registering with CMDA Nigeria! We are thrilled to have you on board. As part of our community, you'll have access to exclusive features and updates.",
+      );
     return this.routeEmail({
       to: email,
-      subject: 'Welcome to CMDA Nigeria',
+      subject: isGlobalNetwork
+        ? 'Welcome to the CMDA Global Network — Complete Your Onboarding'
+        : 'Welcome to CMDA Nigeria',
       html,
       priority: EmailPriority.CRITICAL,
     });
@@ -144,7 +158,9 @@ export class EmailService {
     email,
     password,
     userId,
+    role,
   }): Promise<{ success: boolean }> {
+    const isGlobalNetwork = role === 'GlobalNetwork';
     const publicApiUrl = (
       this.configService.get<string>('PUBLIC_API_URL') ||
       'https://cmdabackend-38258a63fa98.herokuapp.com'
@@ -156,11 +172,31 @@ export class EmailService {
     const html = MEMBER_CREDENTIALS_TEMPLATE.replace('[Name]', name)
       .replace('[Email]', email)
       .replace('[Password]', password)
+      .replace(
+        '[AccountHeading]',
+        isGlobalNetwork
+          ? 'Your CMDA Global Network Account Is Ready'
+          : 'Your CMDA Nigeria Member Account Has Been Created',
+      )
+      .replace(
+        '[AccountIntro]',
+        isGlobalNetwork
+          ? 'We are pleased to welcome and onboard you into the CMDA Global Network, our international community of Christian healthcare professionals. Your member account has been created so you can complete your profile and begin connecting with the network.'
+          : 'We are pleased to inform you that a member account has been successfully created for you on the CMDA Nigeria Membership platform.',
+      )
+      .replace(
+        '[ProfileReminder]',
+        isGlobalNetwork
+          ? 'After logging in, please complete your Global Network profile, including your contact details, region, specialty and professional information. A complete profile helps the network identify, support and connect with you.'
+          : 'After logging in, please take a moment to complete your profile by updating any missing information, including your phone number and other personal details. This helps us serve you better.',
+      )
       .replace('</div>', `${trackingPixel}</div>`);
 
     return this.routeEmail({
       to: email,
-      subject: 'CMDA Member Account Credentials',
+      subject: isGlobalNetwork
+        ? 'Welcome to the CMDA Global Network — Your Account Details'
+        : 'CMDA Member Account Credentials',
       html,
       priority: EmailPriority.CRITICAL,
     });

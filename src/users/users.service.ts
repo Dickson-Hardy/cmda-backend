@@ -398,6 +398,7 @@ export class UsersService {
         email,
         password,
         userId: user._id.toString(),
+        role: user.role,
       });
 
       return {

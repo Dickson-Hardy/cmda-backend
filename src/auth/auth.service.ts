@@ -129,6 +129,7 @@ export class AuthService {
           name: user.firstName,
           email,
           code,
+          role: user.role,
         })
         .catch((error) => {
           console.error('Failed to send welcome email:', error);

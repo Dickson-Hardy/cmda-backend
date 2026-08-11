@@ -10,24 +10,30 @@ export const WELCOME_EMAIL_TEMPLATE = `
   <tr>
     <td align="center">
       <table
-        width="600"
+        width="100%"
         border="0"
         cellspacing="0"
         cellpadding="0"
-        style="background-color: #ffffff; border-radius: 8px; overflow: hidden"
+        style="width: 100%; max-width: 600px; background-color: #ffffff; border-radius: 8px; overflow: hidden"
       >
         <!-- Header -->
         <tr>
-          <td align="center" style="background-color: #994279; padding: 40px 0">
-             <img
-              src="https://cmdanigeria.net/CMDALogo.svg"
-              alt="CMDA Nigeria"
-              width="200"
-              height="56"
-              style="display: block"
-            />
-            <h1 style="color: #ffffff; font-size: 24px; margin-top: 16px">
-              Welcome to CMDA Nigeria!
+          <td align="center" style="background-color: #994279; padding: 28px 24px">
+            <table role="presentation" border="0" cellspacing="0" cellpadding="0">
+              <tr>
+                <td align="center" style="background-color: #ffffff; border-radius: 12px; padding: 10px">
+                  <img
+                    src="https://cmdanigeria.net/CMDALOGO_white.png"
+                    alt="CMDA Nigeria"
+                    width="82"
+                    height="82"
+                    style="display: block; width: 82px; height: 82px; border: 0"
+                  />
+                </td>
+              </tr>
+            </table>
+            <h1 style="color: #ffffff; font-size: 24px; line-height: 1.3; margin: 18px 0 0 0; padding: 0">
+              [WelcomeHeading]
             </h1>
           </td>
         </tr>
@@ -36,8 +42,7 @@ export const WELCOME_EMAIL_TEMPLATE = `
           <td style="padding: 40px 30px">
             <h2 style="color: #333333; font-size: 22px; margin: 0">Hello [Name],</h2>
             <p style="color: #666666; font-size: 16px; line-height: 1.5; margin: 20px 0">
-              Thank you for registering with CMDA Nigeria! We are thrilled to have you on board.
-              As part of our community, you'll have access to exclusive features and updates.
+              [WelcomeIntro]
             </p>
             <p style="color: #666666; font-size: 16px; line-height: 1.5; margin: 20px 0">
               Use the verification code below to complete your registration.
@@ -94,23 +99,29 @@ export const MEMBER_CREDENTIALS_TEMPLATE = `
     <tr>
     <td align="center">
         <table
-        width="600"
+        width="100%"
         border="0"
         cellspacing="0"
         cellpadding="0"
-        style="background-color: #ffffff; border-radius: 8px; overflow: hidden"
+        style="width: 100%; max-width: 600px; background-color: #ffffff; border-radius: 8px; overflow: hidden"
         >
         <!-- Header -->
         <tr>
-            <td align="center" style="background-color: #994279; padding: 40px 0">
-             <img
-              src="https://cmdanigeria.net/CMDALogo.svg"
-              alt="CMDA Nigeria"
-              width="200"
-              height="56"
-              style="display: block"
-            />
-            <h1 style="color: #ffffff; font-size: 24px; margin-top: 16px">Your CMDA Nigeria Member Account Has Been Created</h1>
+            <td align="center" style="background-color: #994279; padding: 28px 24px">
+            <table role="presentation" border="0" cellspacing="0" cellpadding="0">
+              <tr>
+                <td align="center" style="background-color: #ffffff; border-radius: 12px; padding: 10px">
+                  <img
+                    src="https://cmdanigeria.net/CMDALOGO_white.png"
+                    alt="CMDA Nigeria"
+                    width="82"
+                    height="82"
+                    style="display: block; width: 82px; height: 82px; border: 0"
+                  />
+                </td>
+              </tr>
+            </table>
+            <h1 style="color: #ffffff; font-size: 24px; line-height: 1.3; margin: 18px 0 0 0; padding: 0">[AccountHeading]</h1>
             </td>
         </tr>
         <!-- Body -->
@@ -118,7 +129,7 @@ export const MEMBER_CREDENTIALS_TEMPLATE = `
             <td style="padding: 40px 30px">
             <h2 style="color: #333333; font-size: 22px; margin: 0">Hello [Name],</h2>
             <p style="color: #666666; font-size: 16px; line-height: 1.5; margin: 20px 0">
-                We are pleased to inform you that a member account has been successfully created for you on the CMDA Nigeria Membership platform.
+                [AccountIntro]
             </p>
             <p style="color: #666666; font-size: 16px; line-height: 1.5; margin: 20px 0">
                 You may log in using the credentials below:
@@ -156,7 +167,7 @@ export const MEMBER_CREDENTIALS_TEMPLATE = `
             </p>
             <div style="background-color: #fff3cd; border: 1px solid #ffc107; border-radius: 5px; padding: 15px; margin: 20px 0">
                 <p style="color: #856404; font-size: 16px; line-height: 1.5; margin: 0">
-                    <strong>Important:</strong> After logging in, please take a moment to complete your profile by updating any missing information, including your date of birth, phone number, and other personal details. This helps us serve you better.
+                    <strong>Important:</strong> [ProfileReminder]
                 </p>
             </div>
             <p style="color: #666666; font-size: 16px; line-height: 1.5; margin: 20px 0">

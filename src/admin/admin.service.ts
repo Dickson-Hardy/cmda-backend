@@ -258,6 +258,7 @@ export class AdminService {
         email,
         password: tempPassword,
         userId: tempUser._id.toString(),
+        role: tempUser.role,
       });
 
       return {
