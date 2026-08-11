@@ -21,6 +21,14 @@ export class DevotionalsController {
     return this.devotionalsService.create(createDevotionalDto);
   }
 
+  @Get('admin')
+  @Roles(AllAdminRoles)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Fetch all published and scheduled devotionals -- Admin' })
+  findAllForAdmin() {
+    return this.devotionalsService.findAllForAdmin();
+  }
+
   @Get()
   @ApiOperation({ summary: 'Fetches all daily devotionals' })
   @Public()

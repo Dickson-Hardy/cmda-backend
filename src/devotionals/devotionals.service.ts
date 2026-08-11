@@ -30,7 +30,9 @@ export class DevotionalsService {
   }
 
   async findAll(): Promise<ISuccessResponse> {
-    const devotionals = await this.devotionalModel.find({}).sort({ createdAt: -1 });
+    const devotionals = await this.devotionalModel
+      .find(this.publishedCriteria())
+      .sort({ scheduledFor: -1, createdAt: -1 });
     return {
       success: true,
       message: 'Devotionals fetched successfully',
@@ -38,8 +40,22 @@ export class DevotionalsService {
     };
   }
 
+  async findAllForAdmin(): Promise<ISuccessResponse> {
+    const devotionals = await this.devotionalModel
+      .find({})
+      .sort({ scheduledFor: -1, createdAt: -1 });
+    return {
+      success: true,
+      message: 'Devotional schedule fetched successfully',
+      data: devotionals,
+    };
+  }
+
   async findLatest(): Promise<ISuccessResponse> {
-    const devotionals = await this.devotionalModel.find({}).sort({ createdAt: -1 }).limit(1);
+    const devotionals = await this.devotionalModel
+      .find(this.publishedCriteria())
+      .sort({ scheduledFor: -1, createdAt: -1 })
+      .limit(1);
     return {
       success: true,
       message: 'Latest devotional fetched successfully',
@@ -48,11 +64,27 @@ export class DevotionalsService {
   }
 
   async findOne(id: string): Promise<ISuccessResponse> {
-    const devotional = await this.devotionalModel.findById(id);
+    const devotional = await this.devotionalModel.findOne({
+      _id: id,
+      ...this.publishedCriteria(),
+    });
+    if (!devotional) {
+      throw new NotFoundException('No published devotional with such id');
+    }
     return {
       success: true,
       message: 'Devotional fetched successfully',
       data: devotional,
+    };
+  }
+
+  private publishedCriteria() {
+    return {
+      $or: [
+        { scheduledFor: { $lte: new Date() } },
+        { scheduledFor: { $exists: false } },
+        { scheduledFor: null },
+      ],
     };
   }
 

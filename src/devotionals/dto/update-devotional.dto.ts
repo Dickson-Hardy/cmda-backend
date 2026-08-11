@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsOptional, IsString } from 'class-validator';
+import { IsDateString, IsOptional, IsString } from 'class-validator';
 
 export class UpdateDevotionalDto {
   @ApiProperty({ description: 'The title of the devotional', example: 'Updated Devotional Title' })
@@ -34,4 +34,9 @@ export class UpdateDevotionalDto {
   @IsOptional()
   @IsString()
   prayerPoints: string;
+
+  @ApiProperty({ description: 'Updated member publication date and time' })
+  @IsOptional()
+  @IsDateString()
+  scheduledFor?: string;
 }

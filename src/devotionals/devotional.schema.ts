@@ -17,6 +17,9 @@ export class Devotional extends Document {
 
   @Prop()
   prayerPoints: string;
+
+  @Prop({ type: Date, index: true })
+  scheduledFor: Date;
 }
 
 export const DevotionalSchema = SchemaFactory.createForClass(Devotional);
