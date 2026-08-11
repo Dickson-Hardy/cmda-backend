@@ -76,10 +76,12 @@ export class EmailService {
     subject: string,
     html: string,
   ): Promise<{ success: boolean }> {
+    let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
+
     try {
-      const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('SMTP timeout')), 30000),
-      );
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        timeoutHandle = setTimeout(() => reject(new Error('SMTP timeout')), 30000);
+      });
 
       await Promise.race([this.mailerService.sendMail({ to, subject, html }), timeoutPromise]);
 
@@ -88,7 +90,41 @@ export class EmailService {
     } catch (error) {
       this.logger.error(`SMTP failed for ${to}: ${error.message}`);
       return { success: false };
+    } finally {
+      if (timeoutHandle) clearTimeout(timeoutHandle);
     }
+  }
+
+  /**
+   * Onboarding mail uses SMTP by default. Set ONBOARDING_EMAIL_PROVIDER=resend
+   * to restore the previous Resend-first routing without changing code.
+   */
+  private async sendOnboardingEmail({
+    to,
+    subject,
+    html,
+    text,
+  }: {
+    to: string;
+    subject: string;
+    html: string;
+    text?: string;
+  }): Promise<{ success: boolean }> {
+    const provider = (
+      this.configService.get<string>('ONBOARDING_EMAIL_PROVIDER') || 'smtp'
+    ).toLowerCase();
+
+    if (provider === 'resend') {
+      return this.routeEmail({
+        to,
+        subject,
+        html,
+        text,
+        priority: EmailPriority.CRITICAL,
+      });
+    }
+
+    return this.sendViaSmtp(to, subject, html);
   }
 
   // ==================== CRITICAL EMAILS (RESEND) ====================
@@ -107,13 +143,12 @@ export class EmailService {
           ? 'We are delighted to begin onboarding you into the CMDA Global Network, our international community of Christian healthcare professionals. Complete your verification below to activate your account and continue your onboarding.'
           : "Thank you for registering with CMDA Nigeria! We are thrilled to have you on board. As part of our community, you'll have access to exclusive features and updates.",
       );
-    return this.routeEmail({
+    return this.sendOnboardingEmail({
       to: email,
       subject: isGlobalNetwork
         ? 'Welcome to the CMDA Global Network — Complete Your Onboarding'
         : 'Welcome to CMDA Nigeria',
       html,
-      priority: EmailPriority.CRITICAL,
     });
   }
 
@@ -192,13 +227,12 @@ export class EmailService {
       )
       .replace('</div>', `${trackingPixel}</div>`);
 
-    return this.routeEmail({
+    return this.sendOnboardingEmail({
       to: email,
       subject: isGlobalNetwork
         ? 'Welcome to the CMDA Global Network — Your Account Details'
         : 'CMDA Member Account Credentials',
       html,
-      priority: EmailPriority.CRITICAL,
     });
   }
 
