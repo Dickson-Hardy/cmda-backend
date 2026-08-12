@@ -18,6 +18,10 @@ import { GetEmailLogsDto } from './dto/get-email-logs.dto';
 import { CreateMemberByAdminDto } from './dto/create-member-by-admin.dto';
 import { Throttle } from '@nestjs/throttler';
 import { MemberAnalyticsQueryDto } from './dto/member-analytics-query.dto';
+import {
+  ConfirmLifetimeMemberImportDto,
+  PreviewLifetimeMemberImportDto,
+} from './dto/lifetime-member-import.dto';
 
 @ApiTags('Admin')
 @Controller('admin')
@@ -172,6 +176,25 @@ export class AdminController {
   @ApiBody({ type: CreateMemberByAdminDto })
   createMember(@Body() createMemberDto: CreateMemberByAdminDto) {
     return this.adminService.createMemberByAdmin(createMemberDto);
+  }
+
+  @Post('members/lifetime-import/preview')
+  @Roles([AdminRole.SUPERADMIN, AdminRole.MEMBER_MANAGER])
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Preview and match a historical lifetime-member spreadsheet' })
+  previewLifetimeMemberImport(@Body() body: PreviewLifetimeMemberImportDto) {
+    return this.adminService.previewLifetimeMemberImport(body);
+  }
+
+  @Post('members/lifetime-import/confirm')
+  @Roles([AdminRole.SUPERADMIN, AdminRole.MEMBER_MANAGER])
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Confirm matched historical lifetime-member records' })
+  confirmLifetimeMemberImport(
+    @Body() body: ConfirmLifetimeMemberImportDto,
+    @Req() req: { user: IJwtPayload & { _id?: string } },
+  ) {
+    return this.adminService.confirmLifetimeMemberImport(body, req.user.id || req.user._id);
   }
 
   @Get('members/analytics')

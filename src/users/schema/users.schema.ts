@@ -161,6 +161,18 @@ export class User extends Document {
   @Prop()
   lifetimeMembershipExpiry?: Date;
 
+  @Prop()
+  lifetimeImportedAt?: Date;
+
+  @Prop()
+  lifetimeImportSource?: string;
+
+  @Prop()
+  lifetimeImportedBy?: string;
+
+  @Prop()
+  lifetimeImportRow?: number;
+
   // Account status and moderation fields
   @Prop({ default: true })
   isActive: boolean;
