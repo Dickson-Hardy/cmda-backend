@@ -193,23 +193,41 @@ export class AdminNotificationService {
     // The bell is backed by the Notification collection, not Expo delivery.
     // Persist an idempotent in-app item for every targeted user, including
     // users without a currently registered push token.
-    await this.notificationsService.createForUsers({
+    const inAppResult = await this.notificationsService.createForUsers({
       type: notification.type as unknown as InAppNotificationType,
       content: notification.body,
       typeId: notification._id.toString(),
       title: notification.title,
       data: {
-        type: notification.type,
-        notificationId: notification._id.toString(),
         ...notification.data,
+        type: notification.type,
       },
       userIds: inAppUserIds,
     });
 
+    const recipientNotifications =
+      (
+        inAppResult.data as {
+          items?: { userId: string; notificationId: string }[];
+        }
+      )?.items || [];
+    const notificationIdByUser = new Map(
+      recipientNotifications.map((item) => [item.userId, item.notificationId]),
+    );
+
     // Flatten all tokens
     const allTokens: string[] = [];
+    const recipientDataByToken = new Map<string, Record<string, unknown>>();
     for (const user of targetedUsers) {
-      allTokens.push(...user.tokens);
+      const recipientNotificationId = notificationIdByUser.get(user.userId);
+      for (const token of user.tokens) {
+        allTokens.push(token);
+        if (recipientNotificationId) {
+          recipientDataByToken.set(token, {
+            notificationId: recipientNotificationId,
+          });
+        }
+      }
     }
 
     if (allTokens.length === 0) {
@@ -228,11 +246,11 @@ export class AdminNotificationService {
       notification.title,
       notification.body,
       {
-        type: notification.type,
-        notificationId: notification._id.toString(),
         ...notification.data,
+        type: notification.type,
       },
       notification._id.toString(),
+      recipientDataByToken,
     );
 
     // Update delivery stats
@@ -285,6 +303,7 @@ export class AdminNotificationService {
     body: string,
     data: Record<string, any>,
     adminNotificationId?: string,
+    recipientDataByToken = new Map<string, Record<string, unknown>>(),
   ): Promise<DeliveryResult[]> {
     const results: DeliveryResult[] = [];
 
@@ -303,13 +322,29 @@ export class AdminNotificationService {
     }
 
     // Create messages
-    const messages: ExpoPushMessage[] = validTokens.map((token) => ({
-      to: token,
-      sound: 'default',
-      title,
-      body,
-      data,
-    }));
+    const messages: ExpoPushMessage[] = validTokens.map((token) => {
+      const messageData = { ...data, ...recipientDataByToken.get(token) };
+      const notificationType = String(messageData.type || '');
+      const channelId = [
+        'announcement',
+        'custom',
+        'training',
+        'event_reminder',
+        'payment_reminder',
+      ].includes(notificationType)
+        ? 'admin'
+        : 'default';
+
+      return {
+        to: token,
+        sound: 'default',
+        priority: 'high',
+        channelId,
+        title,
+        body,
+        data: messageData,
+      };
+    });
 
     // Send in chunks (Expo recommends max 100 per request)
     const chunks = this.expo.chunkPushNotifications(messages);

@@ -155,7 +155,15 @@ export class PushTokenService {
     );
     if (!tokens.length) return false;
 
-    const messages = tokens.map((to) => ({ to, sound: 'default' as const, title, body, data }));
+    const messages = tokens.map((to) => ({
+      to,
+      sound: 'default' as const,
+      priority: 'high' as const,
+      channelId: 'default',
+      title,
+      body,
+      data,
+    }));
     const tickets = await this.expo.sendPushNotificationsAsync(messages);
     await Promise.all(
       tickets.map((ticket, index) => {

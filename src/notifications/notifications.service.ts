@@ -66,6 +66,7 @@ export class NotificationsService {
     userIds: string[];
   }): Promise<ISuccessResponse> {
     const uniqueUserIds = Array.from(new Set(userIds));
+    let created: Notification[] = [];
 
     if (uniqueUserIds.length) {
       await this.notificationModel.bulkWrite(
@@ -78,7 +79,7 @@ export class NotificationsService {
         })),
       );
 
-      const created = await this.notificationModel.find({
+      created = await this.notificationModel.find({
         userId: { $in: uniqueUserIds },
         typeId,
       });
@@ -88,7 +89,13 @@ export class NotificationsService {
     return {
       success: true,
       message: 'In-app notifications created successfully',
-      data: { count: uniqueUserIds.length },
+      data: {
+        count: uniqueUserIds.length,
+        items: created.map((notification) => ({
+          userId: notification.userId,
+          notificationId: notification._id.toString(),
+        })),
+      },
     };
   }
 
