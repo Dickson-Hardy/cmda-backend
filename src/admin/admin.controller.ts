@@ -17,6 +17,7 @@ import { SendBulkEmailDto } from './dto/send-bulk-email.dto';
 import { GetEmailLogsDto } from './dto/get-email-logs.dto';
 import { CreateMemberByAdminDto } from './dto/create-member-by-admin.dto';
 import { Throttle } from '@nestjs/throttler';
+import { MemberAnalyticsQueryDto } from './dto/member-analytics-query.dto';
 
 @ApiTags('Admin')
 @Controller('admin')
@@ -177,8 +178,8 @@ export class AdminController {
   @Roles(AllAdminRoles)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get analytics for admin-created members' })
-  getMemberAnalytics() {
-    return this.adminService.getMemberAnalytics();
+  getMemberAnalytics(@Query() query: MemberAnalyticsQueryDto) {
+    return this.adminService.getMemberAnalytics(query);
   }
 
   @Get('members/track-email/:userId')

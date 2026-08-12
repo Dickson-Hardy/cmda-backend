@@ -26,6 +26,7 @@ import { User } from '../users/schema/users.schema';
 import { isGlobalCategory } from '../users/user.constant';
 import { AuthService } from '../auth/auth.service';
 import { escapeRegex } from '../_common/escape-regex.util';
+import { MemberAnalyticsQueryDto } from './dto/member-analytics-query.dto';
 
 @Injectable()
 export class AdminService {
@@ -274,7 +275,10 @@ export class AdminService {
     }
   }
 
-  async getMemberAnalytics(): Promise<ISuccessResponse> {
+  async getMemberAnalytics(query: MemberAnalyticsQueryDto): Promise<ISuccessResponse> {
+    const page = Number(query.page) || 1;
+    const limit = Number(query.limit) || 20;
+    const skip = (page - 1) * limit;
     const totalCreated = await this.userModel.countDocuments({ createdByAdmin: true });
     const emailOpened = await this.userModel.countDocuments({
       createdByAdmin: true,
@@ -297,7 +301,8 @@ export class AdminService {
       })
       .select('firstName lastName email createdAt credentialEmailOpened credentialEmailOpenedAt')
       .sort({ createdAt: -1 })
-      .limit(50);
+      .skip(skip)
+      .limit(limit);
 
     return {
       success: true,
@@ -314,6 +319,12 @@ export class AdminService {
           pendingPasswordChange,
         },
         pendingMembers,
+        pendingPagination: {
+          page,
+          limit,
+          total: pendingPasswordChange,
+          totalPages: Math.ceil(pendingPasswordChange / limit),
+        },
       },
     };
   }
