@@ -13,6 +13,7 @@ import { PaginationQueryDto } from '../_global/dto/pagination-query.dto';
 import { CreateProductDto } from './dto/create-product.dto';
 import { CloudinaryService } from '../cloudinary/cloudinary.service';
 import { ProductCategory } from './products.constant';
+import { escapeRegex } from '../_common/escape-regex.util';
 
 @Injectable()
 export class ProductsService {
@@ -93,10 +94,10 @@ export class ProductsService {
     const searchCriteria = searchBy
       ? {
           $or: [
-            { name: new RegExp(searchBy, 'i') },
-            { price: new RegExp(searchBy, 'i') },
-            { category: new RegExp(searchBy, 'i') },
-            { brand: new RegExp(searchBy, 'i') },
+            { name: new RegExp(escapeRegex(searchBy), 'i') },
+            { price: new RegExp(escapeRegex(searchBy), 'i') },
+            { category: new RegExp(escapeRegex(searchBy), 'i') },
+            { brand: new RegExp(escapeRegex(searchBy), 'i') },
           ],
         }
       : {};

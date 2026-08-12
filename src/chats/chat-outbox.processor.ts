@@ -9,6 +9,7 @@ import { NotificationsGateway } from '../notifications/notifications.gateway';
 import { NotificationType } from '../notifications/notification.constant';
 import { AdminNotificationService } from '../notifications/admin-notification.service';
 import { PushTokenService } from '../notifications/push-token.service';
+import { RabbitMqService } from '../queue/rabbitmq.service';
 
 @Injectable()
 export class ChatOutboxProcessor {
@@ -21,10 +22,12 @@ export class ChatOutboxProcessor {
     private readonly notificationsGateway: NotificationsGateway,
     private readonly adminNotificationService: AdminNotificationService,
     private readonly pushTokenService?: PushTokenService,
+    private readonly rabbitMq?: RabbitMqService,
   ) {}
 
   @Interval(5_000)
   async processPendingMessages() {
+    if (process.env.PROCESS_ROLE !== 'worker' && this.rabbitMq?.isConfigured()) return;
     if (this.processing) return;
     this.processing = true;
 

@@ -13,6 +13,7 @@ import { UpdateVolunteerJobDto } from './dto/update-volunteer-job.dto';
 import { CreateShiftDto } from './dto/create-shift.dto';
 import { UpdateShiftStatusDto } from './dto/update-shift-status.dto';
 import { VolunteerQueryDto } from './dto/volunteer-query.dto';
+import { escapeRegex } from '../_common/escape-regex.util';
 import { ISuccessResponse } from '../_global/interface/success-response';
 import { NotificationDispatcherService } from '../notifications/notification-dispatcher.service';
 import { NotificationType } from '../notifications/notification.constant';
@@ -39,10 +40,10 @@ export class VolunteersService {
 
     if (search) {
       filter.$or = [
-        { title: new RegExp(search, 'i') },
-        { description: new RegExp(search, 'i') },
-        { company: new RegExp(search, 'i') },
-        { location: new RegExp(search, 'i') },
+        { title: new RegExp(escapeRegex(search), 'i') },
+        { description: new RegExp(escapeRegex(search), 'i') },
+        { company: new RegExp(escapeRegex(search), 'i') },
+        { location: new RegExp(escapeRegex(search), 'i') },
       ];
     }
 
@@ -119,9 +120,7 @@ export class VolunteersService {
       throw new BadRequestException('This volunteer job is no longer accepting applications');
     }
 
-    const alreadyApplied = job.applicants?.some(
-      (a) => a.user.toString() === userId,
-    );
+    const alreadyApplied = job.applicants?.some((a) => a.user.toString() === userId);
     if (alreadyApplied) {
       throw new ConflictException('You have already applied for this job');
     }
@@ -129,7 +128,13 @@ export class VolunteersService {
     const updated = await this.volunteerJobModel.findByIdAndUpdate(
       jobId,
       {
-        $push: { applicants: { user: new Types.ObjectId(userId), appliedAt: new Date(), status: 'pending' } },
+        $push: {
+          applicants: {
+            user: new Types.ObjectId(userId),
+            appliedAt: new Date(),
+            status: 'pending',
+          },
+        },
       },
       { new: true },
     );
@@ -154,9 +159,7 @@ export class VolunteersService {
     const job = await this.volunteerJobModel.findById(jobId);
     if (!job) throw new NotFoundException('Volunteer job not found');
 
-    const applied = job.applicants?.some(
-      (a) => a.user.toString() === userId,
-    );
+    const applied = job.applicants?.some((a) => a.user.toString() === userId);
     if (!applied) throw new BadRequestException('You have not applied for this job');
 
     await this.volunteerJobModel.findByIdAndUpdate(jobId, {
@@ -186,9 +189,7 @@ export class VolunteersService {
     const totalPages = Math.ceil(totalItems / perPage);
 
     const data = items.map((job) => {
-      const application = job.applicants.find(
-        (a) => a.user.toString() === userId,
-      );
+      const application = job.applicants.find((a) => a.user.toString() === userId);
       return { ...job.toObject(), application };
     });
 
@@ -250,9 +251,7 @@ export class VolunteersService {
     const shift = await this.volunteerShiftModel.findById(shiftId);
     if (!shift) throw new NotFoundException('Shift not found');
 
-    const alreadySignedUp = shift.volunteers.some(
-      (v) => v.user.toString() === userId,
-    );
+    const alreadySignedUp = shift.volunteers.some((v) => v.user.toString() === userId);
     if (alreadySignedUp) {
       throw new ConflictException('You are already signed up for this shift');
     }
@@ -278,9 +277,7 @@ export class VolunteersService {
     const shift = await this.volunteerShiftModel.findById(shiftId);
     if (!shift) throw new NotFoundException('Shift not found');
 
-    const signedUp = shift.volunteers.some(
-      (v) => v.user.toString() === userId,
-    );
+    const signedUp = shift.volunteers.some((v) => v.user.toString() === userId);
     if (!signedUp) {
       throw new BadRequestException('You are not signed up for this shift');
     }
@@ -313,9 +310,7 @@ export class VolunteersService {
     const totalPages = Math.ceil(totalItems / perPage);
 
     const data = items.map((shift) => {
-      const volunteer = shift.volunteers.find(
-        (v) => v.user.toString() === userId,
-      );
+      const volunteer = shift.volunteers.find((v) => v.user.toString() === userId);
       return { ...shift.toObject(), myStatus: volunteer?.status };
     });
 
@@ -329,16 +324,11 @@ export class VolunteersService {
     };
   }
 
-  async updateShiftStatus(
-    shiftId: string,
-    dto: UpdateShiftStatusDto,
-  ): Promise<ISuccessResponse> {
+  async updateShiftStatus(shiftId: string, dto: UpdateShiftStatusDto): Promise<ISuccessResponse> {
     const shift = await this.volunteerShiftModel.findById(shiftId);
     if (!shift) throw new NotFoundException('Shift not found');
 
-    const volunteerIndex = shift.volunteers.findIndex(
-      (v) => v.user.toString() === dto.userId,
-    );
+    const volunteerIndex = shift.volunteers.findIndex((v) => v.user.toString() === dto.userId);
     if (volunteerIndex === -1) {
       throw new NotFoundException('User is not signed up for this shift');
     }

@@ -34,7 +34,8 @@ export class ScheduledEmailsService {
     name: 'send-birthday-emails',
     timeZone: 'Africa/Lagos',
   })
-  async sendBirthdayEmails() {
+  async sendBirthdayEmails(force = false) {
+    if (!force && process.env.RABBITMQ_URL && process.env.PROCESS_ROLE !== 'worker') return;
     this.logger.log('Running birthday email cron job...');
 
     try {
@@ -60,17 +61,17 @@ export class ScheduledEmailsService {
       this.logger.log(`Found ${birthdayUsers.length} users with birthdays today`);
 
       for (const user of birthdayUsers) {
-          try {
-            const emailContent = BIRTHDAY_EMAIL_TEMPLATE.replace(
-              /\[Name\]/g,
-              user.firstName || 'Member',
-            );
+        try {
+          const emailContent = BIRTHDAY_EMAIL_TEMPLATE.replace(
+            /\[Name\]/g,
+            user.firstName || 'Member',
+          );
 
-            await this.emailService.sendBirthdayEmail({
-              to: user.email,
-              subject: `🎉 Happy Birthday ${user.firstName}! - CMDA Nigeria`,
-              html: emailContent,
-            });
+          await this.emailService.sendBirthdayEmail({
+            to: user.email,
+            subject: `🎉 Happy Birthday ${user.firstName}! - CMDA Nigeria`,
+            html: emailContent,
+          });
 
           this.logger.log(`Birthday email sent to ${user.email}`);
         } catch (error) {
@@ -92,7 +93,8 @@ export class ScheduledEmailsService {
     name: 'send-subscription-reminders',
     timeZone: 'Africa/Lagos',
   })
-  async sendSubscriptionReminders() {
+  async sendSubscriptionReminders(force = false) {
+    if (!force && process.env.RABBITMQ_URL && process.env.PROCESS_ROLE !== 'worker') return;
     this.logger.log('Running subscription reminder cron job...');
 
     try {
@@ -166,7 +168,8 @@ export class ScheduledEmailsService {
     name: 'send-event-reminders',
     timeZone: 'Africa/Lagos',
   })
-  async sendEventReminders() {
+  async sendEventReminders(force = false) {
+    if (!force && process.env.RABBITMQ_URL && process.env.PROCESS_ROLE !== 'worker') return;
     this.logger.log('Running event reminder cron job...');
 
     try {
@@ -310,7 +313,8 @@ export class ScheduledEmailsService {
     name: 'send-followup-emails',
     timeZone: 'Africa/Lagos',
   })
-  async sendFollowUpEmails() {
+  async sendFollowUpEmails(force = false) {
+    if (!force && process.env.RABBITMQ_URL && process.env.PROCESS_ROLE !== 'worker') return;
     this.logger.log('Running follow-up email cron job...');
 
     try {
@@ -380,21 +384,21 @@ export class ScheduledEmailsService {
    */
   async triggerBirthdayEmails() {
     this.logger.log('Manually triggering birthday emails...');
-    return this.sendBirthdayEmails();
+    return this.sendBirthdayEmails(true);
   }
 
   async triggerSubscriptionReminders() {
     this.logger.log('Manually triggering subscription reminders...');
-    return this.sendSubscriptionReminders();
+    return this.sendSubscriptionReminders(true);
   }
 
   async triggerEventReminders() {
     this.logger.log('Manually triggering event reminders...');
-    return this.sendEventReminders();
+    return this.sendEventReminders(true);
   }
 
   async triggerFollowUpEmails() {
     this.logger.log('Manually triggering follow-up emails...');
-    return this.sendFollowUpEmails();
+    return this.sendFollowUpEmails(true);
   }
 }

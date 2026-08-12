@@ -1,5 +1,5 @@
 import { MailerService } from '@nestjs-modules/mailer';
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import { ResendFallbackService } from './resend-fallback.service';
 import { MEMBER_CREDENTIALS_TEMPLATE, WELCOME_EMAIL_TEMPLATE } from './templates/welcome.template';
 import { PASSWORD_RESET_REQUEST_EMAIL_TEMPLATE } from './templates/password-reset.template';
@@ -14,6 +14,7 @@ import { CONFERENCE_PAYMENT_CONFIRMATION_TEMPLATE } from './templates/conference
 import { CONFERENCE_UPDATE_NOTIFICATION_TEMPLATE } from './templates/conference-update.template';
 import { PASSWORD_CHANGE_REMINDER_TEMPLATE } from './templates/password-reminder.template';
 import { ConfigService } from '@nestjs/config';
+import { RabbitMqService } from '../queue/rabbitmq.service';
 
 enum EmailPriority {
   CRITICAL = 'critical', // Onboarding, password resets - use Resend
@@ -29,6 +30,7 @@ export class EmailService {
     private mailerService: MailerService,
     private resendFallback: ResendFallbackService,
     private configService: ConfigService,
+    @Optional() private rabbitMq?: RabbitMqService,
   ) {}
 
   /**
@@ -49,6 +51,17 @@ export class EmailService {
     text?: string;
     priority?: EmailPriority;
   }): Promise<{ success: boolean }> {
+    if (process.env.PROCESS_ROLE !== 'worker' && this.rabbitMq?.isConfigured()) {
+      const queued = await this.rabbitMq.publish('email', undefined, {
+        to,
+        subject,
+        html,
+        text,
+        priority,
+        provider: 'route',
+      });
+      if (queued) return { success: true };
+    }
     // LOW priority → SMTP directly (birthday, reminders)
     if (priority === EmailPriority.LOW) {
       return this.sendViaSmtp(to, subject, html);
@@ -114,6 +127,18 @@ export class EmailService {
       this.configService.get<string>('ONBOARDING_EMAIL_PROVIDER') || 'smtp'
     ).toLowerCase();
 
+    if (process.env.PROCESS_ROLE !== 'worker' && this.rabbitMq?.isConfigured()) {
+      const queued = await this.rabbitMq.publish('email', undefined, {
+        to,
+        subject,
+        html,
+        text,
+        priority: EmailPriority.CRITICAL,
+        provider,
+      });
+      if (queued) return { success: true };
+    }
+
     if (provider === 'resend') {
       return this.routeEmail({
         to,
@@ -125,6 +150,20 @@ export class EmailService {
     }
 
     return this.sendViaSmtp(to, subject, html);
+  }
+
+  async deliverQueuedEmail(payload: Record<string, unknown>): Promise<void> {
+    const to = String(payload.to || '');
+    const subject = String(payload.subject || '');
+    const html = String(payload.html || '');
+    const text = payload.text ? String(payload.text) : undefined;
+    const priority = (payload.priority as EmailPriority) || EmailPriority.NORMAL;
+    if (!to || !subject || !html) throw new Error('Queued email payload is incomplete');
+    const result =
+      payload.provider === 'smtp'
+        ? await this.sendViaSmtp(to, subject, html)
+        : await this.routeEmail({ to, subject, html, text, priority });
+    if (!result.success) throw new Error(`Queued email delivery failed for ${to}`);
   }
 
   // ==================== CRITICAL EMAILS (RESEND) ====================

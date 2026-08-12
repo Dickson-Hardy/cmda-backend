@@ -28,5 +28,6 @@ import { ChatOutboxProcessor } from './chat-outbox.processor';
   ],
   controllers: [ChatsController],
   providers: [ChatsService, ChatGateway, ChatOutboxProcessor],
+  exports: [ChatOutboxProcessor],
 })
 export class ChatsModule {}

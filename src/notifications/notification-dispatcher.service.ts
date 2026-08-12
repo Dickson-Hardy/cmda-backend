@@ -6,6 +6,7 @@ import { NotificationType } from './notification.constant';
 import { NotificationsService } from './notifications.service';
 import { PushTokenService } from './push-token.service';
 import { NotificationOutbox } from './notification-outbox.schema';
+import { RabbitMqService } from '../queue/rabbitmq.service';
 
 export interface MemberNotification {
   userId: string;
@@ -27,6 +28,7 @@ export class NotificationDispatcherService {
     private readonly pushTokenService: PushTokenService,
     @InjectModel(NotificationOutbox.name)
     private readonly outboxModel: Model<NotificationOutbox>,
+    private readonly rabbitMq: RabbitMqService,
   ) {}
 
   async notify(input: MemberNotification): Promise<void> {
@@ -44,10 +46,11 @@ export class NotificationDispatcherService {
       { upsert: true, new: true },
     );
     if (outbox.status === 'delivered' || outbox.status === 'dead_letter') return;
-    await this.deliver(outbox._id.toString());
+    const queued = await this.rabbitMq.publish('notification-outbox', outbox._id.toString());
+    if (!queued) await this.deliver(outbox._id.toString());
   }
 
-  private async deliver(outboxId: string): Promise<void> {
+  async deliver(outboxId: string): Promise<void> {
     const staleClaim = new Date(Date.now() - 10 * 60 * 1000);
     const outbox = await this.outboxModel.findOneAndUpdate(
       {
@@ -111,6 +114,7 @@ export class NotificationDispatcherService {
 
   @Cron(CronExpression.EVERY_MINUTE)
   async processPending(): Promise<void> {
+    if (process.env.PROCESS_ROLE !== 'worker' && this.rabbitMq.isConfigured()) return;
     const pending = await this.outboxModel
       .find({ status: 'pending', nextAttemptAt: { $lte: new Date() } })
       .sort({ nextAttemptAt: 1 })

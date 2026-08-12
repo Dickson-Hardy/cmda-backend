@@ -6,6 +6,7 @@ import { Vacancy } from './vacancy.schema';
 import { CreateVacancyDto } from './dto/create-vacancy.dto';
 import { PaginationQueryDto } from '../_global/dto/pagination-query.dto';
 import { UpdateVacancyDto } from './dto/update-vacancy.dto';
+import { escapeRegex } from '../_common/escape-regex.util';
 
 @Injectable()
 export class VacancyService {
@@ -30,12 +31,12 @@ export class VacancyService {
     const searchCriteria = searchBy
       ? {
           $or: [
-            { title: new RegExp(searchBy, 'i') },
-            { description: new RegExp(searchBy, 'i') },
-            { responsibilities: new RegExp(searchBy, 'i') },
-            { requirements: new RegExp(searchBy, 'i') },
-            { companyName: new RegExp(searchBy, 'i') },
-            { companyLocation: new RegExp(searchBy, 'i') },
+            { title: new RegExp(escapeRegex(searchBy), 'i') },
+            { description: new RegExp(escapeRegex(searchBy), 'i') },
+            { responsibilities: new RegExp(escapeRegex(searchBy), 'i') },
+            { requirements: new RegExp(escapeRegex(searchBy), 'i') },
+            { companyName: new RegExp(escapeRegex(searchBy), 'i') },
+            { companyLocation: new RegExp(escapeRegex(searchBy), 'i') },
           ],
         }
       : {};

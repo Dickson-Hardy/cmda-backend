@@ -1,4 +1,4 @@
-import { IsOptional, IsString, IsEnum, IsBooleanString, IsDateString } from 'class-validator';
+import { IsOptional, IsString, IsEnum, IsBooleanString, IsDateString, MaxLength } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { EventAudience, EventType } from '../events.constant';
 
@@ -6,11 +6,13 @@ export class EventPaginationQueryDto {
   @ApiPropertyOptional({ description: 'Search query term', type: String })
   @IsOptional()
   @IsString()
+  @MaxLength(100)
   searchBy?: string;
 
   @ApiPropertyOptional({ description: 'Search term for event name', type: String })
   @IsOptional()
   @IsString()
+  @MaxLength(100)
   search?: string;
 
   @ApiPropertyOptional({ description: 'Number of users per page, default is 10', type: String })

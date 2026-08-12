@@ -1,4 +1,5 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Req } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Req, Res } from '@nestjs/common';
+import { Response } from 'express';
 import { ApiBearerAuth, ApiBody, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { CreateAdminDto } from './dto/create-admin.dto';
 import { AdminService } from './admin.service';
@@ -18,6 +19,7 @@ import { GetEmailLogsDto } from './dto/get-email-logs.dto';
 import { CreateMemberByAdminDto } from './dto/create-member-by-admin.dto';
 import { Throttle } from '@nestjs/throttler';
 import { MemberAnalyticsQueryDto } from './dto/member-analytics-query.dto';
+import { setRefreshCookie } from '../auth/refresh-cookie.util';
 import {
   ConfirmLifetimeMemberImportDto,
   PreviewLifetimeMemberImportDto,
@@ -54,8 +56,11 @@ export class AdminController {
   @Public()
   @ApiOperation({ summary: 'Login an admin' })
   @ApiBody({ type: LoginAdminDto })
-  login(@Body() loginDto: LoginAdminDto) {
-    return this.adminService.login(loginDto);
+  async login(@Body() loginDto: LoginAdminDto, @Res({ passthrough: true }) response: Response) {
+    const result = await this.adminService.login(loginDto);
+    const tokens = result.data as { refreshToken: string; refreshTokenExpiresAt: Date };
+    setRefreshCookie(response, tokens.refreshToken, tokens.refreshTokenExpiresAt, 'admin');
+    return result;
   }
 
   @Get('profile')

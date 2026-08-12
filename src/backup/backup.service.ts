@@ -192,6 +192,7 @@ export class BackupService {
     name: 'biweekly-backup',
   })
   async scheduledBiweeklyBackup() {
+    if (process.env.RABBITMQ_URL && process.env.PROCESS_ROLE !== 'worker') return;
     // Check if it's a biweekly occurrence (every 2 weeks)
     const weekNumber = this.getWeekNumber(new Date());
     if (weekNumber % 2 === 0) {
@@ -268,13 +269,15 @@ export class BackupService {
    */
   private async streamFromUrl(url: string): Promise<Readable> {
     return new Promise((resolve, reject) => {
-      https.get(url, (response) => {
-        if (response.statusCode === 200) {
-          resolve(response);
-        } else {
-          reject(new Error(`Failed to download file: ${response.statusCode}`));
-        }
-      }).on('error', reject);
+      https
+        .get(url, (response) => {
+          if (response.statusCode === 200) {
+            resolve(response);
+          } else {
+            reject(new Error(`Failed to download file: ${response.statusCode}`));
+          }
+        })
+        .on('error', reject);
     });
   }
 

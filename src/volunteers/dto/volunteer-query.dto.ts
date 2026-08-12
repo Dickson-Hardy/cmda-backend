@@ -1,5 +1,5 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsEnum, IsOptional, IsString } from 'class-validator';
+import { IsEnum, IsOptional, IsString, MaxLength } from 'class-validator';
 import { VolunteerJobCategory } from './create-volunteer-job.dto';
 
 export class VolunteerQueryDto {
@@ -16,11 +16,13 @@ export class VolunteerQueryDto {
   @ApiPropertyOptional({ description: 'Search query term', type: String })
   @IsOptional()
   @IsString()
+  @MaxLength(100)
   search?: string;
 
   @ApiPropertyOptional({ description: 'Legacy alias for search', type: String })
   @IsOptional()
   @IsString()
+  @MaxLength(100)
   searchBy?: string;
 
   @ApiPropertyOptional({ enum: VolunteerJobCategory, description: 'Filter by category' })

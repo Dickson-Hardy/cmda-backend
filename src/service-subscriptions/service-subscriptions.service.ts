@@ -402,7 +402,8 @@ export class ServiceSubscriptionsService {
 
   // Cron job to send renewal reminders (runs daily at 8 AM)
   @Cron(CronExpression.EVERY_DAY_AT_8AM)
-  async sendRenewalReminders() {
+  async sendRenewalReminders(force = false) {
+    if (!force && process.env.RABBITMQ_URL && process.env.PROCESS_ROLE !== 'worker') return;
     console.log('Checking for services needing renewal reminders...');
 
     await this.updateStatuses();
@@ -546,7 +547,9 @@ export class ServiceSubscriptionsService {
         ],
       });
 
-      console.log(`Expiring services invoice sent to ${Array.isArray(to) ? to.join(', ') : to} with ${expiringServices.length} services`);
+      console.log(
+        `Expiring services invoice sent to ${Array.isArray(to) ? to.join(', ') : to} with ${expiringServices.length} services`,
+      );
 
       return {
         success: true,
@@ -756,13 +759,13 @@ export class ServiceSubscriptionsService {
       services: expiringServices,
       invoiceNumber,
       invoiceDate: now,
-      dueDate: expiringServices.length > 0
-        ? new Date(Math.min(...expiringServices.map((s) => s.renewalDate.getTime())))
-        : now,
+      dueDate:
+        expiringServices.length > 0
+          ? new Date(Math.min(...expiringServices.map((s) => s.renewalDate.getTime())))
+          : now,
       totalAmount: totals,
     };
 
     return this.invoicePdfService.generateInvoicePdf(invoiceData);
   }
 }
-

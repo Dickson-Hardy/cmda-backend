@@ -44,8 +44,12 @@ export class EmailLog extends Document {
   @Prop()
   messageId?: string;
 
+  @Prop({ default: 0 })
+  attempts: number;
+
   @Prop({ type: Object })
   metadata?: Record<string, any>;
 }
 
 export const EmailLogSchema = SchemaFactory.createForClass(EmailLog);
+EmailLogSchema.index({ status: 1, createdAt: 1 });

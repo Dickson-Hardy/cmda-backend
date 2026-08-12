@@ -5,9 +5,11 @@ import {
   Patch,
   Post,
   Req,
+  Res,
   UploadedFile,
   UseInterceptors,
 } from '@nestjs/common';
+import { Request, Response } from 'express';
 import { AuthService } from './auth.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { LoginDto } from './dto/login.dto';
@@ -27,6 +29,8 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { AllAdminRoles } from '../admin/admin.constant';
 import { Throttle } from '@nestjs/throttler';
+import { IMAGE_UPLOAD_OPTIONS } from '../_common/image-upload-options';
+import { resolveRefreshToken, setRefreshCookie } from './refresh-cookie.util';
 
 @ApiTags('Auth')
 @Controller('auth')
@@ -47,8 +51,11 @@ export class AuthController {
   @Public()
   @ApiOperation({ summary: 'Login a user' })
   @ApiBody({ type: LoginDto })
-  login(@Body() loginDto: LoginDto) {
-    return this.authService.login(loginDto);
+  async login(@Body() loginDto: LoginDto, @Res({ passthrough: true }) response: Response) {
+    const result = await this.authService.login(loginDto);
+    const tokens = result.data as { refreshToken: string; refreshTokenExpiresAt: Date };
+    setRefreshCookie(response, tokens.refreshToken, tokens.refreshTokenExpiresAt);
+    return result;
   }
 
   @Get('me')
@@ -64,7 +71,7 @@ export class AuthController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Updates profile of current user' })
   @ApiBody({ type: UpdateUserDto })
-  @UseInterceptors(FileInterceptor('avatar'))
+  @UseInterceptors(FileInterceptor('avatar', IMAGE_UPLOAD_OPTIONS))
   updateProfile(
     @Req() req: { user: IJwtPayload },
     @Body() updateProfileDto: UpdateUserDto,
@@ -147,7 +154,17 @@ export class AuthController {
   @Public()
   @ApiOperation({ summary: 'Refresh access token' })
   @ApiBody({ type: RefreshTokenDto })
-  refreshToken(@Body() body: RefreshTokenDto) {
-    return this.authService.refreshToken(body.refreshToken);
+  async refreshToken(
+    @Body() body: RefreshTokenDto,
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    const client = body.client || 'member';
+    const result = await this.authService.refreshToken(
+      resolveRefreshToken(request, body.refreshToken, client),
+    );
+    const tokens = result.data as { refreshToken: string; refreshTokenExpiresAt: Date };
+    setRefreshCookie(response, tokens.refreshToken, tokens.refreshTokenExpiresAt, client);
+    return result;
   }
 }

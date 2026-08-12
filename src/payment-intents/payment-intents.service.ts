@@ -105,6 +105,14 @@ export class PaymentIntentsService {
     return this.model.findOne({ providerReference: reference });
   }
 
+  async findOwnedById(intentId: string, userId: string): Promise<PaymentIntent | null> {
+    return this.model.findOne({ _id: intentId, user: userId });
+  }
+
+  async findOwnedByReference(reference: string, userId: string): Promise<PaymentIntent | null> {
+    return this.model.findOne({ providerReference: reference, user: userId });
+  }
+
   async listForUser(userId: string, query: PaginationQueryDto) {
     const page = Number(query.page) || 1;
     const limit = Number(query.limit) || 10;
@@ -146,6 +154,32 @@ export class PaymentIntentsService {
     if (query.reference) {
       filter.providerReference = query.reference;
     }
+
+    const [items, totalItems] = await Promise.all([
+      this.model.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit),
+      this.model.countDocuments(filter),
+    ]);
+
+    return {
+      items,
+      meta: {
+        currentPage: page,
+        totalItems,
+        itemsPerPage: limit,
+        totalPages: Math.ceil(totalItems / limit),
+      },
+    };
+  }
+
+  async lookupForUser(userId: string, query: LookupPaymentIntentDto) {
+    const page = Number(query.page) || 1;
+    const limit = Number(query.limit) || 10;
+    const skip = (page - 1) * limit;
+    const filter: Record<string, any> = { user: userId };
+
+    if (query.status) filter.status = query.status;
+    if (query.provider) filter.provider = query.provider;
+    if (query.reference) filter.providerReference = query.reference;
 
     const [items, totalItems] = await Promise.all([
       this.model.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit),

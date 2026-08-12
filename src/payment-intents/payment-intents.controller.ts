@@ -7,7 +7,6 @@ import { AllUserRoles } from '../users/user.constant';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { IJwtPayload } from '../_global/interface/jwt-payload';
 import { PaginationQueryDto } from '../_global/dto/pagination-query.dto';
-import { Public } from '../auth/decorators/public.decorator';
 import { PaystackService } from '../paystack/paystack.service';
 import {
   PaymentIntent,
@@ -43,10 +42,11 @@ export class PaymentIntentsController {
   }
 
   @Post('lookup-email')
-  @Public()
-  @ApiOperation({ summary: 'Find payment intents by email address' })
-  async lookupByEmail(@Body() body: LookupPaymentIntentDto) {
-    const result = await this.paymentIntentsService.lookupByEmail(body);
+  @Roles(AllUserRoles)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Find payment intents belonging to the authenticated user' })
+  async lookupByEmail(@Req() req: { user: IJwtPayload }, @Body() body: LookupPaymentIntentDto) {
+    const result = await this.paymentIntentsService.lookupForUser(req.user.id, body);
     return {
       success: true,
       message: 'Payment intents fetched successfully',
@@ -55,10 +55,11 @@ export class PaymentIntentsController {
   }
 
   @Post('requery')
-  @Public()
+  @Roles(AllUserRoles)
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'Requery payment intents and sync their downstream payloads' })
-  async requery(@Body() body: RequeryPaymentIntentDto) {
-    const intents = await this.resolveIntentsForRequery(body);
+  async requery(@Req() req: { user: IJwtPayload }, @Body() body: RequeryPaymentIntentDto) {
+    const intents = await this.resolveIntentsForRequery(req.user.id, body);
 
     if (!intents.length) {
       return {
@@ -121,19 +122,22 @@ export class PaymentIntentsController {
     };
   }
 
-  private async resolveIntentsForRequery(body: RequeryPaymentIntentDto): Promise<PaymentIntent[]> {
+  private async resolveIntentsForRequery(
+    userId: string,
+    body: RequeryPaymentIntentDto,
+  ): Promise<PaymentIntent[]> {
     if (body.intentId) {
-      const intent = await this.paymentIntentsService.findById(body.intentId);
+      const intent = await this.paymentIntentsService.findOwnedById(body.intentId, userId);
       return intent ? [intent] : [];
     }
 
     if (body.reference) {
-      const intent = await this.paymentIntentsService.findByReference(body.reference);
+      const intent = await this.paymentIntentsService.findOwnedByReference(body.reference, userId);
       return intent ? [intent] : [];
     }
 
     if (body.email) {
-      const result = await this.paymentIntentsService.lookupByEmail({ email: body.email });
+      const result = await this.paymentIntentsService.lookupForUser(userId, { email: body.email });
       return result.items;
     }
 

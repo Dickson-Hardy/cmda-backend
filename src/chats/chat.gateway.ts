@@ -19,17 +19,19 @@ import { AllAdminRoles, AdminRole } from '../admin/admin.constant';
 import { SOCKET_IO_CORS } from '../_global/constants/cors.constants';
 import { BroadcastMessageDto } from './dto/broadcast-message.dto';
 import { SendMessageDto } from './dto/send-message.dto';
-import { ValidationPipe } from '@nestjs/common';
+import { Optional, ValidationPipe } from '@nestjs/common';
 import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { ChatBlock } from './schema/chat-block.schema';
 import { ChatOutbox } from './schema/chat-outbox.schema';
 import { InjectConnection } from '@nestjs/mongoose';
+import { RabbitMqService } from '../queue/rabbitmq.service';
+import { OperationalMetricsService } from '../monitoring/operational-metrics.service';
 
 type AuthenticatedSocket = Socket & {
   data: { user?: IJwtPayload; accessToken?: string; expirationTimer?: NodeJS.Timeout };
 };
 
-@WebSocketGateway({ cors: SOCKET_IO_CORS })
+@WebSocketGateway({ cors: SOCKET_IO_CORS, transports: ['websocket'] })
 export class ChatGateway implements OnGatewayConnection {
   @WebSocketServer()
   server: Server;
@@ -44,6 +46,8 @@ export class ChatGateway implements OnGatewayConnection {
     @InjectModel(ChatOutbox.name) private readonly outboxModel: Model<ChatOutbox>,
     @InjectConnection() private readonly connection: Connection,
     private readonly authService: AuthService,
+    @Optional() private readonly rabbitMq?: RabbitMqService,
+    @Optional() private readonly metrics?: OperationalMetricsService,
   ) {}
 
   async handleConnection(client: AuthenticatedSocket) {
@@ -53,14 +57,21 @@ export class ChatGateway implements OnGatewayConnection {
       if (!token) throw new Error('Missing token');
       const user = await this.authService.validateToken(token);
       client.data.user = user;
+      this.metrics?.socketConnected();
       client.data.accessToken = token;
       await client.join(this.userRoom(this.chatIdentity(user)));
       const expiresIn = Math.max(0, user.exp * 1000 - Date.now());
-      client.data.expirationTimer = setTimeout(() => {
-        client.emit('auth_error', { message: 'Session expired' });
-        client.disconnect(true);
-      }, Math.min(expiresIn, 2_147_000_000));
-      client.once('disconnect', () => clearTimeout(client.data.expirationTimer));
+      client.data.expirationTimer = setTimeout(
+        () => {
+          client.emit('auth_error', { message: 'Session expired' });
+          client.disconnect(true);
+        },
+        Math.min(expiresIn, 2_147_000_000),
+      );
+      client.once('disconnect', () => {
+        clearTimeout(client.data.expirationTimer);
+        this.metrics?.socketDisconnected();
+      });
     } catch {
       client.emit('auth_error', { message: 'Authentication required' });
       client.disconnect(true);
@@ -70,7 +81,9 @@ export class ChatGateway implements OnGatewayConnection {
   @SubscribeMessage('newMessage')
   async handleMessage(
     @ConnectedSocket() client: AuthenticatedSocket,
-    @MessageBody(new ValidationPipe({ transform: true, whitelist: true, forbidNonWhitelisted: true }))
+    @MessageBody(
+      new ValidationPipe({ transform: true, whitelist: true, forbidNonWhitelisted: true }),
+    )
     data: SendMessageDto,
   ) {
     const user = await this.requireSocketUser(client);
@@ -155,6 +168,7 @@ export class ChatGateway implements OnGatewayConnection {
     }
 
     this.emitToConversation(sender, receiver, newMessage);
+    if (receiver !== 'admin') await this.rabbitMq?.publish('chat-outbox');
 
     return newMessage;
   }
@@ -163,7 +177,9 @@ export class ChatGateway implements OnGatewayConnection {
   @SubscribeMessage('broadcastMessage')
   async handleBroadcast(
     @ConnectedSocket() client: AuthenticatedSocket,
-    @MessageBody(new ValidationPipe({ transform: true, whitelist: true, forbidNonWhitelisted: true }))
+    @MessageBody(
+      new ValidationPipe({ transform: true, whitelist: true, forbidNonWhitelisted: true }),
+    )
     data: BroadcastMessageDto,
   ) {
     const user = await this.requireSocketUser(client);
@@ -176,7 +192,6 @@ export class ChatGateway implements OnGatewayConnection {
   }
 
   async broadcastMessage(data: BroadcastMessageDto) {
-
     const sender = 'admin';
     const { receiverCriteria, content } = data;
     const { role, region, searchBy } = receiverCriteria;
@@ -207,7 +222,7 @@ export class ChatGateway implements OnGatewayConnection {
     let delivered = 0;
     for (let i = 0; i < receivers.length; i += BATCH_SIZE) {
       const batch = receivers.slice(i, i + BATCH_SIZE);
-      
+
       await Promise.all(
         batch.map(async (receiver) => {
           try {

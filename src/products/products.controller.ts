@@ -19,6 +19,7 @@ import { PaginationQueryDto } from '../_global/dto/pagination-query.dto';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { AllAdminRoles } from '../admin/admin.constant';
 import { FileFieldsInterceptor, FileInterceptor } from '@nestjs/platform-express';
+import { IMAGE_UPLOAD_OPTIONS } from '../_common/image-upload-options';
 
 @ApiTags('Products')
 @Controller('products')
@@ -32,10 +33,13 @@ export class ProductsController {
   @ApiBody({ type: CreateProductDto })
   @ApiConsumes('multipart/form-data')
   @UseInterceptors(
-    FileFieldsInterceptor([
-      { name: 'featuredImage', maxCount: 1 },
-      { name: 'additionalImageFiles', maxCount: 4 },
-    ]),
+    FileFieldsInterceptor(
+      [
+        { name: 'featuredImage', maxCount: 1 },
+        { name: 'additionalImageFiles', maxCount: 4 },
+      ],
+      IMAGE_UPLOAD_OPTIONS,
+    ),
   )
   create(
     @Body() createProductDto: CreateProductDto,
@@ -74,7 +78,7 @@ export class ProductsController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Update a product by its slug' })
   @ApiBody({ type: UpdateProductDto })
-  @UseInterceptors(FileInterceptor('featuredImage'))
+  @UseInterceptors(FileInterceptor('featuredImage', IMAGE_UPLOAD_OPTIONS))
   update(
     @Param('slug') slug: string,
     @Body() updateProductDto: UpdateProductDto,

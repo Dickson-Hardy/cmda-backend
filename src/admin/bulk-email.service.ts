@@ -8,23 +8,17 @@ import { BulkEmailRecipientType, SendBulkEmailDto } from './dto/send-bulk-email.
 import { GetEmailLogsDto } from './dto/get-email-logs.dto';
 import { ISuccessResponse } from '../_global/interface/success-response';
 import { escapeRegex } from '../_common/escape-regex.util';
+import { RabbitMqService } from '../queue/rabbitmq.service';
 
 @Injectable()
 export class BulkEmailService {
   private readonly logger = new Logger(BulkEmailService.name);
-  private readonly emailQueue: Array<{ log: EmailLog; retry: number }> = [];
-  private isProcessing = false;
-  private readonly RATE_LIMIT_MS = 1000; // 1 second between emails
-  private readonly MAX_RETRIES = 3;
-
   constructor(
     @InjectModel(User.name) private userModel: Model<User>,
     @InjectModel(EmailLog.name) private emailLogModel: Model<EmailLog>,
     private emailService: EmailService,
-  ) {
-    // Start processing queue
-    this.processQueue();
-  }
+    private rabbitMq: RabbitMqService,
+  ) {}
 
   async sendBulkEmails(dto: SendBulkEmailDto): Promise<ISuccessResponse> {
     let recipients: string[] = [];
@@ -71,9 +65,7 @@ export class BulkEmailService {
     );
 
     // Add to queue
-    emailLogs.forEach((log) => {
-      this.emailQueue.push({ log, retry: 0 });
-    });
+    await this.enqueueEmailLogs(emailLogs);
 
     this.logger.log(`Queued ${emailLogs.length} emails for sending`);
 
@@ -109,9 +101,7 @@ export class BulkEmailService {
       })),
     );
 
-    emailLogs.forEach((log) => {
-      this.emailQueue.push({ log, retry: 0 });
-    });
+    await this.enqueueEmailLogs(emailLogs);
 
     this.logger.log(`Queued ${emailLogs.length} subscription reminder emails`);
 
@@ -154,21 +144,26 @@ export class BulkEmailService {
   }
 
   async getQueueStatus(): Promise<ISuccessResponse> {
-    const stats = await this.emailLogModel.aggregate([
-      {
-        $group: {
-          _id: '$status',
-          count: { $sum: 1 },
+    const [stats, queueLength] = await Promise.all([
+      this.emailLogModel.aggregate([
+        {
+          $group: {
+            _id: '$status',
+            count: { $sum: 1 },
+          },
         },
-      },
+      ]),
+      this.emailLogModel.countDocuments({
+        status: { $in: [EmailStatus.QUEUED, EmailStatus.FAILED] },
+      }),
     ]);
 
     return {
       success: true,
       message: 'Queue status fetched successfully',
       data: {
-        queueLength: this.emailQueue.length,
-        isProcessing: this.isProcessing,
+        queueLength,
+        isProcessing: Boolean(await this.emailLogModel.exists({ status: EmailStatus.SENDING })),
         stats: stats.reduce(
           (acc, curr) => {
             acc[curr._id] = curr.count;
@@ -180,63 +175,58 @@ export class BulkEmailService {
     };
   }
 
-  private async processQueue() {
-    setInterval(async () => {
-      if (this.isProcessing || this.emailQueue.length === 0) {
-        return;
-      }
+  async processEmailLog(id: string): Promise<void> {
+    const log = await this.emailLogModel.findOneAndUpdate(
+      { _id: id, status: { $in: [EmailStatus.QUEUED, EmailStatus.FAILED] }, attempts: { $lt: 4 } },
+      { status: EmailStatus.SENDING, $inc: { attempts: 1 } },
+      { new: true },
+    );
+    if (!log) return;
+    try {
+      const result = await this.emailService.sendEmail({
+        to: log.recipient,
+        subject: log.subject,
+        html: log.body,
+      });
+      if (!result.success) throw new Error('Email provider rejected the message');
+      await log.updateOne({
+        status: EmailStatus.SENT,
+        sentAt: new Date(),
+        messageId: result.messageId,
+        $unset: { failedAt: 1, errorMessage: 1 },
+      });
+    } catch (error) {
+      await log.updateOne({
+        status: EmailStatus.FAILED,
+        failedAt: new Date(),
+        errorMessage: String(error?.message || error).slice(0, 500),
+      });
+      throw error;
+    }
+  }
 
-      this.isProcessing = true;
-      const item = this.emailQueue.shift();
-
-      if (!item) {
-        this.isProcessing = false;
-        return;
-      }
-
+  async processPendingEmails(limit = 25): Promise<void> {
+    const pending = await this.emailLogModel
+      .find({ status: { $in: [EmailStatus.QUEUED, EmailStatus.FAILED] }, attempts: { $lt: 4 } })
+      .sort({ createdAt: 1 })
+      .limit(limit)
+      .select('_id');
+    for (const item of pending) {
       try {
-        // Update status to SENDING
-        await this.emailLogModel.findByIdAndUpdate(item.log._id, {
-          status: EmailStatus.SENDING,
-        });
-
-        // Send email using the email service
-        const result = await this.emailService.sendEmail({
-          to: item.log.recipient,
-          subject: item.log.subject,
-          html: item.log.body,
-        });
-
-        // Update status to SENT
-        await this.emailLogModel.findByIdAndUpdate(item.log._id, {
-          status: EmailStatus.SENT,
-          sentAt: new Date(),
-          messageId: result?.messageId,
-        });
-
-        this.logger.log(`Email sent successfully to ${item.log.recipient}`);
+        await this.processEmailLog(item._id.toString());
       } catch (error) {
-        this.logger.error(`Failed to send email to ${item.log.recipient}: ${error.message}`);
-
-        // Retry logic
-        if (item.retry < this.MAX_RETRIES) {
-          item.retry++;
-          this.emailQueue.push(item);
-          this.logger.log(
-            `Retrying email to ${item.log.recipient} (${item.retry}/${this.MAX_RETRIES})`,
-          );
-        } else {
-          // Mark as failed after max retries
-          await this.emailLogModel.findByIdAndUpdate(item.log._id, {
-            status: EmailStatus.FAILED,
-            failedAt: new Date(),
-            errorMessage: error.message,
-          });
-        }
-      } finally {
-        this.isProcessing = false;
+        this.logger.error(`Bulk email ${item._id} failed: ${error?.message || error}`);
       }
-    }, this.RATE_LIMIT_MS);
+    }
+  }
+
+  private async enqueueEmailLogs(emailLogs: EmailLog[]): Promise<void> {
+    for (let offset = 0; offset < emailLogs.length; offset += 100) {
+      const batch = emailLogs.slice(offset, offset + 100);
+      await Promise.all(
+        batch.map((log) => this.rabbitMq.publish('bulk-email', log._id.toString())),
+      );
+    }
   }
 
   private generateRenewalReminderEmail(name: string, expiryDate: Date): string {

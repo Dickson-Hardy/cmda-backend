@@ -25,6 +25,7 @@ import { IJwtPayload } from '../_global/interface/jwt-payload';
 import { ConfirmEventPayDto, UpdateEventDto } from './dto/update-event.dto';
 import { ConferenceType, ConferenceZone, ConferenceRegion } from './events.constant';
 import { EventRegistrationDto } from './dto/event-registration.dto';
+import { IMAGE_UPLOAD_OPTIONS } from '../_common/image-upload-options';
 
 @ApiTags('Events')
 @Controller('events')
@@ -36,7 +37,7 @@ export class EventsController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Create an event' })
   @ApiBody({ type: CreateEventDto })
-  @UseInterceptors(FileInterceptor('featuredImage'))
+  @UseInterceptors(FileInterceptor('featuredImage', IMAGE_UPLOAD_OPTIONS))
   create(@Body() createEventDto: CreateEventDto, @UploadedFile() file: Express.Multer.File) {
     return this.eventsService.create(createEventDto, file);
   }
@@ -187,7 +188,7 @@ export class EventsController {
   @Roles(AllAdminRoles)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Update an event by its slug' })
-  @UseInterceptors(FileInterceptor('featuredImage'))
+  @UseInterceptors(FileInterceptor('featuredImage', IMAGE_UPLOAD_OPTIONS))
   updateOne(
     @Param('slug') slug: string,
     @Body() updateEventDto: UpdateEventDto,

@@ -638,6 +638,7 @@ export class AdminNotificationService {
    */
   @Cron(CronExpression.EVERY_5_MINUTES)
   async processScheduledNotifications(): Promise<void> {
+    if (process.env.RABBITMQ_URL && process.env.PROCESS_ROLE !== 'worker') return;
     const now = new Date();
 
     const scheduledNotifications = await this.adminNotificationModel.find({

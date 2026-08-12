@@ -26,6 +26,7 @@ import {
 } from '../payment-intents/payment-intent.schema';
 import { NotificationDispatcherService } from '../notifications/notification-dispatcher.service';
 import { NotificationType } from '../notifications/notification.constant';
+import { escapeRegex } from '../_common/escape-regex.util';
 
 @Injectable()
 export class OrdersService {
@@ -39,7 +40,10 @@ export class OrdersService {
     private notificationDispatcher?: NotificationDispatcherService,
   ) {}
 
-  private async priceAndValidateProducts(products: InitOrderDto['products'], currency: 'NGN' | 'USD') {
+  private async priceAndValidateProducts(
+    products: InitOrderDto['products'],
+    currency: 'NGN' | 'USD',
+  ) {
     if (!products?.length) throw new BadRequestException('At least one product is required');
 
     const ids = [...new Set(products.map((item) => item.product.toString()))];
@@ -88,7 +92,10 @@ export class OrdersService {
   }
 
   private assertPaymentAmount(order: Order, amount: number, currency: string) {
-    if (order.currency !== currency || Math.round(order.totalAmount * 100) !== Math.round(amount * 100)) {
+    if (
+      order.currency !== currency ||
+      Math.round(order.totalAmount * 100) !== Math.round(amount * 100)
+    ) {
       throw new BadRequestException('Payment amount or currency does not match this order');
     }
   }
@@ -409,12 +416,12 @@ export class OrdersService {
     const searchCriteria = searchBy
       ? {
           $or: [
-            { paymentReference: new RegExp(searchBy, 'i') },
-            { totalAmount: new RegExp(searchBy, 'i') },
-            { shippingContactEmail: new RegExp(searchBy, 'i') },
-            { shippingContactName: new RegExp(searchBy, 'i') },
-            { shippingContactPhone: new RegExp(searchBy, 'i') },
-            { shippingAddress: new RegExp(searchBy, 'i') },
+            { paymentReference: new RegExp(escapeRegex(searchBy), 'i') },
+            { totalAmount: new RegExp(escapeRegex(searchBy), 'i') },
+            { shippingContactEmail: new RegExp(escapeRegex(searchBy), 'i') },
+            { shippingContactName: new RegExp(escapeRegex(searchBy), 'i') },
+            { shippingContactPhone: new RegExp(escapeRegex(searchBy), 'i') },
+            { shippingAddress: new RegExp(escapeRegex(searchBy), 'i') },
           ],
         }
       : {};
@@ -449,9 +456,9 @@ export class OrdersService {
       ...(searchBy
         ? {
             $or: [
-              { paymentReference: new RegExp(searchBy, 'i') },
-              { totalAmount: new RegExp(searchBy, 'i') },
-              { shippingAddress: new RegExp(searchBy, 'i') },
+              { paymentReference: new RegExp(escapeRegex(searchBy), 'i') },
+              { totalAmount: new RegExp(escapeRegex(searchBy), 'i') },
+              { shippingAddress: new RegExp(escapeRegex(searchBy), 'i') },
             ],
           }
         : {}),

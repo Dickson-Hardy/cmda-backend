@@ -96,9 +96,7 @@ export class ServiceSubscriptionsController {
   }
 
   @Post('send-expiring-invoice')
-  sendExpiringServicesInvoice(
-    @Body() body: { email?: string; days?: number },
-  ) {
+  sendExpiringServicesInvoice(@Body() body: { email?: string; days?: number }) {
     return this.subscriptionsService.sendExpiringServicesInvoice(body.email, body.days || 30);
   }
 
@@ -134,6 +132,6 @@ export class ServiceSubscriptionsController {
 
   @Post('send-reminders')
   sendReminders() {
-    return this.subscriptionsService.sendRenewalReminders();
+    return this.subscriptionsService.sendRenewalReminders(true);
   }
 }

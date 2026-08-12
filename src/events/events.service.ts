@@ -126,9 +126,7 @@ export class EventsService {
           : Number(rawOption.priceUsd);
 
       if (!id || !name) {
-        throw new BadRequestException(
-          `Accommodation option ${index + 1} requires an id and name`,
-        );
+        throw new BadRequestException(`Accommodation option ${index + 1} requires an id and name`);
       }
       if (ids.has(id)) {
         throw new BadRequestException(`Accommodation option id "${id}" is duplicated`);
@@ -237,7 +235,9 @@ export class EventsService {
     for (const field of fields) {
       const rawValue = supplied[field.id];
       const isEmpty =
-        rawValue === undefined || rawValue === null || rawValue === '' ||
+        rawValue === undefined ||
+        rawValue === null ||
+        rawValue === '' ||
         (typeof rawValue === 'string' && rawValue.trim() === '');
 
       if (field.required && (isEmpty || (field.type === 'checkbox' && rawValue !== true))) {
@@ -421,18 +421,28 @@ export class EventsService {
   }
 
   async findAll(query: EventPaginationQueryDto): Promise<ISuccessResponse> {
-    const { searchBy, limit, page, eventType, membersGroup, eventDate, fromToday, fromDate, toDate } = query;
+    const {
+      searchBy,
+      limit,
+      page,
+      eventType,
+      membersGroup,
+      eventDate,
+      fromToday,
+      fromDate,
+      toDate,
+    } = query;
     const perPage = Number(limit) || 10;
     const currentPage = Number(page) || 1;
 
     const searchCriteria: any = {};
     if (searchBy) {
       searchCriteria.$or = [
-        { name: new RegExp(searchBy, 'i') },
-        { eventType: new RegExp(searchBy, 'i') },
-        { linkOrLocation: new RegExp(searchBy, 'i') },
-        { externalUrl: new RegExp(searchBy, 'i') },
-        { eventDateTime: new RegExp(searchBy, 'i') },
+        { name: new RegExp(escapeRegex(searchBy), 'i') },
+        { eventType: new RegExp(escapeRegex(searchBy), 'i') },
+        { linkOrLocation: new RegExp(escapeRegex(searchBy), 'i') },
+        { externalUrl: new RegExp(escapeRegex(searchBy), 'i') },
+        { eventDateTime: new RegExp(escapeRegex(searchBy), 'i') },
       ];
     }
     if (eventType) searchCriteria.eventType = eventType;
@@ -446,7 +456,9 @@ export class EventsService {
       throw new BadRequestException('fromDate must be before or equal to toDate');
     }
 
-    const dateFilterCount = [Boolean(eventDate), String(fromToday) === 'true', hasDateRange].filter(Boolean).length;
+    const dateFilterCount = [Boolean(eventDate), String(fromToday) === 'true', hasDateRange].filter(
+      Boolean,
+    ).length;
     if (dateFilterCount > 1) {
       throw new BadRequestException('Please use only one event date filter');
     }
@@ -750,11 +762,7 @@ export class EventsService {
       conferenceConfigFields.forEach((field) => delete updates[field]);
     }
 
-    const newEvent = await this.eventModel.findOneAndUpdate(
-      { slug },
-      updates,
-      { new: true },
-    );
+    const newEvent = await this.eventModel.findOneAndUpdate({ slug }, updates, { new: true });
     if (this.notificationDispatcher) void this.notifyEventAudience(newEvent, 'updated');
 
     return {
@@ -1290,10 +1298,10 @@ export class EventsService {
 
     if (searchBy) {
       searchCriteria.$or = [
-        { name: new RegExp(searchBy, 'i') },
-        { eventType: new RegExp(searchBy, 'i') },
-        { linkOrLocation: new RegExp(searchBy, 'i') },
-        { eventDateTime: new RegExp(searchBy, 'i') },
+        { name: new RegExp(escapeRegex(searchBy), 'i') },
+        { eventType: new RegExp(escapeRegex(searchBy), 'i') },
+        { linkOrLocation: new RegExp(escapeRegex(searchBy), 'i') },
+        { eventDateTime: new RegExp(escapeRegex(searchBy), 'i') },
       ];
     }
 
@@ -1385,10 +1393,10 @@ export class EventsService {
 
     if (searchBy) {
       searchCriteria.$or = [
-        { name: new RegExp(searchBy, 'i') },
-        { eventType: new RegExp(searchBy, 'i') },
-        { linkOrLocation: new RegExp(searchBy, 'i') },
-        { eventDateTime: new RegExp(searchBy, 'i') },
+        { name: new RegExp(escapeRegex(searchBy), 'i') },
+        { eventType: new RegExp(escapeRegex(searchBy), 'i') },
+        { linkOrLocation: new RegExp(escapeRegex(searchBy), 'i') },
+        { eventDateTime: new RegExp(escapeRegex(searchBy), 'i') },
       ];
     }
 
@@ -1458,9 +1466,9 @@ export class EventsService {
 
     if (searchBy) {
       searchCriteria.$or = [
-        { name: new RegExp(searchBy, 'i') },
-        { eventType: new RegExp(searchBy, 'i') },
-        { linkOrLocation: new RegExp(searchBy, 'i') },
+        { name: new RegExp(escapeRegex(searchBy), 'i') },
+        { eventType: new RegExp(escapeRegex(searchBy), 'i') },
+        { linkOrLocation: new RegExp(escapeRegex(searchBy), 'i') },
       ];
     }
 
@@ -1554,7 +1562,6 @@ export class EventsService {
         } // Extract event data from PayPal custom metadata
         const customId = paymentVerification.purchase_units[0].custom_id || '{}';
 
-
         // Only parse if it's a string, otherwise use as is
         if (typeof customId === 'string') {
           try {
@@ -1581,8 +1588,6 @@ export class EventsService {
         if (!paymentVerification.status) {
           throw new BadRequestException('Payment verification failed');
         }
-
-
 
         // Only parse if it's a string, otherwise use as is
         if (typeof paymentVerification.data.metadata === 'string') {

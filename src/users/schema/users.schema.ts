@@ -264,6 +264,13 @@ export class User extends Document {
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);
+UserSchema.index({ membershipId: 1 });
+UserSchema.index({ isActive: 1, role: 1 });
+UserSchema.index({ isActive: 1, region: 1 });
+UserSchema.index({ subscribed: 1, subscriptionExpiry: 1 });
+UserSchema.index({ hasLifetimeMembership: 1 });
+UserSchema.index({ createdByAdmin: 1, initialPasswordChanged: 1, createdAt: -1 });
+UserSchema.index({ createdAt: -1 });
 
 // Add pre-save hook to generate sequential membershipID
 UserSchema.pre<User>('save', async function (next) {

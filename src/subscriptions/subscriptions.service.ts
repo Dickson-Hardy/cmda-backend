@@ -952,7 +952,10 @@ export class SubscriptionsService {
       // Include both paid and unpaid (intents) subscriptions
       ...(searchBy
         ? {
-            $or: [{ reference: new RegExp(searchBy, 'i') }, { amount: new RegExp(searchBy, 'i') }],
+            $or: [
+              { reference: new RegExp(escapeRegex(searchBy), 'i') },
+              { amount: new RegExp(escapeRegex(searchBy), 'i') },
+            ],
           }
         : {}),
     };

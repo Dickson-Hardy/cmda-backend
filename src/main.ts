@@ -8,9 +8,14 @@ import { NestExpressApplication } from '@nestjs/platform-express';
 import { AllExceptionsFilter } from './_global/filters/all-exceptions.filter';
 import { ALLOWED_ORIGINS } from './_global/constants/cors.constants';
 import helmet from 'helmet';
+import { OperationalMetricsService } from './monitoring/operational-metrics.service';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  const httpServer = app.getHttpServer();
+  httpServer.requestTimeout = Number(process.env.HTTP_REQUEST_TIMEOUT_MS || 30_000);
+  httpServer.headersTimeout = Number(process.env.HTTP_HEADERS_TIMEOUT_MS || 35_000);
+  httpServer.keepAliveTimeout = Number(process.env.HTTP_KEEP_ALIVE_TIMEOUT_MS || 65_000);
 
   app.use(
     helmet({
@@ -80,6 +85,9 @@ async function bootstrap() {
   // Use PORT from environment (Digital Ocean sets this) or default to 3000
   const port = process.env.PORT || 3000;
   await app.listen(port, '0.0.0.0');
+
+  const metrics = app.get(OperationalMetricsService);
+  setInterval(() => metrics.logSnapshot(), 60_000).unref();
 
   console.log(`Application is running on: http://localhost:${port}`);
   console.log(`Swagger documentation is available at: http://localhost:${port}/apidocs`);

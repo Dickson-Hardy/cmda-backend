@@ -76,7 +76,7 @@ export class ProjectDeliverablesController {
       res.send(pdfBuffer);
     } catch (error) {
       console.error('PDF Export Error:', error);
-      res.status(500).json({ message: 'Failed to generate PDF', error: error.message, stack: error.stack });
+      res.status(500).json({ message: 'Failed to generate PDF' });
     }
   }
 
@@ -92,7 +92,7 @@ export class ProjectDeliverablesController {
       res.send(imageBuffer);
     } catch (error) {
       console.error('Image Export Error:', error);
-      res.status(500).json({ message: 'Failed to generate image', error: error.message });
+      res.status(500).json({ message: 'Failed to generate image' });
     }
   }
 

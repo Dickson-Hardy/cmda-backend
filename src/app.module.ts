@@ -37,6 +37,8 @@ import { ServiceSubscriptionsModule } from './service-subscriptions/service-subs
 import { ChaptersModule } from './chapters/chapters.module';
 import { CommentsReactionsModule } from './comments-reactions/comments-reactions.module';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { QueueModule } from './queue/queue.module';
+import { MonitoringModule } from './monitoring/monitoring.module';
 
 @Module({
   imports: [
@@ -52,9 +54,18 @@ import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
       imports: [ConfigModule],
       useFactory: async (configService: ConfigService) => ({
         uri: configService.get<string>('MONGODB_URI'),
+        maxPoolSize: Number(configService.get<string>('MONGODB_MAX_POOL_SIZE') || 20),
+        minPoolSize: Number(configService.get<string>('MONGODB_MIN_POOL_SIZE') || 2),
+        connectTimeoutMS: Number(configService.get<string>('MONGODB_CONNECT_TIMEOUT_MS') || 10_000),
+        serverSelectionTimeoutMS: Number(
+          configService.get<string>('MONGODB_SERVER_SELECTION_TIMEOUT_MS') || 10_000,
+        ),
+        socketTimeoutMS: Number(configService.get<string>('MONGODB_SOCKET_TIMEOUT_MS') || 45_000),
       }),
       inject: [ConfigService],
     }),
+    QueueModule,
+    MonitoringModule,
     AuthModule,
     UsersModule,
     EventsModule,

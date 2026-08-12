@@ -49,5 +49,6 @@ import { AuthModule } from '../auth/auth.module';
   ],
   controllers: [AdminController, PendingPaymentsController, AdminNotificationsController],
   providers: [AdminService, PendingPaymentsService, BulkEmailService],
+  exports: [BulkEmailService],
 })
 export class AdminModule {}

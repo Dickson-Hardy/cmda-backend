@@ -66,7 +66,12 @@ export class CommentsReactionsService {
     };
   }
 
-  async getComments(parentType: string, parentId: string, page?: string, limit?: string): Promise<ISuccessResponse> {
+  async getComments(
+    parentType: string,
+    parentId: string,
+    page?: string,
+    limit?: string,
+  ): Promise<ISuccessResponse> {
     const perPage = Number(limit) || 10;
     const currentPage = Number(page) || 1;
     const filter = { parentType, parentId: new Types.ObjectId(parentId) };
@@ -93,7 +98,12 @@ export class CommentsReactionsService {
       message: 'Comments fetched successfully',
       data: {
         items: sanitized,
-        meta: { currentPage, itemsPerPage: perPage, totalItems, totalPages: Math.ceil(totalItems / perPage) },
+        meta: {
+          currentPage,
+          itemsPerPage: perPage,
+          totalItems,
+          totalPages: Math.ceil(totalItems / perPage),
+        },
       },
     };
   }
@@ -101,7 +111,8 @@ export class CommentsReactionsService {
   async deleteComment(commentId: string, userId: string): Promise<ISuccessResponse> {
     const comment = await this.commentModel.findById(commentId);
     if (!comment) throw new NotFoundException('Comment not found');
-    if (comment.user.toString() !== userId) throw new ForbiddenException('You can only delete your own comments');
+    if (comment.user.toString() !== userId)
+      throw new ForbiddenException('You can only delete your own comments');
 
     await comment.deleteOne();
     return { success: true, message: 'Comment deleted successfully', data: comment };
@@ -123,14 +134,22 @@ export class CommentsReactionsService {
     const existing = await this.reactionModel.findOne(filter);
     if (existing) {
       await existing.deleteOne();
-      return { success: true, message: 'Reaction removed', data: { removed: true, type: reactionType } };
+      return {
+        success: true,
+        message: 'Reaction removed',
+        data: { removed: true, type: reactionType },
+      };
     }
 
     const reaction = await this.reactionModel.create(filter);
     return { success: true, message: 'Reaction added', data: reaction };
   }
 
-  async getReactions(parentType: string, parentId: string, userId?: string): Promise<ISuccessResponse> {
+  async getReactions(
+    parentType: string,
+    parentId: string,
+    userId?: string,
+  ): Promise<ISuccessResponse> {
     const filter = { parentType, parentId: new Types.ObjectId(parentId) };
     const reactions = await this.reactionModel.find(filter);
 
@@ -151,7 +170,12 @@ export class CommentsReactionsService {
     };
   }
 
-  async submitEventFeedback(userId: string, eventId: string, rating: number, comment?: string): Promise<ISuccessResponse> {
+  async submitEventFeedback(
+    userId: string,
+    eventId: string,
+    rating: number,
+    comment?: string,
+  ): Promise<ISuccessResponse> {
     const event = await this.eventModel.findOne({
       _id: new Types.ObjectId(eventId),
       'registeredUsers.userId': new Types.ObjectId(userId),
@@ -169,7 +193,11 @@ export class CommentsReactionsService {
     return { success: true, message: 'Feedback submitted successfully', data: feedback };
   }
 
-  async getEventFeedback(eventId: string, page?: string, limit?: string): Promise<ISuccessResponse> {
+  async getEventFeedback(
+    eventId: string,
+    page?: string,
+    limit?: string,
+  ): Promise<ISuccessResponse> {
     const perPage = Number(limit) || 10;
     const currentPage = Number(page) || 1;
     const filter = { event: new Types.ObjectId(eventId) };
@@ -189,7 +217,12 @@ export class CommentsReactionsService {
       message: 'Event feedback fetched successfully',
       data: {
         items,
-        meta: { currentPage, itemsPerPage: perPage, totalItems, totalPages: Math.ceil(totalItems / perPage) },
+        meta: {
+          currentPage,
+          itemsPerPage: perPage,
+          totalItems,
+          totalPages: Math.ceil(totalItems / perPage),
+        },
       },
     };
   }
@@ -208,7 +241,17 @@ export class CommentsReactionsService {
     };
   }
 
-  async createPersonalEvent(userId: string, dto: { title: string; description?: string; eventDate: string; color?: string; category?: string; allDay?: boolean }): Promise<ISuccessResponse> {
+  async createPersonalEvent(
+    userId: string,
+    dto: {
+      title: string;
+      description?: string;
+      eventDate: string;
+      color?: string;
+      category?: string;
+      allDay?: boolean;
+    },
+  ): Promise<ISuccessResponse> {
     const personalEvent = await this.personalEventModel.create({
       user: new Types.ObjectId(userId),
       title: dto.title,
@@ -222,7 +265,11 @@ export class CommentsReactionsService {
     return { success: true, message: 'Personal event created successfully', data: personalEvent };
   }
 
-  async getPersonalEvents(userId: string, fromDate?: string, toDate?: string): Promise<ISuccessResponse> {
+  async getPersonalEvents(
+    userId: string,
+    fromDate?: string,
+    toDate?: string,
+  ): Promise<ISuccessResponse> {
     const filter: any = { user: new Types.ObjectId(userId) };
     if (fromDate || toDate) {
       filter.eventDate = {};
@@ -234,10 +281,22 @@ export class CommentsReactionsService {
     return { success: true, message: 'Personal events fetched successfully', data: items };
   }
 
-  async updatePersonalEvent(eventId: string, userId: string, dto: { title?: string; description?: string; eventDate?: string; color?: string; category?: string; allDay?: boolean }): Promise<ISuccessResponse> {
+  async updatePersonalEvent(
+    eventId: string,
+    userId: string,
+    dto: {
+      title?: string;
+      description?: string;
+      eventDate?: string;
+      color?: string;
+      category?: string;
+      allDay?: boolean;
+    },
+  ): Promise<ISuccessResponse> {
     const personalEvent = await this.personalEventModel.findById(eventId);
     if (!personalEvent) throw new NotFoundException('Personal event not found');
-    if (personalEvent.user.toString() !== userId) throw new ForbiddenException('You can only update your own personal events');
+    if (personalEvent.user.toString() !== userId)
+      throw new ForbiddenException('You can only update your own personal events');
 
     const updateData: any = {};
     if (dto.title !== undefined) updateData.title = dto.title;
@@ -247,20 +306,30 @@ export class CommentsReactionsService {
     if (dto.category !== undefined) updateData.category = dto.category;
     if (dto.allDay !== undefined) updateData.allDay = dto.allDay;
 
-    const updated = await this.personalEventModel.findByIdAndUpdate(eventId, { $set: updateData }, { new: true });
+    const updated = await this.personalEventModel.findByIdAndUpdate(
+      eventId,
+      { $set: updateData },
+      { new: true },
+    );
     return { success: true, message: 'Personal event updated successfully', data: updated };
   }
 
   async deletePersonalEvent(eventId: string, userId: string): Promise<ISuccessResponse> {
     const personalEvent = await this.personalEventModel.findById(eventId);
     if (!personalEvent) throw new NotFoundException('Personal event not found');
-    if (personalEvent.user.toString() !== userId) throw new ForbiddenException('You can only delete your own personal events');
+    if (personalEvent.user.toString() !== userId)
+      throw new ForbiddenException('You can only delete your own personal events');
 
     await personalEvent.deleteOne();
     return { success: true, message: 'Personal event deleted successfully', data: personalEvent };
   }
 
-  async createEventReminder(userId: string, eventId: string, reminderDate: string, method?: string): Promise<ISuccessResponse> {
+  async createEventReminder(
+    userId: string,
+    eventId: string,
+    reminderDate: string,
+    method?: string,
+  ): Promise<ISuccessResponse> {
     try {
       const event = await this.eventModel.findById(eventId).select('eventDateTime');
       if (!event) throw new NotFoundException('Event not found');
@@ -288,6 +357,7 @@ export class CommentsReactionsService {
 
   @Cron(CronExpression.EVERY_MINUTE)
   async deliverDueEventReminders(): Promise<void> {
+    if (process.env.RABBITMQ_URL && process.env.PROCESS_ROLE !== 'worker') return;
     const due = await this.reminderModel
       .find({
         sent: false,
@@ -343,11 +413,17 @@ export class CommentsReactionsService {
         const results: boolean[] = [];
         if (wantsPush) {
           results.push(
-            await this.pushTokenService.sendToUser(user._id.toString(), title, body, {
-              type: 'event_reminder',
-              eventId: event._id.toString(),
-              slug: event.slug,
-            }, 'reminders'),
+            await this.pushTokenService.sendToUser(
+              user._id.toString(),
+              title,
+              body,
+              {
+                type: 'event_reminder',
+                eventId: event._id.toString(),
+                slug: event.slug,
+              },
+              'reminders',
+            ),
           );
         }
         if (wantsEmail) {
@@ -382,13 +458,18 @@ export class CommentsReactionsService {
   async deleteEventReminder(reminderId: string, userId: string): Promise<ISuccessResponse> {
     const reminder = await this.reminderModel.findById(reminderId);
     if (!reminder) throw new NotFoundException('Reminder not found');
-    if (reminder.user.toString() !== userId) throw new ForbiddenException('You can only delete your own reminders');
+    if (reminder.user.toString() !== userId)
+      throw new ForbiddenException('You can only delete your own reminders');
 
     await reminder.deleteOne();
     return { success: true, message: 'Reminder deleted successfully', data: reminder };
   }
 
-  async getEventAttendees(eventId: string, page?: string, limit?: string): Promise<ISuccessResponse> {
+  async getEventAttendees(
+    eventId: string,
+    page?: string,
+    limit?: string,
+  ): Promise<ISuccessResponse> {
     const perPage = Number(limit) || 10;
     const currentPage = Number(page) || 1;
 
@@ -396,7 +477,10 @@ export class CommentsReactionsService {
     if (!event) throw new NotFoundException('Event not found');
 
     const totalItems = event.registeredUsers.length;
-    const paginatedUsers = event.registeredUsers.slice(perPage * (currentPage - 1), perPage * currentPage);
+    const paginatedUsers = event.registeredUsers.slice(
+      perPage * (currentPage - 1),
+      perPage * currentPage,
+    );
 
     const userIds = paginatedUsers.map((u) => u.userId);
 
@@ -409,7 +493,12 @@ export class CommentsReactionsService {
       message: 'Event attendees fetched successfully',
       data: {
         items: users,
-        meta: { currentPage, itemsPerPage: perPage, totalItems, totalPages: Math.ceil(totalItems / perPage) },
+        meta: {
+          currentPage,
+          itemsPerPage: perPage,
+          totalItems,
+          totalPages: Math.ceil(totalItems / perPage),
+        },
       },
     };
   }
