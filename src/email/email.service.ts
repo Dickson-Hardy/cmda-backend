@@ -13,6 +13,10 @@ import { CONFERENCE_REGISTRATION_CONFIRMATION_TEMPLATE } from './templates/confe
 import { CONFERENCE_PAYMENT_CONFIRMATION_TEMPLATE } from './templates/conference-payment.template';
 import { CONFERENCE_UPDATE_NOTIFICATION_TEMPLATE } from './templates/conference-update.template';
 import { PASSWORD_CHANGE_REMINDER_TEMPLATE } from './templates/password-reminder.template';
+import {
+  buildLifetimeMembershipEmail,
+  type LifetimeMembershipSource,
+} from './templates/lifetime-membership.template';
 import { ConfigService } from '@nestjs/config';
 import { RabbitMqService } from '../queue/rabbitmq.service';
 
@@ -477,108 +481,23 @@ export class EmailService {
   async sendLifetimeMembershipEmail({
     name,
     email,
-    membershipType,
-    years,
-    expiryDate,
+    source = 'payment',
+  }: {
+    name: string;
+    email: string;
+    source?: LifetimeMembershipSource;
+    membershipType?: string;
+    years?: number;
+    expiryDate?: string;
   }): Promise<{ success: boolean }> {
-    const html = `
-<div style="margin: 0; padding: 0; font-family: 'Roboto', sans-serif">
-<table
-    width="100%"
-    border="0"
-    cellspacing="0"
-    cellpadding="0"
-    style="background-color: #f4f4f4; padding: 20px"
->
-    <tr>
-    <td align="center">
-        <table
-        width="600"
-        border="0"
-        cellspacing="0"
-        cellpadding="0"
-        style="background-color: #ffffff; border-radius: 8px; overflow: hidden"
-        >
-        <!-- Header -->
-        <tr>
-            <td align="center" style="background-color: #994279; padding: 40px 0">
-             <img
-              src="https://cmdanigeria.net/CMDALogo.svg"
-              alt="CMDA Nigeria"
-              width="200"
-              height="56"
-              style="display: block"
-            />
-            <h1 style="color: #ffffff; font-size: 24px; margin-top: 16px">🎉 Lifetime Membership Activated!</h1>
-            </td>
-        </tr>
-        <!-- Body -->
-        <tr>
-            <td style="padding: 40px 30px">
-            <h2 style="color: #333333; font-size: 22px; margin: 0">Dear ${name},</h2>
-            <p style="color: #666666; font-size: 16px; line-height: 1.5; margin: 20px 0">
-                Congratulations! Your <strong>Lifetime ${membershipType}</strong> membership has been successfully activated.
-            </p>
-            
-            <div style="background-color: #f9f9f9; padding: 20px; border-radius: 5px; border-left: 4px solid #994279; margin: 20px 0">
-                <h3 style="color: #333333; font-size: 18px; margin: 0 0 15px 0">Membership Details:</h3>
-                <p style="color: #666666; font-size: 16px; line-height: 1.8; margin: 5px 0">
-                    <strong>Membership Type:</strong> ${membershipType}
-                </p>
-                ${
-                  membershipType.includes('Nigerian')
-                    ? ''
-                    : `
-                <p style="color: #666666; font-size: 16px; line-height: 1.8; margin: 5px 0">
-                    <strong>Duration:</strong> ${years} years
-                </p>
-                <p style="color: #666666; font-size: 16px; line-height: 1.8; margin: 5px 0">
-                    <strong>Expiry Date:</strong> ${expiryDate}
-                </p>
-                `
-                }
-            </div>
-            
-            <p style="color: #666666; font-size: 16px; line-height: 1.5; margin: 20px 0">
-                As a lifetime member, you now have access to all CMDA Nigeria benefits and services!
-            </p>
-            
-            <p style="color: #666666; font-size: 16px; line-height: 1.5; margin: 20px 0">
-                Thank you for being so committed to CMDA Nigeria. We look forward to serving you.
-            </p>
-            
-            <p style="color: #666666; font-size: 16px; line-height: 1.5; margin: 40px 0 0 0">
-                Best regards,<br />
-                CMDA Nigeria Team
-            </p>
-            </td>
-        </tr>
-        <!-- Footer -->
-        <tr>
-            <td align="center" style="background-color: #f4f4f4; padding: 20px 0">
-            <p style="color: #666666; font-size: 14px; margin: 0">
-                &copy; ${new Date().getFullYear()} CMDA Nigeria. All rights reserved.
-            </p>
-            <p style="color: #666666; font-size: 14px; margin: 4px 0">
-                Wholeness House Gwagwalada, FCT, Nigeria.
-            </p>
-            <p style="color: #666666; font-size: 14px; margin: 0">
-                <a href="#" style="color: #994279; text-decoration: none">Unsubscribe</a>
-            </p>
-            </td>
-        </tr>
-        </table>
-    </td>
-    </tr>
-</table>
-</div>
-    `;
+    const { html, text } = buildLifetimeMembershipEmail({ name, source });
 
     return this.routeEmail({
       to: email,
-      subject: `🎉 Lifetime Membership Activated - ${membershipType}`,
+      subject: 'With Deepest Gratitude – Your CMDA Nigeria Lifetime Membership',
       html,
-      priority: EmailPriority.LOW,
+      text,
+      priority: EmailPriority.NORMAL,
     });
   }
 }

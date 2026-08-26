@@ -552,16 +552,11 @@ export class SubscriptionsService {
 
     // Send appropriate email based on subscription type
     try {
-      if (
-        (user as any).notificationPreferences?.emailNotifications === false ||
-        (user as any).notificationPreferences?.payments === false
-      ) {
-        throw new Error('NOTIFICATION_PREFERENCE_DISABLED');
-      }
       if (user.hasLifetimeMembership && subscription.frequency === 'Lifetime') {
         await this.emailService.sendLifetimeMembershipEmail({
           name: user.fullName,
           email: user.email,
+          source: 'payment',
           membershipType:
             user.lifetimeMembershipType === 'lifetime'
               ? 'Nigerian Lifetime Membership'
@@ -577,6 +572,12 @@ export class SubscriptionsService {
           }),
         });
       } else {
+        if (
+          (user as any).notificationPreferences?.emailNotifications === false ||
+          (user as any).notificationPreferences?.payments === false
+        ) {
+          throw new Error('NOTIFICATION_PREFERENCE_DISABLED');
+        }
         await this.emailService.sendSubscriptionConfirmedEmail({
           name: user.fullName,
           email: user.email,
@@ -712,7 +713,7 @@ export class SubscriptionsService {
     });
 
     // Update user with lifetime membership info
-    await this.userModel.findByIdAndUpdate(
+    const updatedUser = await this.userModel.findByIdAndUpdate(
       userId,
       {
         subscribed: true,
@@ -725,13 +726,15 @@ export class SubscriptionsService {
     );
 
     // Send email notification
+    const isNigerianLifetime = finalLifetimeType === 'lifetime';
     const res = await this.emailService.sendLifetimeMembershipEmail({
       name: user.fullName,
       email: user.email,
-      membershipType: isNigerian
+      source: 'admin',
+      membershipType: isNigerianLifetime
         ? 'Nigerian Lifetime Membership'
         : `Lifetime ${finalLifetimeType.charAt(0).toUpperCase() + finalLifetimeType.slice(1)}`,
-      years: isNigerian
+      years: isNigerianLifetime
         ? NIGERIAN_LIFETIME_MEMBERSHIP.lifetime.years
         : LIFETIME_MEMBERSHIPS[finalLifetimeType].years,
       expiryDate: expiryDate.toLocaleDateString('en-US', {
@@ -742,15 +745,15 @@ export class SubscriptionsService {
     });
 
     if (!res.success) {
-      throw new InternalServerErrorException(
-        'Lifetime membership activated. Error occurred while sending email',
-      );
+      console.error(`Lifetime membership email could not be sent to ${user.email}`);
     }
 
     return {
       success: true,
-      message: 'Lifetime membership activated successfully',
-      data: { subscription, user },
+      message: res.success
+        ? 'Lifetime membership activated successfully'
+        : 'Lifetime membership activated, but the appreciation email could not be sent',
+      data: { subscription, user: updatedUser, emailSent: res.success },
     };
   }
 
@@ -1273,12 +1276,34 @@ export class SubscriptionsService {
 
       await this.userModel.findByIdAndUpdate(userId, updateData, { new: true });
 
-      // Send confirmation email
+      // Send the appropriate confirmation email. A delivery failure must not undo
+      // a payment that has already been verified and recorded.
       try {
-        await this.emailService.sendSubscriptionConfirmedEmail({
-          name: user.fullName,
-          email: user.email,
-        });
+        if (syncedLifetime) {
+          const isNigerianLifetime = syncedLifetimeType === 'lifetime';
+          const lifetimePlan = isNigerianLifetime
+            ? NIGERIAN_LIFETIME_MEMBERSHIP.lifetime
+            : LIFETIME_MEMBERSHIPS[syncedLifetimeType || 'gold'];
+          await this.emailService.sendLifetimeMembershipEmail({
+            name: user.fullName,
+            email: user.email,
+            source: 'payment',
+            membershipType: isNigerianLifetime
+              ? 'Nigerian Lifetime Membership'
+              : `Lifetime ${(syncedLifetimeType || 'gold').charAt(0).toUpperCase() + (syncedLifetimeType || 'gold').slice(1)}`,
+            years: lifetimePlan.years,
+            expiryDate: resolvedExpiryDate.toLocaleDateString('en-US', {
+              year: 'numeric',
+              month: 'long',
+              day: 'numeric',
+            }),
+          });
+        } else {
+          await this.emailService.sendSubscriptionConfirmedEmail({
+            name: user.fullName,
+            email: user.email,
+          });
+        }
       } catch (emailError) {
         // Log email error but don't fail the sync
         console.error('Failed to send subscription confirmation email:', emailError);

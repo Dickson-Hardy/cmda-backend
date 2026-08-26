@@ -74,4 +74,45 @@ describe('EmailService Global Network onboarding', () => {
     expect(resendFallback.sendEmail).toHaveBeenCalledTimes(1);
     expect(mailerService.sendMail).not.toHaveBeenCalled();
   });
+
+  it('sends the approved gratitude letter after a paid lifetime membership', async () => {
+    await service.sendLifetimeMembershipEmail({
+      name: 'Ada Okafor',
+      email: 'ada@example.com',
+      source: 'payment',
+    });
+
+    const message = resendFallback.sendEmail.mock.calls[0][0];
+    expect(message.subject).toBe('With Deepest Gratitude – Your CMDA Nigeria Lifetime Membership');
+    expect(message.html).toContain('Dear Dr. Ada Okafor,');
+    expect(message.html).toContain('extraordinary generosity toward the CMDA Nigeria Impact Fund');
+    expect(message.html).toContain('Prof. Chima Onoka');
+    expect(message.html).not.toContain('attached herewith');
+  });
+
+  it('uses recognition wording for an admin-granted lifetime membership', async () => {
+    await service.sendLifetimeMembershipEmail({
+      name: 'Dr. Ada Okafor',
+      email: 'ada@example.com',
+      source: 'admin',
+    });
+
+    const message = resendFallback.sendEmail.mock.calls[0][0];
+    expect(message.html).toContain('Dear Dr. Ada Okafor,');
+    expect(message.html).toContain('welcomed into CMDA Nigeria Lifetime Membership');
+    expect(message.html).not.toContain('financial contribution');
+    expect(message.html).not.toContain('Dr. Dr.');
+  });
+
+  it('escapes member names before placing them in lifetime membership HTML', async () => {
+    await service.sendLifetimeMembershipEmail({
+      name: '<script>alert(1)</script>',
+      email: 'ada@example.com',
+      source: 'admin',
+    });
+
+    const message = resendFallback.sendEmail.mock.calls[0][0];
+    expect(message.html).toContain('Dr. &lt;script&gt;alert(1)&lt;/script&gt;');
+    expect(message.html).not.toContain('<script>alert(1)</script>');
+  });
 });
