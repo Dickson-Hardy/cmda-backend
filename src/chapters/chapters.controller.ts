@@ -1,12 +1,12 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { ChaptersService } from './chapters.service';
 import { CreateChapterDto } from './dto/create-chapter.dto';
 import { UpdateChapterDto } from './dto/update-chapter.dto';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { AllAdminRoles } from '../admin/admin.constant';
-import { ChapterType } from './chapters.schema';
 import { Public } from '../auth/decorators/public.decorator';
+import { ChapterQueryDto } from './dto/chapter-query.dto';
 
 @ApiTags('Chapters')
 @Controller('chapters')
@@ -24,9 +24,8 @@ export class ChaptersController {
   @Get()
   @Public()
   @ApiOperation({ summary: 'Get all chapters' })
-  @ApiQuery({ name: 'type', enum: ChapterType, required: false })
-  findAll(@Query('type') type?: ChapterType) {
-    return this.chaptersService.findAll(type);
+  findAll(@Query() query: ChapterQueryDto) {
+    return this.chaptersService.findAll(query);
   }
 
   @Get('stats')

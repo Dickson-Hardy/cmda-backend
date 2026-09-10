@@ -24,6 +24,8 @@
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "seed:member-manager": "node scripts/seed-member-manager.js",
+    "chapters:locations:dry-run": "node scripts/seed-chapter-locations.js",
+    "chapters:locations:apply": "node scripts/seed-chapter-locations.js --apply",
     "subscription:year-cleanup:dry-run": "node scripts/cleanup-subscription-year-mismatches.js",
     "subscription:year-cleanup:apply": "node scripts/cleanup-subscription-year-mismatches.js --apply"
   },
