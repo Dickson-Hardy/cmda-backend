@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsEnum, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { IsBoolean, IsEnum, IsNotEmpty, IsOptional, IsString } from 'class-validator';
 import { ChapterType } from '../chapters.schema';
 
 export class CreateChapterDto {
@@ -22,4 +22,9 @@ export class CreateChapterDto {
   @IsOptional()
   @IsString()
   location?: string;
+
+  @ApiProperty({ example: true, required: false, default: true })
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
 }
