@@ -32,6 +32,11 @@ export class UpdateUserDto {
   @IsString()
   phone?: string;
 
+  @ApiPropertyOptional({ example: 'Christian doctor and mentor', description: "User's biography" })
+  @IsOptional()
+  @IsString()
+  bio?: string;
+
   @ApiPropertyOptional({ example: UserGender.MALE, description: "User's gender", enum: UserGender })
   @IsOptional()
   @IsEnum(UserGender)
@@ -41,6 +46,11 @@ export class UpdateUserDto {
   @IsOptional()
   @IsString()
   region?: string;
+
+  @ApiPropertyOptional({ example: 'Chapter President', description: "User's leadership position" })
+  @IsOptional()
+  @IsString()
+  leadershipPosition?: string;
 
   @ApiPropertyOptional({ example: '2000-01-01', description: 'Date of birth' })
   @IsOptional()
