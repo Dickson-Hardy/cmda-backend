@@ -4,6 +4,15 @@ import { Type } from 'class-transformer';
 
 export class InitSubscriptionDto {
   @ApiPropertyOptional({
+    enum: ['monthly', 'annual'],
+    description: 'UK/Europe payment option. Monthly payments are flexible GBP 20 installments.',
+  })
+  @IsString()
+  @IsOptional()
+  @IsIn(['monthly', 'annual'])
+  paymentOption?: string;
+
+  @ApiPropertyOptional({
     description: 'Calendar year covered by an annual subscription',
     example: 2026,
   })

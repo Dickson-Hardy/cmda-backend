@@ -5,6 +5,14 @@ export const SUBSCRIPTION_PRICES = {
   GlobalNetwork: 100,
 };
 
+export const UK_EUROPE_SUBSCRIPTION = {
+  monthlyAmount: 20,
+  annualTarget: 240,
+  currency: 'GBP',
+} as const;
+
+export const UK_EUROPE_REGION_NAMES = ['uk/europe region', 'uk/europe', 'global europe'] as const;
+
 // Income-based pricing for Global Network members (USD)
 export const GLOBAL_INCOME_BASED_PRICING = {
   greater_than_200k: {

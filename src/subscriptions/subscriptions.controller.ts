@@ -13,6 +13,7 @@ import { AllAdminRoles } from '../admin/admin.constant';
 import { PaginationQueryDto } from '../_global/dto/pagination-query.dto';
 import { SubscriptionPaginationQueryDto } from './dto/subscription-pagination.dto';
 import { ParseObjectIdPipe } from '../_global/pipes/parse-object-id.pipe';
+import { RecordManualSubscriptionDto } from './dto/record-manual-subscription.dto';
 
 @ApiTags('Subscriptions')
 @Controller('subscriptions')
@@ -81,9 +82,13 @@ export class SubscriptionsController {
   @Roles(AllAdminRoles)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'saves a successful subscription payment details' })
-  @ApiBody({ type: CreateSubscriptionDto })
-  activate(@Param('userId') userId: string, @Param('subYear') subYear: string) {
-    return this.subscriptionsService.activate(userId, subYear);
+  @ApiBody({ type: RecordManualSubscriptionDto, required: false })
+  activate(
+    @Param('userId') userId: string,
+    @Param('subYear') subYear: string,
+    @Body() body?: RecordManualSubscriptionDto,
+  ) {
+    return this.subscriptionsService.activate(userId, subYear, body);
   }
 
   @Post('activate-lifetime/:userId')

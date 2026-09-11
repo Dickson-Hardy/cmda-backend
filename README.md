@@ -8,6 +8,8 @@ Set `RABBITMQ_URL` to the TLS RabbitMQ URL supplied by the broker. Run both Proc
 
 Recommended variables: `RABBITMQ_PREFETCH=10`, `RABBITMQ_HEARTBEAT=30`, `MONGODB_MAX_POOL_SIZE=20`, `MONGODB_MIN_POOL_SIZE=2`, `MONGODB_CONNECT_TIMEOUT_MS=10000`, `MONGODB_SERVER_SELECTION_TIMEOUT_MS=10000`, `MONGODB_SOCKET_TIMEOUT_MS=45000`, `HTTP_REQUEST_TIMEOUT_MS=30000`, `HTTP_HEADERS_TIMEOUT_MS=35000`, and `HTTP_KEEP_ALIVE_TIMEOUT_MS=65000`.
 
+UK/Europe subscription bank details are shown only to signed-in Global Network members in the `UK/Europe region`. Configure `UK_SUBSCRIPTION_ACCOUNT_NAME`, `UK_SUBSCRIPTION_BANK_NAME`, and either `UK_SUBSCRIPTION_ACCOUNT_NUMBER` or `UK_SUBSCRIPTION_IBAN`. Optional fields are `UK_SUBSCRIPTION_SORT_CODE` and `UK_SUBSCRIPTION_SWIFT_BIC`.
+
 Keep exactly one worker dyno until all legacy cron jobs use unique distributed claims. WebSocket-only transport is enabled, but a shared Socket.IO adapter is still required before adding a second web dyno.
 
 ## Core Technologies
@@ -15,7 +17,6 @@ Keep exactly one worker dyno until all legacy cron jobs use unique distributed c
 - [NestJs](https://github.com/nestjs/nest) - with Typescript and express (default)
 - Swagger - for api documentation
 - Mongoose / MongoDB for database
-
 
 ## Installation
 
@@ -52,6 +53,5 @@ $ yarn run test:cov
 ### Learn More
 
 For more information about NestJS framework, [read documentation here](https://docs.nestjs.com).
-
 
 (c) 2024 CMDA Nigeria.

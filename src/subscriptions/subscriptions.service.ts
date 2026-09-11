@@ -19,6 +19,8 @@ import {
   GLOBAL_INCOME_BASED_PRICING,
   LIFETIME_MEMBERSHIPS,
   NIGERIAN_LIFETIME_MEMBERSHIP,
+  UK_EUROPE_REGION_NAMES,
+  UK_EUROPE_SUBSCRIPTION,
 } from './subscription.constant';
 import { json2csv } from 'json-2-csv';
 import { SubscriptionPaginationQueryDto } from './dto/subscription-pagination.dto';
@@ -34,6 +36,8 @@ import {
 import { escapeRegex } from '../_common/escape-regex.util';
 import { NotificationDispatcherService } from '../notifications/notification-dispatcher.service';
 import { NotificationType } from '../notifications/notification.constant';
+import { InitSubscriptionDto } from './dto/init-subscription.dto';
+import { RecordManualSubscriptionDto } from './dto/record-manual-subscription.dto';
 
 @Injectable()
 export class SubscriptionsService {
@@ -50,6 +54,69 @@ export class SubscriptionsService {
 
   private getCurrentYear(): number {
     return new Date().getFullYear();
+  }
+
+  private isUkEuropeGlobalMember(user?: Pick<User, 'role' | 'region'> | null): boolean {
+    const normalizedRegion = user?.region?.trim().toLowerCase();
+    return (
+      user?.role === UserRole.GLOBALNETWORK &&
+      UK_EUROPE_REGION_NAMES.includes(normalizedRegion as (typeof UK_EUROPE_REGION_NAMES)[number])
+    );
+  }
+
+  private getUkEuropeBankDetails(): Record<string, string> | null {
+    const details = {
+      accountName: this.configService.get<string>('UK_SUBSCRIPTION_ACCOUNT_NAME')?.trim(),
+      bankName: this.configService.get<string>('UK_SUBSCRIPTION_BANK_NAME')?.trim(),
+      sortCode: this.configService.get<string>('UK_SUBSCRIPTION_SORT_CODE')?.trim(),
+      accountNumber: this.configService.get<string>('UK_SUBSCRIPTION_ACCOUNT_NUMBER')?.trim(),
+      iban: this.configService.get<string>('UK_SUBSCRIPTION_IBAN')?.trim(),
+      swiftBic: this.configService.get<string>('UK_SUBSCRIPTION_SWIFT_BIC')?.trim(),
+    };
+
+    if (!details.accountName || !details.bankName || (!details.accountNumber && !details.iban)) {
+      return null;
+    }
+
+    return Object.fromEntries(
+      Object.entries(details).filter((entry): entry is [string, string] => Boolean(entry[1])),
+    );
+  }
+
+  private async getUkEuropeProgress(userId: string, year = this.getCurrentYear()) {
+    const coverageCriteria = this.buildCoverageYearCriteria(year);
+    const subscriptions = await this.subscriptionModel
+      .find({
+        user: userId,
+        isPaid: true,
+        isLifetime: { $ne: true },
+        isVisionPartner: { $ne: true },
+        currency: UK_EUROPE_SUBSCRIPTION.currency,
+        ...(coverageCriteria || {}),
+      })
+      .select('amount')
+      .lean();
+    const paidAmount = Math.min(
+      UK_EUROPE_SUBSCRIPTION.annualTarget,
+      subscriptions.reduce((total, subscription) => total + Number(subscription.amount || 0), 0),
+    );
+    const remainingAmount = Math.max(0, UK_EUROPE_SUBSCRIPTION.annualTarget - paidAmount);
+
+    return {
+      subscriptionYear: year,
+      currency: UK_EUROPE_SUBSCRIPTION.currency,
+      monthlyAmount: UK_EUROPE_SUBSCRIPTION.monthlyAmount,
+      annualTarget: UK_EUROPE_SUBSCRIPTION.annualTarget,
+      paidAmount,
+      remainingAmount,
+      progressPercent: Math.min(
+        100,
+        Math.round((paidAmount / UK_EUROPE_SUBSCRIPTION.annualTarget) * 100),
+      ),
+      paymentsCount: subscriptions.length,
+      hasPaidThisYear: paidAmount > 0,
+      isFullyPaid: remainingAmount === 0,
+    };
   }
 
   private resolveTargetYear(targetYear?: number, fallbackDate?: Date): number {
@@ -168,15 +235,21 @@ export class SubscriptionsService {
     return !!legacyCoverage;
   }
 
-  async init(id: string, subscriptionData?: any): Promise<ISuccessResponse> {
+  async init(id: string, subscriptionData?: InitSubscriptionDto): Promise<ISuccessResponse> {
     const user = await this.userModel.findById(id);
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
     let amount: number;
     let frequency = 'Annually';
     let isLifetime = false;
     let lifetimeType: string | undefined;
     let incomeBracket: string | undefined;
     let isNigerianLifetime = false;
-    const targetYear = this.resolveTargetYear(subscriptionData?.targetYear);
+    let targetYear = this.resolveTargetYear(subscriptionData?.targetYear);
+    let paymentCurrency = user.role === UserRole.GLOBALNETWORK ? 'USD' : 'NGN';
+    let isUkSubscription = false;
+    let paymentOption: string | undefined;
 
     // Handle Nigerian lifetime membership
     if (subscriptionData?.isNigerianLifetime && user.role !== UserRole.GLOBALNETWORK) {
@@ -208,11 +281,31 @@ export class SubscriptionsService {
         frequency = 'Monthly';
         incomeBracket = subscriptionData.incomeBracket;
       } else {
-        // Regular subscription is strictly annual and calendar-year based
-        const incomeBracketData = GLOBAL_INCOME_BASED_PRICING[subscriptionData.incomeBracket];
-        amount = incomeBracketData.annual;
-        frequency = 'Annually';
-        incomeBracket = subscriptionData.incomeBracket;
+        if (this.isUkEuropeGlobalMember(user)) {
+          const progress = await this.getUkEuropeProgress(user._id.toString());
+          if (progress.isFullyPaid) {
+            throw new BadRequestException(
+              `Your ${progress.subscriptionYear} subscription is fully paid`,
+            );
+          }
+          paymentOption = subscriptionData.paymentOption === 'annual' ? 'annual' : 'monthly';
+          amount =
+            paymentOption === 'annual'
+              ? progress.remainingAmount
+              : Math.min(UK_EUROPE_SUBSCRIPTION.monthlyAmount, progress.remainingAmount);
+          frequency = paymentOption === 'annual' ? 'Annually' : 'Monthly';
+          paymentCurrency = UK_EUROPE_SUBSCRIPTION.currency;
+          targetYear = this.getCurrentYear();
+          isUkSubscription = true;
+        } else {
+          const incomeBracketData = GLOBAL_INCOME_BASED_PRICING[subscriptionData.incomeBracket];
+          if (!incomeBracketData) {
+            throw new BadRequestException('Select a valid income bracket');
+          }
+          amount = incomeBracketData.annual;
+          frequency = 'Annually';
+          incomeBracket = subscriptionData.incomeBracket;
+        }
       }
     } else {
       // Standard pricing for other roles
@@ -231,7 +324,7 @@ export class SubscriptionsService {
 
       const orderData = {
         amount,
-        currency: 'USD',
+        currency: paymentCurrency,
         description: paypalDescription,
         metadata: JSON.stringify({
           memId: user.membershipId,
@@ -242,6 +335,8 @@ export class SubscriptionsService {
           frequency,
           targetYear,
           selectedTab: subscriptionData?.selectedTab,
+          isUkSubscription,
+          paymentOption,
         }),
         items: [
           {
@@ -249,7 +344,9 @@ export class SubscriptionsService {
               ? `CMDA Nigeria ${LIFETIME_MEMBERSHIPS[lifetimeType]?.label}`
               : subscriptionData?.selectedTab === 'donations'
                 ? 'CMDA Nigeria Vision Partner'
-                : `CMDA Nigeria Annual Subscription (${targetYear})`,
+                : isUkSubscription
+                  ? `CMDA UK/Europe ${paymentOption === 'annual' ? 'Annual Payment' : 'Monthly Installment'} (${targetYear})`
+                  : `CMDA Nigeria Annual Subscription (${targetYear})`,
             quantity: 1,
             amount,
           },
@@ -383,6 +480,7 @@ export class SubscriptionsService {
         incomeBracket,
         selectedTab,
         targetYear: metadataTargetYear,
+        isUkSubscription: metadataIsUkSubscription,
       } = metadata;
 
       user = await this.userModel.findOne({ membershipId: memId });
@@ -391,7 +489,12 @@ export class SubscriptionsService {
       }
       const paidAt = details?.create_time || details?.update_time;
       const paidAtDate = paidAt ? new Date(paidAt) : undefined;
-      const targetYear = this.resolveTargetYear(metadataTargetYear, paidAtDate);
+      const isUkSubscription =
+        (metadataIsUkSubscription === true || metadataIsUkSubscription === 'true') &&
+        this.isUkEuropeGlobalMember(user);
+      const targetYear = isUkSubscription
+        ? this.resolvePaymentYear(paidAtDate)
+        : this.resolveTargetYear(metadataTargetYear, paidAtDate);
 
       // Calculate expiry date based on subscription type
       if (isLifetime) {
@@ -421,7 +524,13 @@ export class SubscriptionsService {
         user: user._id,
         currency: amount.currency_code,
         source: 'PAYPAL',
-        frequency: isLifetime ? 'Lifetime' : isVisionPartner ? 'Monthly' : 'Annually',
+        frequency: isLifetime
+          ? 'Lifetime'
+          : isVisionPartner
+            ? 'Monthly'
+            : isUkSubscription && frequency === 'Monthly'
+              ? 'Monthly'
+              : 'Annually',
         subscriptionYear: isLifetime || isVisionPartner ? undefined : targetYear,
         incomeBracket,
         isLifetime: isLifetime || false,
@@ -605,26 +714,53 @@ export class SubscriptionsService {
     };
   }
 
-  async activate(userId: string, subYearOrDate: string): Promise<ISuccessResponse> {
+  async activate(
+    userId: string,
+    subYearOrDate: string,
+    manualData?: RecordManualSubscriptionDto,
+  ): Promise<ISuccessResponse> {
     const user = await this.userModel.findById(userId);
-    const amount =
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    const parsedYear = Number(subYearOrDate);
+    let targetYear = Number.isInteger(parsedYear)
+      ? this.resolveTargetYear(parsedYear)
+      : this.resolveTargetYear(undefined, new Date(subYearOrDate));
+    const isUkSubscription = this.isUkEuropeGlobalMember(user);
+    let amount =
       user.role === UserRole.DOCTOR && user.yearsOfExperience?.toLowerCase()?.includes('above')
         ? SUBSCRIPTION_PRICES['DoctorSenior']
         : SUBSCRIPTION_PRICES[user.role];
+    let currency = user.role === UserRole.GLOBALNETWORK ? 'USD' : 'NGN';
+    let frequency = 'Annually';
 
-    const parsedYear = Number(subYearOrDate);
-    const targetYear = Number.isInteger(parsedYear)
-      ? this.resolveTargetYear(parsedYear)
-      : this.resolveTargetYear(undefined, new Date(subYearOrDate));
+    if (isUkSubscription) {
+      targetYear = this.getCurrentYear();
+      const progress = await this.getUkEuropeProgress(userId, targetYear);
+      if (progress.isFullyPaid) {
+        throw new BadRequestException(`The member's ${targetYear} subscription is fully paid`);
+      }
+      amount = manualData?.amount ?? progress.remainingAmount;
+      if (amount > progress.remainingAmount) {
+        throw new BadRequestException(
+          `Amount exceeds the member's remaining GBP ${progress.remainingAmount} balance`,
+        );
+      }
+      currency = UK_EUROPE_SUBSCRIPTION.currency;
+      frequency = amount <= UK_EUROPE_SUBSCRIPTION.monthlyAmount ? 'Monthly' : 'Annually';
+    }
+
     const expiryDate = this.getCalendarYearExpiryDate(targetYear);
     const subscription = await this.subscriptionModel.create({
-      reference: 'ADMIN',
+      reference: manualData?.reference?.trim() || `ADMIN-${Date.now()}`,
       amount: amount,
       expiryDate,
       subscriptionYear: targetYear,
       user: userId,
-      currency: user.role === UserRole.GLOBALNETWORK ? 'USD' : 'NGN',
-      frequency: 'Annually',
+      currency,
+      frequency,
       source: 'ADMIN',
       isPaid: true,
     });
@@ -1039,6 +1175,35 @@ export class SubscriptionsService {
     };
   }
   async getSubscriptionStatus(userId: string): Promise<ISuccessResponse> {
+    const user = await this.userModel.findById(userId);
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    if (this.isUkEuropeGlobalMember(user)) {
+      const progress = await this.getUkEuropeProgress(userId);
+      const expiryDate = this.getCalendarYearExpiryDate(progress.subscriptionYear);
+      const now = new Date();
+      return {
+        success: true,
+        message: 'UK/Europe subscription status fetched successfully',
+        data: {
+          isUkEuropeSubscription: true,
+          isActive: progress.hasPaidThisYear,
+          expiryDate: progress.hasPaidThisYear ? expiryDate : null,
+          cancelled: false,
+          autoRenew: false,
+          nextBillingDate: null,
+          daysUntilExpiry: progress.hasPaidThisYear
+            ? Math.max(0, Math.ceil((expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)))
+            : 0,
+          ...progress,
+          bankDetails: this.getUkEuropeBankDetails(),
+          bankTransferReference: user.membershipId,
+        },
+      };
+    }
+
     const subscription = await this.subscriptionModel
       .findOne({ user: userId, isPaid: true })
       .sort({ createdAt: -1 });
@@ -1157,7 +1322,12 @@ export class SubscriptionsService {
         }
         const paidAt = details?.create_time || details?.update_time;
         const paidAtDate = paidAt ? new Date(paidAt) : undefined;
-        resolvedTargetYear = this.resolveTargetYear(metadata.targetYear, paidAtDate);
+        const isUkSubscription =
+          (metadata.isUkSubscription === true || metadata.isUkSubscription === 'true') &&
+          this.isUkEuropeGlobalMember(user);
+        resolvedTargetYear = isUkSubscription
+          ? this.resolvePaymentYear(paidAtDate)
+          : this.resolveTargetYear(metadata.targetYear, paidAtDate);
         syncedLifetime = metadata.isLifetime === true || metadata.isLifetime === 'true';
         syncedLifetimeType = syncedLifetime ? metadata.lifetimeType || 'gold' : undefined;
         const isVisionPartner = metadata.selectedTab === 'donations';
@@ -1184,7 +1354,13 @@ export class SubscriptionsService {
           user: userId,
           currency: amount.currency_code,
           source: 'PAYPAL',
-          frequency: syncedLifetime ? 'Lifetime' : isVisionPartner ? 'Monthly' : 'Annually',
+          frequency: syncedLifetime
+            ? 'Lifetime'
+            : isVisionPartner
+              ? 'Monthly'
+              : isUkSubscription && metadata.frequency === 'Monthly'
+                ? 'Monthly'
+                : 'Annually',
           incomeBracket: metadata.incomeBracket,
           isLifetime: syncedLifetime,
           lifetimeType: syncedLifetimeType,
