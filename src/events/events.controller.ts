@@ -129,8 +129,11 @@ export class EventsController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Confirm payment for an event' })
   @ApiBody({ type: ConfirmEventPayDto })
-  confirmEventPayment(@Body() confirmEventPayDto: ConfirmEventPayDto) {
-    return this.eventsService.confirmEventPayment(confirmEventPayDto);
+  confirmEventPayment(
+    @Body() confirmEventPayDto: ConfirmEventPayDto,
+    @Req() req: { user: IJwtPayload },
+  ) {
+    return this.eventsService.confirmEventPayment(confirmEventPayDto, req.user.id);
   }
 
   @Post('/sync-payment-status')

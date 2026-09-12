@@ -20,6 +20,7 @@ describe('EventsService date filters', () => {
       null as any,
       null as any,
       null as any,
+      null as any,
     );
 
     return { service, find };
@@ -50,13 +51,16 @@ describe('EventsService date filters', () => {
   it('rejects an incomplete range', async () => {
     const { service, find } = createService();
 
-    await expect(service.findAll({ fromDate: '2026-08-02' })).rejects.toBeInstanceOf(BadRequestException);
+    await expect(service.findAll({ fromDate: '2026-08-02' })).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
     expect(find).not.toHaveBeenCalled();
   });
 });
 
 describe('EventsService accommodation options', () => {
   const service = new EventsService(
+    null as any,
     null as any,
     null as any,
     null as any,
@@ -115,7 +119,9 @@ describe('EventsService accommodation options', () => {
     expect(() =>
       (service as any).resolveAccommodationSelection(event, undefined, 'Doctor'),
     ).toThrow(BadRequestException);
-    expect((service as any).resolveAccommodationSelection(event, 'private', 'Doctor')).toMatchObject({
+    expect(
+      (service as any).resolveAccommodationSelection(event, 'private', 'Doctor'),
+    ).toMatchObject({
       price: 25000,
       currency: 'NGN',
     });
@@ -128,7 +134,13 @@ describe('EventsService accommodation options', () => {
     const fields = (service as any).parseRegistrationFields(
       JSON.stringify([
         { id: 'diet', label: 'Dietary needs', type: 'longText' },
-        { id: 'arrival', label: 'Arrival window', type: 'select', required: true, options: ['Morning', 'Evening'] },
+        {
+          id: 'arrival',
+          label: 'Arrival window',
+          type: 'select',
+          required: true,
+          options: ['Morning', 'Evening'],
+        },
       ]),
     );
 
@@ -157,12 +169,20 @@ describe('EventsService accommodation options', () => {
   it('validates required fields and configured choices', () => {
     const event = {
       registrationFields: [
-        { id: 'arrival', label: 'Arrival window', type: 'select', required: true, options: ['Morning', 'Evening'] },
+        {
+          id: 'arrival',
+          label: 'Arrival window',
+          type: 'select',
+          required: true,
+          options: ['Morning', 'Evening'],
+        },
         { id: 'consent', label: 'Photo consent', type: 'checkbox', required: true },
       ],
     };
 
-    expect(() => (service as any).validateRegistrationResponses(event, {})).toThrow(BadRequestException);
+    expect(() => (service as any).validateRegistrationResponses(event, {})).toThrow(
+      BadRequestException,
+    );
     expect(() =>
       (service as any).validateRegistrationResponses(event, { arrival: 'Night', consent: true }),
     ).toThrow(BadRequestException);

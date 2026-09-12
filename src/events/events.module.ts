@@ -15,6 +15,7 @@ import {
   EventRegistrationDraft,
   EventRegistrationDraftSchema,
 } from './event-registration-draft.schema';
+import { PaymentIntentsModule } from '../payment-intents/payment-intents.module';
 
 @Module({
   imports: [
@@ -27,7 +28,8 @@ import {
     CloudinaryModule,
     EmailModule,
     forwardRef(() => PaystackModule),
-    PaypalModule,
+    forwardRef(() => PaypalModule),
+    forwardRef(() => PaymentIntentsModule),
     UsersModule,
     NotificationsModule,
   ],

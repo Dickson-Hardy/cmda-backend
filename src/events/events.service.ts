@@ -33,6 +33,11 @@ import { EventRegistrationDraft } from './event-registration-draft.schema';
 import { escapeRegex } from '../_common/escape-regex.util';
 import { NotificationDispatcherService } from '../notifications/notification-dispatcher.service';
 import { NotificationType } from '../notifications/notification.constant';
+import { PaymentIntentsService } from '../payment-intents/payment-intents.service';
+import {
+  PaymentIntentContext,
+  PaymentIntentProvider,
+} from '../payment-intents/payment-intent.schema';
 
 // Type for Event with computed registrationStatus
 type EventWithRegistrationStatus = Event & {
@@ -60,6 +65,7 @@ export class EventsService {
     private usersService: UsersService,
     @InjectModel(EventRegistrationDraft.name)
     private registrationDraftModel: Model<EventRegistrationDraft>,
+    private paymentIntentsService: PaymentIntentsService,
     private notificationDispatcher?: NotificationDispatcherService,
   ) {}
 
@@ -871,17 +877,32 @@ export class EventsService {
       const usePayPal = event.isConference && event.conferenceConfig?.usePayPalForGlobal;
 
       if (usePayPal) {
+        const paymentContext = {
+          eventId: event._id.toString(),
+          slug: event.slug,
+          userId,
+          registrationPeriod: currentRegistrationPeriod,
+          registrationDraftId: registrationDraft._id.toString(),
+        };
+        const intent = await this.paymentIntentsService.createIntent({
+          email: user.email,
+          userId,
+          amount,
+          currency: 'USD',
+          provider: PaymentIntentProvider.PAYPAL,
+          context: PaymentIntentContext.EVENT,
+          contextData: paymentContext,
+        });
+        await this.paymentIntentsService.linkContextEntity(
+          intent.id,
+          registrationDraft._id.toString(),
+        );
         transaction = await this.paypalService.createOrder({
           amount,
           currency: 'USD',
           description: event.isConference ? 'CONFERENCE' : 'EVENT',
-          metadata: JSON.stringify({
-            eventId: event._id,
-            slug: event.slug,
-            userId,
-            registrationPeriod: currentRegistrationPeriod,
-            registrationDraftId: registrationDraft._id,
-          }),
+          customId: intent.intentCode,
+          requestId: intent.intentCode,
           items: [
             {
               name: `${event.isConference ? 'CONFERENCE' : 'EVENT'} - ${event.name}`,
@@ -890,6 +911,7 @@ export class EventsService {
             },
           ],
         });
+        await this.paymentIntentsService.updateProviderReference(intent.id, transaction.id);
       }
     }
 
@@ -1548,7 +1570,10 @@ export class EventsService {
     }).format(amount);
   }
 
-  async confirmEventPayment(confirmEventPayDto: ConfirmEventPayDto): Promise<ISuccessResponse> {
+  async confirmEventPayment(
+    confirmEventPayDto: ConfirmEventPayDto,
+    requestingUserId?: string,
+  ): Promise<ISuccessResponse> {
     const { reference, source } = confirmEventPayDto;
 
     try {
@@ -1556,14 +1581,29 @@ export class EventsService {
       let eventData: any;
       if (source?.toLowerCase() === 'paypal') {
         // Verify PayPal payment
-        paymentVerification = await this.paypalService.captureOrder(reference);
+        paymentVerification = await this.paypalService.captureOrGetCompletedOrder(reference);
         if (!paymentVerification.status || paymentVerification.status !== 'COMPLETED') {
           throw new BadRequestException('Payment verification failed');
         } // Extract event data from PayPal custom metadata
-        const customId = paymentVerification.purchase_units[0].custom_id || '{}';
+        const details = paymentVerification.purchase_units?.[0]?.payments?.captures?.[0];
+        const customId = details?.custom_id || paymentVerification.purchase_units?.[0]?.custom_id;
+        const paymentIntent = customId?.startsWith('INT-')
+          ? await this.paymentIntentsService.findByCode(customId)
+          : null;
 
-        // Only parse if it's a string, otherwise use as is
-        if (typeof customId === 'string') {
+        if (paymentIntent) {
+          if (
+            paymentIntent.provider !== PaymentIntentProvider.PAYPAL ||
+            paymentIntent.context !== PaymentIntentContext.EVENT ||
+            (requestingUserId && paymentIntent.user?.toString() !== requestingUserId) ||
+            Math.round(Number(details?.amount?.value) * 100) !==
+              Math.round(paymentIntent.amount * 100) ||
+            details?.amount?.currency_code !== paymentIntent.currency
+          ) {
+            throw new ForbiddenException('This payment does not belong to your event registration');
+          }
+          eventData = paymentIntent.contextData || {};
+        } else if (typeof customId === 'string') {
           try {
             const decodedCustomId = Buffer.from(customId, 'base64').toString('utf-8');
             eventData = JSON.parse(decodedCustomId);
@@ -1618,6 +1658,9 @@ export class EventsService {
         accommodationOptionId,
         accommodation,
       } = eventData;
+      if (requestingUserId && userId !== requestingUserId) {
+        throw new ForbiddenException('This payment does not belong to your event registration');
+      }
       const event = slug
         ? await this.eventModel.findOne({ slug })
         : await this.eventModel.findById(eventId);
@@ -1651,6 +1694,19 @@ export class EventsService {
         (registrationDraft?.accommodation || accommodation) as AccommodationSelection,
         registrationDraft?.customResponses || {},
       );
+      if (source?.toLowerCase() === 'paypal') {
+        const capture = paymentVerification.purchase_units?.[0]?.payments?.captures?.[0];
+        const customId = capture?.custom_id || paymentVerification.purchase_units?.[0]?.custom_id;
+        if (customId?.startsWith('INT-')) {
+          const paymentIntent = await this.paymentIntentsService.findByCode(customId);
+          if (paymentIntent) {
+            await this.paymentIntentsService.markAsSuccessful(
+              paymentIntent.id,
+              paymentVerification,
+            );
+          }
+        }
+      }
 
       if (registrationDraftId) {
         await this.registrationDraftModel.deleteOne({ _id: registrationDraftId });
@@ -1744,6 +1800,26 @@ export class EventsService {
 
   async syncEventPaymentStatus(userId: string, reference: string): Promise<ISuccessResponse> {
     try {
+      const intent = reference.startsWith('INT-')
+        ? await this.paymentIntentsService.findByCode(reference)
+        : await this.paymentIntentsService.findByReference(reference);
+      if (intent?.provider === PaymentIntentProvider.PAYPAL) {
+        if (intent.context !== PaymentIntentContext.EVENT || intent.user?.toString() !== userId) {
+          throw new NotFoundException('Event payment intent not found for this user');
+        }
+        if (!intent.providerReference) {
+          return {
+            success: false,
+            message: 'Payment provider reference is not available yet',
+            data: null,
+          };
+        }
+        return this.confirmEventPayment(
+          { reference: intent.providerReference, source: 'PAYPAL' },
+          userId,
+        );
+      }
+
       // Find event with this payment reference for this user
       const event = await this.eventModel.findOne({
         registeredUsers: {
@@ -1780,7 +1856,7 @@ export class EventsService {
           // If Paystack fails, try PayPal for global network events
           if (event.conferenceConfig?.usePayPalForGlobal) {
             try {
-              paymentVerification = await this.paypalService.captureOrder(reference);
+              paymentVerification = await this.paypalService.captureOrGetCompletedOrder(reference);
               if (paymentVerification?.status !== 'COMPLETED') {
                 throw new Error('Payment verification failed with both providers');
               }

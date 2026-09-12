@@ -3,10 +3,13 @@ import {
   IsArray,
   IsBoolean,
   IsEnum,
+  IsIn,
   IsNotEmpty,
   IsNumber,
   IsOptional,
   IsString,
+  Min,
+  ArrayMinSize,
   ValidateNested,
 } from 'class-validator';
 import { DonationFrequency } from '../donation.constant';
@@ -20,6 +23,7 @@ export class AreaOfNeedDto {
 
   @ApiProperty({ example: 50 })
   @IsNumber()
+  @Min(0.01)
   @IsNotEmpty()
   amount: number;
 }
@@ -27,6 +31,7 @@ export class AreaOfNeedDto {
 export class InitDonationDto {
   @ApiProperty({ example: 100 })
   @IsNumber()
+  @Min(0.01)
   @IsNotEmpty()
   totalAmount: number;
 
@@ -42,6 +47,7 @@ export class InitDonationDto {
 
   @ApiProperty({ description: 'Areas of need array', type: [AreaOfNeedDto] })
   @IsArray()
+  @ArrayMinSize(1)
   @ValidateNested({ each: true })
   @Type(() => AreaOfNeedDto)
   @IsNotEmpty()
@@ -50,5 +56,6 @@ export class InitDonationDto {
   @ApiProperty({ description: 'user selected currency' })
   @IsNotEmpty()
   @IsString()
+  @IsIn(['AUD', 'CAD', 'EUR', 'GBP', 'USD', 'NGN'])
   currency: string;
 }

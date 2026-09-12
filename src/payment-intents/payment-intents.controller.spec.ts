@@ -13,6 +13,8 @@ describe('PaymentIntentsController authorization boundary', () => {
     {} as any,
     {} as any,
     {} as any,
+    {} as any,
+    {} as any,
   );
 
   beforeEach(() => jest.clearAllMocks());

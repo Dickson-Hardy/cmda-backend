@@ -1,4 +1,9 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { CreateDonationDto } from './dto/create-donation.dto';
 import { InjectModel } from '@nestjs/mongoose';
 import { User } from '../users/schema/users.schema';
@@ -40,12 +45,28 @@ export class DonationsService {
   async init(id: string, createDonationDto: InitDonationDto): Promise<ISuccessResponse> {
     const { totalAmount, recurring, frequency, areasOfNeed, currency } = createDonationDto;
     const user = await this.userModel.findById(id);
+    if (!user) throw new NotFoundException('User not found');
+    const minimumAmount = user.role === UserRole.GLOBALNETWORK ? 5 : 500;
+    if (totalAmount < minimumAmount) {
+      throw new BadRequestException(`Donation amount must be at least ${minimumAmount}`);
+    }
+    if (user.role !== UserRole.GLOBALNETWORK && currency !== 'NGN') {
+      throw new BadRequestException('Local donations must be paid in NGN');
+    }
+    const calculatedTotal = areasOfNeed.reduce((sum, item) => sum + Number(item.amount), 0);
+    if (Math.round(calculatedTotal * 100) !== Math.round(totalAmount * 100)) {
+      throw new BadRequestException('Donation total does not match the selected areas of need');
+    }
     let transaction: any;
     let donation: Donation;
     const { randomUUID } = new ShortUniqueId({ length: 6, dictionary: 'alphanum_upper' });
 
     // GLOBAL NETWORK DOCTORS
     if (user.role === UserRole.GLOBALNETWORK) {
+      const supportedCurrencies = ['AUD', 'CAD', 'EUR', 'GBP', 'USD'];
+      if (!supportedCurrencies.includes(currency)) {
+        throw new BadRequestException('Select a supported PayPal currency');
+      }
       const paymentSuccessUrl = this.configService.get<string>('PAYMENT_SUCCESS_URL');
       donation = await this.donationModel.create({
         reference: 'UNPAID-' + randomUUID(),
@@ -59,11 +80,29 @@ export class DonationsService {
         source: 'PAYPAL',
       });
 
+      const intent = await this.paymentIntentsService.createIntent({
+        email: user.email,
+        userId: user._id.toString(),
+        amount: totalAmount,
+        currency,
+        provider: PaymentIntentProvider.PAYPAL,
+        context: PaymentIntentContext.DONATION,
+        contextData: {
+          donationId: donation._id.toString(),
+          memId: user.membershipId,
+          recurring,
+          frequency,
+          areasOfNeed,
+        },
+      });
+      await this.paymentIntentsService.linkContextEntity(intent.id, donation._id.toString());
+
       transaction = await this.paypalService.createOrder({
         amount: totalAmount,
         currency,
         description: 'DONATION',
-        metadata: JSON.stringify({ donationId: donation._id, memId: user.membershipId }),
+        customId: intent.intentCode,
+        requestId: intent.intentCode,
         items: areasOfNeed.map(({ name, amount }) => ({
           name: 'DONATION for ' + name,
           amount,
@@ -81,6 +120,7 @@ export class DonationsService {
         { reference: transaction.id },
         { new: true },
       );
+      await this.paymentIntentsService.updateProviderReference(intent.id, transaction.id);
     } else {
       // STUDENT AND DOCTORS - Create payment intent
       const intent = await this.paymentIntentsService.createIntent({
@@ -179,11 +219,35 @@ export class DonationsService {
       }
 
       const details = transaction.purchase_units[0].payments.captures[0];
-      let metadata: any = await Buffer.from(details.custom_id, 'base64').toString('utf-8');
-      metadata = JSON.parse(metadata);
+      const customId = details.custom_id || transaction.purchase_units?.[0]?.custom_id;
+      const paymentIntent = customId?.startsWith('INT-')
+        ? await this.paymentIntentsService.findByCode(customId)
+        : null;
+      let metadata: any;
+      if (paymentIntent) {
+        if (
+          paymentIntent.provider !== PaymentIntentProvider.PAYPAL ||
+          paymentIntent.context !== PaymentIntentContext.DONATION ||
+          (userId && paymentIntent.user?.toString() !== userId) ||
+          Math.round(Number(details.amount.value) * 100) !==
+            Math.round(paymentIntent.amount * 100) ||
+          details.amount.currency_code !== paymentIntent.currency
+        ) {
+          throw new NotFoundException('Donation reference not found for this user');
+        }
+        metadata = paymentIntent.contextData || {};
+      } else {
+        try {
+          metadata = JSON.parse(Buffer.from(customId, 'base64').toString('utf-8'));
+        } catch {
+          throw new BadRequestException('Invalid PayPal donation metadata');
+        }
+      }
       const { donationId, memId } = metadata;
 
-      user = await this.userModel.findOne({ membershipId: memId });
+      user = paymentIntent
+        ? await this.userModel.findById(paymentIntent.user)
+        : await this.userModel.findOne({ membershipId: memId });
       if (!user || (userId && user._id.toString() !== userId)) {
         throw new NotFoundException('Donation reference not found for this user');
       }
@@ -198,6 +262,9 @@ export class DonationsService {
         { reference, isPaid: true },
         { new: true },
       );
+      if (paymentIntent) {
+        await this.paymentIntentsService.markAsSuccessful(paymentIntent.id, transaction);
+      }
     } else {
       const transaction = await this.paystackService.verifyTransaction(reference);
 
@@ -581,7 +648,7 @@ export class DonationsService {
       linkedIntent = await this.paymentIntentsService.findByCode(reference);
       if (
         !linkedIntent ||
-        linkedIntent.userId?.toString() !== userId ||
+        linkedIntent.user?.toString() !== userId ||
         linkedIntent.context !== PaymentIntentContext.DONATION
       ) {
         throw new NotFoundException('Donation payment intent not found for this user');
@@ -615,63 +682,7 @@ export class DonationsService {
     }
 
     if (existingDonation?.source === 'PAYPAL' || requestingUser.role === UserRole.GLOBALNETWORK) {
-      const paypalOrder = await this.paypalService.captureOrGetCompletedOrder(providerReference);
-      if (paypalOrder?.status !== 'COMPLETED') {
-        return {
-          success: false,
-          message: 'Payment verification failed - PayPal order is not completed',
-          data: null,
-        };
-      }
-
-      const details = paypalOrder.purchase_units?.[0]?.payments?.captures?.[0];
-      if (!details?.custom_id) {
-        throw new NotFoundException('PayPal donation metadata is missing');
-      }
-
-      let metadata: Record<string, any>;
-      try {
-        metadata = JSON.parse(Buffer.from(details.custom_id, 'base64').toString('utf-8'));
-      } catch {
-        throw new NotFoundException('PayPal donation metadata is invalid');
-      }
-
-      if (metadata.memId !== requestingUser.membershipId) {
-        throw new NotFoundException('Donation reference not found for this user');
-      }
-
-      const targetDonation = await this.donationModel.findById(
-        metadata.donationId || existingDonation?._id,
-      );
-      if (!targetDonation || targetDonation.user.toString() !== userId) {
-        throw new NotFoundException('Donation record not found for this user');
-      }
-
-      const donation = await this.donationModel.findByIdAndUpdate(
-        targetDonation._id,
-        {
-          reference: providerReference,
-          isPaid: true,
-          totalAmount: Number(details.amount?.value) || targetDonation.totalAmount,
-          currency: details.amount?.currency_code || targetDonation.currency,
-        },
-        { new: true },
-      );
-
-      try {
-        await this.emailService.sendDonationConfirmedEmail({
-          name: requestingUser.fullName,
-          email: requestingUser.email,
-        });
-      } catch (emailError) {
-        console.error('Failed to send donation confirmation email:', emailError);
-      }
-
-      return {
-        success: true,
-        message: 'Donation payment status synchronized successfully',
-        data: donation,
-      };
+      return this.create(userId, { reference: providerReference, source: 'PAYPAL' });
     }
 
     const transaction = await this.paystackService.verifyTransaction(providerReference);

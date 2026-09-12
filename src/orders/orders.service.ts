@@ -210,13 +210,26 @@ export class OrdersService {
         user: id,
       });
 
+      const intent = await this.paymentIntentsService.createIntent({
+        email: shippingContactEmail,
+        userId: id,
+        amount: totalAmount,
+        currency: 'USD',
+        provider: PaymentIntentProvider.PAYPAL,
+        context: PaymentIntentContext.ORDER,
+        contextData: { orderId: order._id.toString() },
+      });
+      await this.paymentIntentsService.linkContextEntity(intent.id, order._id.toString());
+
       transaction = await this.paypalService.createOrder({
         amount: totalAmount,
         currency: 'USD',
         description: 'ORDER',
-        metadata: JSON.stringify({ orderId: order._id }),
+        customId: intent.intentCode,
+        requestId: intent.intentCode,
         items,
       });
+      await this.paymentIntentsService.updateProviderReference(intent.id, transaction.id);
     } else {
       // STUDENT AND DOCTORS - Create payment intent
       const intent = await this.paymentIntentsService.createIntent({
@@ -287,13 +300,13 @@ export class OrdersService {
     };
   }
 
-  async create(id: string, createOrderDto: CreateOrderDto): Promise<ISuccessResponse> {
+  async create(id: string | undefined, createOrderDto: CreateOrderDto): Promise<ISuccessResponse> {
     try {
       const { reference, source } = createOrderDto;
       let order: Order | any;
 
       if (source && source.toLowerCase() === 'paypal') {
-        const transaction = await this.paypalService.captureOrder(reference);
+        const transaction = await this.paypalService.captureOrGetCompletedOrder(reference);
 
         if (transaction?.status !== 'COMPLETED') {
           throw new Error(transaction.message || 'Payment with Paypal was NOT successful');
@@ -301,14 +314,32 @@ export class OrdersService {
 
         const details = transaction.purchase_units[0].payments.captures[0];
 
-        const { amount, custom_id, update_time } = details; // { currency_code, value },
-
-        let metadata: any = Buffer.from(custom_id, 'base64').toString('utf-8');
-        metadata = JSON.parse(metadata);
+        const { amount, update_time } = details; // { currency_code, value },
+        const customId = details.custom_id || transaction.purchase_units?.[0]?.custom_id;
+        const paymentIntent = customId?.startsWith('INT-')
+          ? await this.paymentIntentsService.findByCode(customId)
+          : null;
+        let metadata: any;
+        if (paymentIntent) {
+          if (
+            paymentIntent.provider !== PaymentIntentProvider.PAYPAL ||
+            paymentIntent.context !== PaymentIntentContext.ORDER ||
+            (id && paymentIntent.user?.toString() !== id)
+          ) {
+            throw new ForbiddenException('This payment does not belong to your order');
+          }
+          metadata = paymentIntent.contextData || {};
+        } else {
+          try {
+            metadata = JSON.parse(Buffer.from(customId, 'base64').toString('utf-8'));
+          } catch {
+            throw new BadRequestException('Invalid PayPal order metadata');
+          }
+        }
         const { orderId } = metadata;
         const pendingOrder = await this.orderModel.findById(orderId);
         if (!pendingOrder) throw new NotFoundException('Order not found');
-        if (pendingOrder.user.toString() !== id) {
+        if (id && pendingOrder.user.toString() !== id) {
           throw new ForbiddenException('This payment does not belong to your order');
         }
         order = pendingOrder.isPaid
@@ -320,6 +351,9 @@ export class OrdersService {
               amount.currency_code,
               update_time,
             );
+        if (paymentIntent) {
+          await this.paymentIntentsService.markAsSuccessful(paymentIntent.id, transaction);
+        }
       } else {
         const transaction = await this.paystackService.verifyTransaction(reference);
         if (!transaction.status || transaction.data?.status !== 'success') {
@@ -560,6 +594,7 @@ export class OrdersService {
 
   async syncPaymentStatus(userId: string, reference: string): Promise<ISuccessResponse> {
     try {
+      let providerReference = reference;
       // Find pending order with this reference for this user
       let existingOrder = await this.orderModel.findOne({
         paymentReference: reference,
@@ -568,7 +603,9 @@ export class OrdersService {
 
       let intent = null;
       if (!existingOrder) {
-        intent = await this.paymentIntentsService.findByReference(reference);
+        intent = reference.startsWith('INT-')
+          ? await this.paymentIntentsService.findByCode(reference)
+          : await this.paymentIntentsService.findByReference(reference);
         if (
           intent?.context === PaymentIntentContext.ORDER &&
           intent.user?.toString() === userId &&
@@ -578,6 +615,7 @@ export class OrdersService {
             _id: intent.contextEntity,
             user: userId,
           });
+          providerReference = intent.providerReference || reference;
         }
       }
 
@@ -593,8 +631,19 @@ export class OrdersService {
         };
       }
 
+      if (intent?.provider === PaymentIntentProvider.PAYPAL) {
+        if (!intent.providerReference) {
+          return {
+            success: false,
+            message: 'Payment provider reference is not available yet',
+            data: null,
+          };
+        }
+        return this.create(userId, { reference: providerReference, source: 'PAYPAL' });
+      }
+
       // Verify with payment provider
-      const transaction = await this.paystackService.verifyTransaction(reference);
+      const transaction = await this.paystackService.verifyTransaction(providerReference);
 
       if (!transaction.status || transaction.data?.status !== 'success') {
         return {
@@ -606,7 +655,7 @@ export class OrdersService {
 
       const updatedOrder = await this.completePayment(
         existingOrder,
-        reference,
+        providerReference,
         Number(transaction.data.amount) / 100,
         'NGN',
         transaction.data.paidAt || transaction.data.paid_at,

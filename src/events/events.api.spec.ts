@@ -136,6 +136,7 @@ describe('Events registration API', () => {
         getUserExperienceCategory: jest.fn().mockReturnValue('Student'),
       } as any,
       registrationDraftModel,
+      {} as any,
     );
 
     const moduleFixture: TestingModule = await Test.createTestingModule({

@@ -22,7 +22,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
     ]),
     forwardRef(() => PaystackModule),
     EmailModule,
-    PaypalModule,
+    forwardRef(() => PaypalModule),
     forwardRef(() => PaymentIntentsModule),
     NotificationsModule,
   ],

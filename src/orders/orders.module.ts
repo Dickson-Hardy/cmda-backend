@@ -16,7 +16,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
       { name: Product.name, schema: ProductSchema },
     ]),
     forwardRef(() => PaystackModule),
-    PaypalModule,
+    forwardRef(() => PaypalModule),
     forwardRef(() => PaymentIntentsModule),
     NotificationsModule,
   ],

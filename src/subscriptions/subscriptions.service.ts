@@ -321,22 +321,32 @@ export class SubscriptionsService {
       const paypalDescription: 'DONATION' | 'SUBSCRIPTION' =
         subscriptionData?.selectedTab === 'donations' ? 'DONATION' : 'SUBSCRIPTION';
 
+      const paymentContext = {
+        memId: user.membershipId,
+        incomeBracket,
+        isLifetime,
+        lifetimeType,
+        frequency,
+        targetYear,
+        selectedTab: subscriptionData?.selectedTab,
+        isUkSubscription,
+        paymentOption,
+      };
+      const intent = await this.paymentIntentsService.createIntent({
+        email: user.email,
+        userId: user._id.toString(),
+        amount,
+        currency: paymentCurrency,
+        provider: PaymentIntentProvider.PAYPAL,
+        context: PaymentIntentContext.SUBSCRIPTION,
+        contextData: paymentContext,
+      });
       const orderData = {
         amount,
         currency: paymentCurrency,
         description: paypalDescription,
-        metadata: JSON.stringify({
-          memId: user.membershipId,
-          name: user.fullName,
-          incomeBracket,
-          isLifetime,
-          lifetimeType,
-          frequency,
-          targetYear,
-          selectedTab: subscriptionData?.selectedTab,
-          isUkSubscription,
-          paymentOption,
-        }),
+        customId: intent.intentCode,
+        requestId: intent.intentCode,
         items: [
           {
             name: isLifetime
@@ -359,6 +369,7 @@ export class SubscriptionsService {
       };
 
       transaction = await this.paypalService.createOrder(orderData);
+      await this.paymentIntentsService.updateProviderReference(intent.id, transaction.id);
     } else {
       // STUDENT AND DOCTORS - Create payment intent
       const intent = await this.paymentIntentsService.createIntent({
@@ -467,10 +478,36 @@ export class SubscriptionsService {
       }
       const details = transaction.purchase_units[0].payments.captures[0];
 
-      const { amount, custom_id } = details;
-
-      let metadata: any = await Buffer.from(custom_id, 'base64').toString('utf-8');
-      metadata = JSON.parse(metadata);
+      const { amount } = details;
+      const customId = details.custom_id || transaction.purchase_units?.[0]?.custom_id;
+      const paymentIntent = customId?.startsWith('INT-')
+        ? await this.paymentIntentsService.findByCode(customId)
+        : null;
+      let metadata: any;
+      if (paymentIntent) {
+        if (
+          paymentIntent.provider !== PaymentIntentProvider.PAYPAL ||
+          paymentIntent.context !== PaymentIntentContext.SUBSCRIPTION ||
+          (userId && paymentIntent.user?.toString() !== userId)
+        ) {
+          throw new NotFoundException('Subscription reference not found for this user');
+        }
+        metadata = paymentIntent.contextData || {};
+        user = await this.userModel.findById(paymentIntent.user);
+        if (
+          !user ||
+          Math.round(Number(amount.value) * 100) !== Math.round(paymentIntent.amount * 100) ||
+          amount.currency_code !== paymentIntent.currency
+        ) {
+          throw new BadRequestException('PayPal payment does not match this subscription');
+        }
+      } else {
+        try {
+          metadata = JSON.parse(Buffer.from(customId, 'base64').toString('utf-8'));
+        } catch {
+          throw new BadRequestException('Invalid PayPal subscription metadata');
+        }
+      }
       const {
         memId,
         isLifetime,
@@ -482,9 +519,11 @@ export class SubscriptionsService {
         isUkSubscription: metadataIsUkSubscription,
       } = metadata;
 
-      user = await this.userModel.findOne({ membershipId: memId });
-      if (!user || (userId && user._id.toString() !== userId)) {
-        throw new NotFoundException('Subscription reference not found for this user');
+      if (!paymentIntent) {
+        user = await this.userModel.findOne({ membershipId: memId });
+        if (!user || (userId && user._id.toString() !== userId)) {
+          throw new NotFoundException('Subscription reference not found for this user');
+        }
       }
       const paidAt = details?.create_time || details?.update_time;
       const paidAtDate = paidAt ? new Date(paidAt) : undefined;
@@ -537,6 +576,9 @@ export class SubscriptionsService {
         isVisionPartner,
         isPaid: true,
       });
+      if (paymentIntent) {
+        await this.paymentIntentsService.markAsSuccessful(paymentIntent.id, transaction);
+      }
 
       // Update user fields for Global Network members
       if (user.role === UserRole.GLOBALNETWORK) {
@@ -1262,7 +1304,7 @@ export class SubscriptionsService {
         linkedIntent = await this.paymentIntentsService.findByCode(reference);
         if (
           !linkedIntent ||
-          linkedIntent.userId?.toString() !== userId ||
+          linkedIntent.user?.toString() !== userId ||
           linkedIntent.context !== PaymentIntentContext.SUBSCRIPTION
         ) {
           throw new NotFoundException('Subscription payment intent not found for this user');
@@ -1301,17 +1343,14 @@ export class SubscriptionsService {
       let transaction: any;
       const source = user.role === UserRole.GLOBALNETWORK ? 'PAYPAL' : 'PAYSTACK';
 
+      if (source === 'PAYPAL') {
+        return this.create(userId, { reference: providerReference, source: 'PAYPAL' });
+      }
+
       try {
-        if (source === 'PAYPAL') {
-          transaction = await this.paypalService.captureOrGetCompletedOrder(providerReference);
-          if (transaction?.status !== 'COMPLETED') {
-            throw new Error('PayPal payment is not completed');
-          }
-        } else {
-          transaction = await this.paystackService.verifyTransaction(providerReference);
-          if (!transaction.status) {
-            throw new Error('Paystack payment is not successful');
-          }
+        transaction = await this.paystackService.verifyTransaction(providerReference);
+        if (!transaction.status) {
+          throw new Error('Paystack payment is not successful');
         }
       } catch {
         throw new BadRequestException('Payment verification failed with the configured provider');
@@ -1324,7 +1363,7 @@ export class SubscriptionsService {
       let syncedLifetime = false;
       let syncedLifetimeType: string | undefined;
 
-      if (source === 'PAYPAL') {
+      if (transaction?.purchase_units) {
         const details = transaction.purchase_units[0].payments.captures[0];
         const { amount } = details;
         let metadata: Record<string, any> = {};

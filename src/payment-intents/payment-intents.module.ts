@@ -7,6 +7,8 @@ import { PaystackModule } from '../paystack/paystack.module';
 import { DonationsModule } from '../donations/donations.module';
 import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 import { OrdersModule } from '../orders/orders.module';
+import { PaypalModule } from '../paypal/paypal.module';
+import { EventsModule } from '../events/events.module';
 
 @Module({
   imports: [
@@ -15,6 +17,8 @@ import { OrdersModule } from '../orders/orders.module';
     forwardRef(() => DonationsModule),
     forwardRef(() => SubscriptionsModule),
     forwardRef(() => OrdersModule),
+    forwardRef(() => PaypalModule),
+    forwardRef(() => EventsModule),
   ],
   controllers: [PaymentIntentsController],
   providers: [PaymentIntentsService],

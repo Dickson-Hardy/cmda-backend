@@ -33,6 +33,10 @@ describe('SubscriptionsService UK/Europe payments', () => {
     const emailService = {
       sendSubscriptionConfirmedEmail: jest.fn().mockResolvedValue({ success: true }),
     };
+    const paymentIntentsService = {
+      createIntent: jest.fn().mockResolvedValue({ id: 'intent-id', intentCode: 'INT-UK-001' }),
+      updateProviderReference: jest.fn().mockResolvedValue(undefined),
+    };
 
     return {
       service: new SubscriptionsService(
@@ -42,16 +46,17 @@ describe('SubscriptionsService UK/Europe payments', () => {
         paypalService as any,
         configService as any,
         emailService as any,
-        {} as any,
+        paymentIntentsService as any,
       ),
       paypalService,
       subscriptionModel,
       emailService,
+      paymentIntentsService,
     };
   };
 
   it('creates a GBP 20 installment without accepting a client-selected year', async () => {
-    const { service, paypalService } = createService([40]);
+    const { service, paypalService, paymentIntentsService } = createService([40]);
 
     await service.init('507f1f77bcf86cd799439011', {
       selectedTab: 'regular',
@@ -62,14 +67,19 @@ describe('SubscriptionsService UK/Europe payments', () => {
     expect(paypalService.createOrder).toHaveBeenCalledWith(
       expect.objectContaining({ amount: 20, currency: 'GBP' }),
     );
-    const order = paypalService.createOrder.mock.calls[0][0];
-    const metadata = JSON.parse(order.metadata);
-    expect(metadata).toEqual(
+    expect(paypalService.createOrder).toHaveBeenCalledWith(
+      expect.objectContaining({ customId: 'INT-UK-001', requestId: 'INT-UK-001' }),
+    );
+    expect(paymentIntentsService.createIntent).toHaveBeenCalledWith(
       expect.objectContaining({
-        isUkSubscription: true,
-        paymentOption: 'monthly',
-        frequency: 'Monthly',
-        targetYear: new Date().getFullYear(),
+        amount: 20,
+        currency: 'GBP',
+        contextData: expect.objectContaining({
+          isUkSubscription: true,
+          paymentOption: 'monthly',
+          frequency: 'Monthly',
+          targetYear: new Date().getFullYear(),
+        }),
       }),
     );
   });

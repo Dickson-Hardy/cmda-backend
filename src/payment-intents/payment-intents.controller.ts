@@ -16,6 +16,8 @@ import {
 import { DonationsService } from '../donations/donations.service';
 import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 import { OrdersService } from '../orders/orders.service';
+import { PaypalService } from '../paypal/paypal.service';
+import { EventsService } from '../events/events.service';
 
 @ApiTags('Payment Intents')
 @Controller('payment-intents')
@@ -26,6 +28,8 @@ export class PaymentIntentsController {
     private donationsService: DonationsService,
     private subscriptionsService: SubscriptionsService,
     private ordersService: OrdersService,
+    private paypalService: PaypalService,
+    private eventsService: EventsService,
   ) {}
 
   @Get('me')
@@ -71,16 +75,6 @@ export class PaymentIntentsController {
 
     const outcomes = [];
     for (const intent of intents) {
-      if (intent.provider !== PaymentIntentProvider.PAYSTACK) {
-        outcomes.push({
-          intentId: intent.id,
-          intentCode: intent.intentCode,
-          status: intent.status,
-          error: 'Only Paystack transactions can be re-queried via this endpoint for now',
-        });
-        continue;
-      }
-
       const reference = intent.providerReference || body.reference;
       if (!reference) {
         outcomes.push({
@@ -93,19 +87,33 @@ export class PaymentIntentsController {
       }
 
       try {
-        const verification = await this.paystackService.verifyTransaction(reference);
-        const providerStatus = verification?.data?.status;
-        if (verification.status && providerStatus === 'success') {
-          await this.paymentIntentsService.markAsSuccessful(intent.id, verification.data);
-          await this.dispatchContextSync(intent, reference);
+        if (intent.provider === PaymentIntentProvider.PAYPAL) {
+          const verification = await this.paypalService.captureOrGetCompletedOrder(reference);
+          const providerStatus = verification?.status;
+          if (providerStatus === 'COMPLETED') {
+            await this.dispatchContextSync(intent, reference);
+            await this.paymentIntentsService.markAsSuccessful(intent.id, verification);
+          }
+          outcomes.push({
+            intentId: intent.id,
+            intentCode: intent.intentCode,
+            reference,
+            providerStatus,
+          });
+        } else {
+          const verification = await this.paystackService.verifyTransaction(reference);
+          const providerStatus = verification?.data?.status;
+          if (verification.status && providerStatus === 'success') {
+            await this.paymentIntentsService.markAsSuccessful(intent.id, verification.data);
+            await this.dispatchContextSync(intent, reference);
+          }
+          outcomes.push({
+            intentId: intent.id,
+            intentCode: intent.intentCode,
+            reference,
+            providerStatus,
+          });
         }
-
-        outcomes.push({
-          intentId: intent.id,
-          intentCode: intent.intentCode,
-          reference,
-          providerStatus,
-        });
       } catch (error) {
         outcomes.push({
           intentId: intent.id,
@@ -149,6 +157,23 @@ export class PaymentIntentsController {
       return;
     }
     const userId = intent.user.toString();
+
+    if (intent.provider === PaymentIntentProvider.PAYPAL) {
+      switch (intent.context) {
+        case PaymentIntentContext.DONATION:
+          await this.donationsService.create(userId, { reference, source: 'PAYPAL' });
+          return;
+        case PaymentIntentContext.SUBSCRIPTION:
+          await this.subscriptionsService.create(userId, { reference, source: 'PAYPAL' });
+          return;
+        case PaymentIntentContext.ORDER:
+          await this.ordersService.create(userId, { reference, source: 'PAYPAL' });
+          return;
+        case PaymentIntentContext.EVENT:
+          await this.eventsService.confirmEventPayment({ reference, source: 'PAYPAL' }, userId);
+          return;
+      }
+    }
 
     switch (intent.context) {
       case PaymentIntentContext.DONATION:
