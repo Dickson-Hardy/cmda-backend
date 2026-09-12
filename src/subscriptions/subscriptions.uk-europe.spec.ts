@@ -13,6 +13,7 @@ describe('SubscriptionsService UK/Europe payments', () => {
   const createService = (paidAmounts: number[] = []) => {
     const userModel = {
       findById: jest.fn().mockResolvedValue(user),
+      findByIdAndUpdate: jest.fn().mockResolvedValue({ ...user, subscribed: true }),
     };
     const subscriptionModel = {
       find: jest.fn().mockReturnValue({
@@ -20,12 +21,17 @@ describe('SubscriptionsService UK/Europe payments', () => {
           lean: jest.fn().mockResolvedValue(paidAmounts.map((amount) => ({ amount }))),
         }),
       }),
+      exists: jest.fn().mockResolvedValue(false),
+      create: jest.fn().mockResolvedValue({ _id: 'subscription-id' }),
     };
     const paypalService = {
       createOrder: jest.fn().mockResolvedValue({ id: 'PAYPAL-ORDER' }),
     };
     const configService = {
       get: jest.fn().mockReturnValue(undefined),
+    };
+    const emailService = {
+      sendSubscriptionConfirmedEmail: jest.fn().mockResolvedValue({ success: true }),
     };
 
     return {
@@ -35,10 +41,12 @@ describe('SubscriptionsService UK/Europe payments', () => {
         {} as any,
         paypalService as any,
         configService as any,
-        {} as any,
+        emailService as any,
         {} as any,
       ),
       paypalService,
+      subscriptionModel,
+      emailService,
     };
   };
 
@@ -106,5 +114,52 @@ describe('SubscriptionsService UK/Europe payments', () => {
       }),
     ).rejects.toThrow('subscription is fully paid');
     expect(paypalService.createOrder).not.toHaveBeenCalled();
+  });
+
+  it('keeps a verified bank payment successful when confirmation email delivery fails', async () => {
+    const { service, subscriptionModel, emailService } = createService();
+    emailService.sendSubscriptionConfirmedEmail.mockRejectedValueOnce(
+      new Error('mail unavailable'),
+    );
+    const consoleError = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+
+    const response = await service.activate('507f1f77bcf86cd799439011', '2020', {
+      amount: 20,
+      reference: 'UK-BANK-001',
+    });
+
+    expect(response.success).toBe(true);
+    expect(subscriptionModel.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        amount: 20,
+        currency: 'GBP',
+        reference: 'UK-BANK-001',
+        subscriptionYear: new Date().getFullYear(),
+      }),
+    );
+    consoleError.mockRestore();
+  });
+
+  it('requires a bank reference for admin-recorded UK payments', async () => {
+    const { service } = createService();
+
+    await expect(
+      service.activate('507f1f77bcf86cd799439011', String(new Date().getFullYear()), {
+        amount: 20,
+      }),
+    ).rejects.toThrow('Bank transfer reference is required');
+  });
+
+  it('rejects a duplicate admin bank transfer reference', async () => {
+    const { service, subscriptionModel } = createService();
+    subscriptionModel.exists.mockResolvedValueOnce(true);
+
+    await expect(
+      service.activate('507f1f77bcf86cd799439011', String(new Date().getFullYear()), {
+        amount: 20,
+        reference: 'UK-BANK-001',
+      }),
+    ).rejects.toThrow('bank transfer reference has already been recorded');
+    expect(subscriptionModel.create).not.toHaveBeenCalled();
   });
 });

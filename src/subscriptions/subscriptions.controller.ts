@@ -110,6 +110,14 @@ export class SubscriptionsController {
     return this.subscriptionsService.getSubscriptionStatus(req.user.id);
   }
 
+  @Get('status/:userId')
+  @Roles(AllAdminRoles)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: "Get a member's subscription status -- Admin" })
+  getMemberSubscriptionStatus(@Param('userId', ParseObjectIdPipe) userId: string) {
+    return this.subscriptionsService.getSubscriptionStatus(userId);
+  }
+
   @Get('stats')
   @Roles(AllAdminRoles)
   @ApiBearerAuth()

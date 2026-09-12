@@ -2,7 +2,6 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
-  InternalServerErrorException,
   NotFoundException,
 } from '@nestjs/common';
 import { CreateSubscriptionDto } from './dto/create-subscription.dto';
@@ -735,8 +734,23 @@ export class SubscriptionsService {
         : SUBSCRIPTION_PRICES[user.role];
     let currency = user.role === UserRole.GLOBALNETWORK ? 'USD' : 'NGN';
     let frequency = 'Annually';
+    let reference = `ADMIN-${Date.now()}`;
 
     if (isUkSubscription) {
+      const transferReference = manualData?.reference?.trim();
+      if (!transferReference) {
+        throw new BadRequestException('Bank transfer reference is required');
+      }
+      const referenceExists = await this.subscriptionModel.exists({
+        user: userId,
+        source: 'ADMIN',
+        reference: transferReference,
+        isPaid: true,
+      });
+      if (referenceExists) {
+        throw new ConflictException('This bank transfer reference has already been recorded');
+      }
+      reference = transferReference;
       targetYear = this.getCurrentYear();
       const progress = await this.getUkEuropeProgress(userId, targetYear);
       if (progress.isFullyPaid) {
@@ -754,7 +768,7 @@ export class SubscriptionsService {
 
     const expiryDate = this.getCalendarYearExpiryDate(targetYear);
     const subscription = await this.subscriptionModel.create({
-      reference: manualData?.reference?.trim() || `ADMIN-${Date.now()}`,
+      reference,
       amount: amount,
       expiryDate,
       subscriptionYear: targetYear,
@@ -767,27 +781,32 @@ export class SubscriptionsService {
 
     const hasCurrentYearCoverage = await this.hasActiveCurrentYearSubscription(userId);
 
-    await this.userModel.findByIdAndUpdate(
+    const updatedUser = await this.userModel.findByIdAndUpdate(
       userId,
       { subscribed: hasCurrentYearCoverage, subscriptionExpiry: expiryDate },
       { new: true },
     );
 
-    const res = await this.emailService.sendSubscriptionConfirmedEmail({
-      name: user.fullName,
-      email: user.email,
-    });
-
-    if (!res.success) {
-      throw new InternalServerErrorException(
-        'Subscription confirmed. Error occured while sending email',
-      );
+    // The transfer is already recorded at this point. Email delivery must not
+    // turn a successful admin action into a retryable error and duplicate it.
+    try {
+      const emailResult = await this.emailService.sendSubscriptionConfirmedEmail({
+        name: user.fullName,
+        email: user.email,
+      });
+      if (!emailResult.success) {
+        console.error('Subscription recorded, but the confirmation email was not delivered');
+      }
+    } catch (emailError) {
+      if ((emailError as Error).message !== 'NOTIFICATION_PREFERENCE_DISABLED') {
+        console.error('Subscription recorded, but the confirmation email failed:', emailError);
+      }
     }
 
     return {
       success: true,
       message: 'Subscription saved successfully',
-      data: { subscription, user },
+      data: { subscription, user: updatedUser },
     };
   }
 
