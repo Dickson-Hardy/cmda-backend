@@ -139,7 +139,15 @@ export class PaypalService {
           'PayPal-Request-Id': requestId || randomUUID(),
         },
       });
-      return response.data; // Returns order ID and status
+      const approvalUrl = response.data?.links?.find(
+        (link: { rel?: string }) =>
+          typeof link?.rel === 'string' &&
+          ['approve', 'approval_url', 'authorization_url', 'payer-action'].includes(link.rel),
+      )?.href;
+      return {
+        ...response.data,
+        ...(approvalUrl ? { approvalUrl } : {}),
+      }; // Returns order ID, status, links and a normalized approval URL
     } catch (error) {
       this.throwPaypalError(error, 'order creation');
     }

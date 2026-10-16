@@ -16,10 +16,14 @@ describe('PaypalService checkout redirects', () => {
 
     jest.spyOn(service as any, 'getAccessToken').mockResolvedValue('access-token');
     const post = jest.spyOn(axios, 'post').mockResolvedValue({
-      data: { id: 'ORDER-123', status: 'CREATED', links: [] },
+      data: {
+        id: 'ORDER-123',
+        status: 'PAYER_ACTION_REQUIRED',
+        links: [{ rel: 'payer-action', href: 'https://www.sandbox.paypal.com/checkoutnow' }],
+      },
     });
 
-    await service.createOrder({
+    const result = await service.createOrder({
       amount: 10,
       currency: 'USD',
       description: 'DONATION',
@@ -59,6 +63,7 @@ describe('PaypalService checkout redirects', () => {
         }),
       }),
     );
+    expect(result.approvalUrl).toBe('https://www.sandbox.paypal.com/checkoutnow');
   });
 
   it('rejects oversized custom IDs before calling PayPal', async () => {
