@@ -90,4 +90,25 @@ describe('PaypalService checkout redirects', () => {
       }),
     ).rejects.toThrow('PayPal item total does not match the order amount');
   });
+
+  it('propagates capture failures without logging the bearer token', async () => {
+    const service = new PaypalService({
+      get: (key: string) =>
+        ({
+          PAYPAL_CLIENT_ID: 'client-id',
+          PAYPAL_CLIENT_SECRET: 'client-secret',
+          PAYPAL_API_URL: 'https://api-m.sandbox.paypal.com',
+        })[key],
+    } as any);
+    jest.spyOn(service as any, 'getAccessToken').mockResolvedValue('sensitive-access-token');
+    jest.spyOn(axios, 'post').mockRejectedValue({
+      message: 'network unavailable',
+      config: { headers: { Authorization: 'Bearer sensitive-access-token' } },
+    });
+    const logError = jest.spyOn((service as any).logger, 'error').mockImplementation();
+
+    await expect(service.captureOrder('ORDER-123')).rejects.toThrow('PayPal order capture failed');
+    expect(logError).toHaveBeenCalled();
+    expect(logError.mock.calls.flat().join(' ')).not.toContain('sensitive-access-token');
+  });
 });

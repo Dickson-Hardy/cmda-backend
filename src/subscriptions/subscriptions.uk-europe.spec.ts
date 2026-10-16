@@ -22,6 +22,7 @@ describe('SubscriptionsService UK/Europe payments', () => {
         }),
       }),
       exists: jest.fn().mockResolvedValue(false),
+      findOne: jest.fn().mockResolvedValue(null),
       create: jest.fn().mockResolvedValue({ _id: 'subscription-id' }),
     };
     const paypalService = {
@@ -36,6 +37,7 @@ describe('SubscriptionsService UK/Europe payments', () => {
     const paymentIntentsService = {
       createIntent: jest.fn().mockResolvedValue({ id: 'intent-id', intentCode: 'INT-UK-001' }),
       updateProviderReference: jest.fn().mockResolvedValue(undefined),
+      findByCode: jest.fn(),
     };
 
     return {
@@ -124,6 +126,25 @@ describe('SubscriptionsService UK/Europe payments', () => {
       }),
     ).rejects.toThrow('subscription is fully paid');
     expect(paypalService.createOrder).not.toHaveBeenCalled();
+  });
+
+  it('routes an owned PayPal intent through PayPal during manual recovery', async () => {
+    const { service, paymentIntentsService } = createService();
+    paymentIntentsService.findByCode.mockResolvedValue({
+      user: { toString: () => '507f1f77bcf86cd799439011' },
+      context: 'SUBSCRIPTION',
+      providerReference: 'PAYPAL-ORDER',
+    });
+    const create = jest
+      .spyOn(service, 'create')
+      .mockResolvedValue({ success: true, message: 'confirmed', data: null });
+
+    await service.syncPaymentStatus('507f1f77bcf86cd799439011', 'INT-UK-001');
+
+    expect(create).toHaveBeenCalledWith('507f1f77bcf86cd799439011', {
+      reference: 'PAYPAL-ORDER',
+      source: 'PAYPAL',
+    });
   });
 
   it('keeps a verified bank payment successful when confirmation email delivery fails', async () => {
