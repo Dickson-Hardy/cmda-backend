@@ -49,4 +49,15 @@ describe('refresh cookie boundary', () => {
     const request = { headers: {} } as Request;
     expect(resolveRefreshToken(request, 'mobile.jwt.token')).toBe('mobile.jwt.token');
   });
+
+  it('allows the local Vite preview origin used for browser QA', () => {
+    const request = {
+      headers: {
+        origin: 'http://127.0.0.1:4175',
+        cookie: 'cmda_member_refresh=member.jwt.token',
+      },
+    } as Request;
+
+    expect(resolveRefreshToken(request, undefined, 'member')).toBe('member.jwt.token');
+  });
 });

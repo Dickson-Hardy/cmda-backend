@@ -151,11 +151,18 @@ export class AuthService {
   async login(loginDto: LoginDto): Promise<ISuccessResponse> {
     const { email, password } = loginDto;
     // check if user with email exists
-    const user = await this.userModel.findOne({ email: { $regex: `^${escapeRegex(email)}$`, $options: 'i' } });
+    const user = await this.userModel.findOne({
+      email: { $regex: `^${escapeRegex(email)}$`, $options: 'i' },
+    });
     if (!user) throw new UnauthorizedException('Invalid email or password');
     // check if password matches
     const isPasswordMatched = await bcrypt.compare(password, user.password);
     if (!isPasswordMatched) throw new UnauthorizedException('Invalid email or password');
+    if (user.isActive === false || user.isBanned === true) {
+      throw new UnauthorizedException(
+        'This account is not currently available. Please contact support.',
+      );
+    }
     // generate access token
     const tokens = await this.issueTokenPair({
       id: user._id.toString(),
@@ -197,6 +204,7 @@ export class AuthService {
       delete updateProfileDto[key];
     });
     const user = await this.userModel.findById(id);
+    if (!user) throw new NotFoundException('User not found');
     const {
       admissionYear,
       yearOfStudy,
@@ -252,7 +260,7 @@ export class AuthService {
         avatarUrl,
         avatarCloudId,
       },
-      { new: true },
+      { new: true, runValidators: true },
     );
 
     return {
@@ -264,7 +272,9 @@ export class AuthService {
 
   async resendVerifyCode(resendCodeDto: ForgotPasswordDto): Promise<ISuccessResponse> {
     const { email } = resendCodeDto;
-    const user = await this.userModel.findOne({ email: { $regex: `^${escapeRegex(email)}$`, $options: 'i' } });
+    const user = await this.userModel.findOne({
+      email: { $regex: `^${escapeRegex(email)}$`, $options: 'i' },
+    });
     if (!user) {
       throw new NotFoundException('Email does not exist');
     }
@@ -306,7 +316,11 @@ export class AuthService {
     if (!user) {
       throw new BadRequestException('Email verification code is invalid or expired');
     }
-    await user.updateOne({ emailVerified: true, verificationCode: '', verificationCodeExpires: null });
+    await user.updateOne({
+      emailVerified: true,
+      verificationCode: '',
+      verificationCodeExpires: null,
+    });
     return {
       success: true,
       message: 'Email verified successfully',
@@ -315,7 +329,9 @@ export class AuthService {
 
   async forgotPassword(forgotPasswordDto: ForgotPasswordDto): Promise<ISuccessResponse> {
     const { email } = forgotPasswordDto;
-    const user = await this.userModel.findOne({ email: { $regex: `^${escapeRegex(email)}$`, $options: 'i' } });
+    const user = await this.userModel.findOne({
+      email: { $regex: `^${escapeRegex(email)}$`, $options: 'i' },
+    });
     if (!user) {
       throw new NotFoundException('Email does not exist');
     }
@@ -342,18 +358,19 @@ export class AuthService {
     }
     return {
       success: true,
-      message: "Password reset token has been sent to your email if it exists",
+      message: 'Password reset token has been sent to your email if it exists',
     };
   }
 
   async resetPassword(resetPasswordDto: ResetPasswordDto): Promise<ISuccessResponse> {
-    const { token, newPassword, confirmPassword } = resetPasswordDto;
+    const { email, token, newPassword, confirmPassword } = resetPasswordDto;
     if (newPassword !== confirmPassword) {
       throw new BadRequestException('confirmPassword does not match newPassword');
     }
     const user = await this.userModel.findOne({
       passwordResetToken: token.toUpperCase(),
       passwordResetTokenExpires: { $gt: new Date() },
+      ...(email ? { email: { $regex: `^${escapeRegex(email.trim())}$`, $options: 'i' } } : {}),
     });
     if (!user) {
       throw new BadRequestException('Password reset token is invalid or expired');
@@ -394,6 +411,7 @@ export class AuthService {
       throw new BadRequestException('confirmPassword does not match newPassword');
     }
     const user = await this.userModel.findById(id);
+    if (!user) throw new NotFoundException('User not found');
     const isPasswordMatched = await bcrypt.compare(oldPassword, user.password);
     if (!isPasswordMatched) {
       throw new BadRequestException('Old password is incorrect');
@@ -414,9 +432,16 @@ export class AuthService {
     }
 
     await user.updateOne({ $set: updateData, $inc: { tokenVersion: 1 } });
+    const tokens = await this.issueTokenPair({
+      id: user._id.toString(),
+      email: user.email,
+      role: user.role,
+    });
+    const updatedUser = await this.userModel.findById(id);
     return {
       success: true,
       message: 'Password changed successfully',
+      data: { user: updatedUser, ...tokens },
     };
   }
 
@@ -565,11 +590,7 @@ export class AuthService {
     };
   }
 
-  async issueTokenPair(identity: {
-    id: string;
-    email: string;
-    role: AdminRole | UserRole;
-  }) {
+  async issueTokenPair(identity: { id: string; email: string; role: AdminRole | UserRole }) {
     const model = this.accountModel(identity.role);
     const account: any = await model.findById(identity.id).select('tokenVersion').lean();
     if (!account) throw new NotFoundException('Account not found');

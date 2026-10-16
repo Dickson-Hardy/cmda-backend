@@ -120,8 +120,15 @@ export class AuthController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Change password of current user' })
   @ApiBody({ type: ChangePasswordDto })
-  changePassword(@Req() req: { user: IJwtPayload }, @Body() changePasswordDto: ChangePasswordDto) {
-    return this.authService.changePassword(req.user.id, changePasswordDto);
+  async changePassword(
+    @Req() req: { user: IJwtPayload },
+    @Body() changePasswordDto: ChangePasswordDto,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    const result = await this.authService.changePassword(req.user.id, changePasswordDto);
+    const tokens = result.data as { refreshToken: string; refreshTokenExpiresAt: Date };
+    setRefreshCookie(response, tokens.refreshToken, tokens.refreshTokenExpiresAt);
+    return result;
   }
 
   @Post('check-user')
