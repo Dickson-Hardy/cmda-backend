@@ -23,6 +23,7 @@ import { PaymentIntentsService } from '../payment-intents/payment-intents.servic
 import {
   PaymentIntentContext,
   PaymentIntentProvider,
+  PaymentIntentStatus,
 } from '../payment-intents/payment-intent.schema';
 // import { IPaypalCreateOrder } from './paypal.interface';
 // import { CreateOrderDto } from './paypal.dto';
@@ -49,14 +50,24 @@ export class PaypalController {
     const verified = await this.paypalService.verifyWebhookSignature(headers, payload);
     if (!verified) throw new UnauthorizedException('Invalid PayPal webhook signature');
 
-    if (payload?.event_type !== 'PAYMENT.CAPTURE.COMPLETED') {
+    const eventType = payload?.event_type;
+    if (!['CHECKOUT.ORDER.APPROVED', 'PAYMENT.CAPTURE.COMPLETED'].includes(eventType)) {
       return { success: true };
     }
 
-    const orderId = payload?.resource?.supplementary_data?.related_ids?.order_id;
+    const orderId =
+      eventType === 'CHECKOUT.ORDER.APPROVED'
+        ? payload?.resource?.id
+        : payload?.resource?.supplementary_data?.related_ids?.order_id;
     if (!orderId) throw new BadRequestException('PayPal webhook order ID is missing');
 
-    const order = await this.paypalService.getOrderDetails(orderId);
+    const order =
+      eventType === 'CHECKOUT.ORDER.APPROVED'
+        ? await this.paypalService.captureOrGetCompletedOrder(orderId)
+        : await this.paypalService.getOrderDetails(orderId);
+    if (order?.status !== 'COMPLETED') {
+      throw new BadRequestException('PayPal order is not completed');
+    }
     const capture = order.purchase_units?.[0]?.payments?.captures?.[0];
     const customId = capture?.custom_id || order.purchase_units?.[0]?.custom_id;
     const intent = customId?.startsWith('INT-')
@@ -67,6 +78,9 @@ export class PaypalController {
     }
     if (intent.providerReference && intent.providerReference !== orderId) {
       throw new BadRequestException('PayPal order does not match its payment intent');
+    }
+    if (intent.status === PaymentIntentStatus.SUCCESSFUL) {
+      return { success: true };
     }
 
     try {
