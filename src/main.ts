@@ -9,9 +9,11 @@ import { AllExceptionsFilter } from './_global/filters/all-exceptions.filter';
 import { ALLOWED_ORIGINS } from './_global/constants/cors.constants';
 import helmet from 'helmet';
 import { OperationalMetricsService } from './monitoring/operational-metrics.service';
+import { configureProxy } from './_global/configure-proxy';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  configureProxy(app);
   const httpServer = app.getHttpServer();
   httpServer.requestTimeout = Number(process.env.HTTP_REQUEST_TIMEOUT_MS || 30_000);
   httpServer.headersTimeout = Number(process.env.HTTP_HEADERS_TIMEOUT_MS || 35_000);
@@ -29,6 +31,10 @@ async function bootstrap() {
   });
 
   // Configure payload size limits for file uploads
+  app.use((req, res, next) => {
+    if (req.path.startsWith('/support/')) res.setHeader('Cache-Control', 'no-store');
+    next();
+  });
   app.use(json({ limit: '2mb' }));
   app.use(urlencoded({ extended: true, limit: '2mb' }));
 
@@ -51,6 +57,7 @@ async function bootstrap() {
       'Content-Type',
       'Accept',
       'Authorization',
+      'X-Support-Token',
       'Access-Control-Allow-Headers',
       'Access-Control-Request-Method',
       'Access-Control-Request-Headers',

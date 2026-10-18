@@ -1,6 +1,7 @@
 import { ExceptionFilter, Catch, ArgumentsHost, HttpException, HttpStatus } from '@nestjs/common';
 import { Response, Request } from 'express';
 import { ALLOWED_ORIGINS } from '../constants/cors.constants';
+import { randomUUID } from 'crypto';
 
 @Catch()
 export class AllExceptionsFilter implements ExceptionFilter {
@@ -19,8 +20,9 @@ export class AllExceptionsFilter implements ExceptionFilter {
         ? exceptionResponse
         : (exceptionResponse as any).message || 'Request failed';
 
+    const requestId = randomUUID();
     if (status >= 500) {
-      console.error('[AllExceptionsFilter]', request.method, request.url, exception);
+      console.error('[AllExceptionsFilter]', requestId, request.method, request.path, exception);
     }
 
     // Ensure CORS headers are present on error responses
@@ -35,7 +37,9 @@ export class AllExceptionsFilter implements ExceptionFilter {
       statusCode: status,
       timestamp: new Date().toISOString(),
       path: request.url,
-      message,
+      message: status >= 500 ? 'CMDA is temporarily unavailable. Please try again shortly.' : message,
+      requestId,
+      code: status >= 500 ? 'SERVICE_UNAVAILABLE' : `HTTP_${status}`,
       error: status >= 500 ? 'InternalServerError' : exception?.constructor?.name || 'Error',
     });
   }

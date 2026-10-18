@@ -40,6 +40,7 @@ import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { QueueModule } from './queue/queue.module';
 import { MonitoringModule } from './monitoring/monitoring.module';
 import { ZelleModule } from './zelle/zelle.module';
+import { SupportModule } from './support/support.module';
 
 @Module({
   imports: [
@@ -68,6 +69,7 @@ import { ZelleModule } from './zelle/zelle.module';
     QueueModule,
     MonitoringModule,
     ZelleModule,
+    SupportModule,
     AuthModule,
     UsersModule,
     EventsModule,
