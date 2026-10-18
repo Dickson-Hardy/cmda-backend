@@ -4,6 +4,14 @@ import { validate } from 'class-validator';
 import { EventPaginationQueryDto } from './event-pagination.dto';
 
 describe('EventPaginationQueryDto', () => {
+  it.each(['true', 'false'])('accepts conference filter %s', async (isConference) => {
+    const query = plainToInstance(EventPaginationQueryDto, { isConference });
+    await expect(validate(query)).resolves.toHaveLength(0);
+  });
+  it('rejects an invalid conference filter', async () => {
+    const query = plainToInstance(EventPaginationQueryDto, { isConference: 'yes' });
+    await expect(validate(query)).resolves.not.toHaveLength(0);
+  });
   it('accepts fromToday as a boolean query string', async () => {
     const query = plainToInstance(EventPaginationQueryDto, {
       page: '1',

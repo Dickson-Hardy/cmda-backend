@@ -1769,6 +1769,9 @@ export class EventsService {
       'registeredUsers.userId': new mongoose.Types.ObjectId(userId),
     };
 
+    if (query.isConference === 'true') searchQuery.isConference = true;
+    else if (query.isConference === 'false') searchQuery.isConference = { $ne: true };
+
     if (search) {
       searchQuery.name = { $regex: escapeRegex(search), $options: 'i' };
     }

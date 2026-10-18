@@ -3,6 +3,11 @@ import { ApiPropertyOptional } from '@nestjs/swagger';
 import { EventAudience, EventType } from '../events.constant';
 
 export class EventPaginationQueryDto {
+  @ApiPropertyOptional({ description: 'Only conference registrations when true; ordinary events when false', type: String })
+  @IsOptional()
+  @IsBooleanString()
+  isConference?: string;
+
   @ApiPropertyOptional({ description: 'Search query term', type: String })
   @IsOptional()
   @IsString()
