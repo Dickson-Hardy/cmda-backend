@@ -58,3 +58,7 @@ export class Subscription extends Document {
 }
 
 export const SubscriptionShema = SchemaFactory.createForClass(Subscription);
+SubscriptionShema.index(
+  { reference: 1 },
+  { unique: true, partialFilterExpression: { source: 'ZELLE' } },
+);

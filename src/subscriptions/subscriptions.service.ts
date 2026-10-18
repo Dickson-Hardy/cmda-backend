@@ -118,6 +118,99 @@ export class SubscriptionsService {
     };
   }
 
+  async getGlobalProgress(user: User, year = this.getCurrentYear(), requestedBracket?: string) {
+    if (this.isUkEuropeGlobalMember(user))
+      return this.getUkEuropeProgress(user.id || user._id.toString(), year);
+    const payments = await this.subscriptionModel
+      .find({
+        user: user._id,
+        isPaid: true,
+        isLifetime: { $ne: true },
+        isVisionPartner: { $ne: true },
+        currency: 'USD',
+        ...this.buildCoverageYearCriteria(year),
+      })
+      .sort({ createdAt: 1 })
+      .lean();
+    // Once payment starts, keep the year's original income bracket and target.
+    const incomeBracket =
+      payments.find((p) => p.incomeBracket)?.incomeBracket ||
+      requestedBracket ||
+      user.incomeBracket ||
+      'less_than_50k';
+    const plan = GLOBAL_INCOME_BASED_PRICING[incomeBracket];
+    if (!plan) throw new BadRequestException('Select a valid income bracket');
+    const paidAmount =
+      Math.round(payments.reduce((sum, p) => sum + Number(p.amount || 0), 0) * 100) / 100;
+    const remainingAmount = Math.max(0, Math.round((plan.annual - paidAmount) * 100) / 100);
+    return {
+      subscriptionYear: year,
+      currency: 'USD',
+      incomeBracket,
+      annualTarget: plan.annual,
+      paidAmount,
+      remainingAmount,
+      paymentsCount: payments.length,
+      hasPaidThisYear: paidAmount > 0,
+      isFullyPaid: remainingAmount === 0,
+      progressPercent: Math.min(100, Math.round((paidAmount / plan.annual) * 100)),
+    };
+  }
+
+  async quoteGlobalInstallment(userId: string, dto: InitSubscriptionDto) {
+    const user = await this.userModel.findById(userId);
+    if (!user || user.role !== UserRole.GLOBALNETWORK)
+      throw new BadRequestException('Global membership is required');
+    const year = this.resolveTargetYear(dto.targetYear);
+    const progress = await this.getGlobalProgress(user, year, dto.incomeBracket);
+    const amount = dto.amount ?? progress.remainingAmount;
+    if (
+      !Number.isFinite(amount) ||
+      amount <= 0 ||
+      Math.round(amount * 100) > Math.round(progress.remainingAmount * 100)
+    ) {
+      throw new BadRequestException(
+        'Enter an amount greater than zero and no more than the remaining balance',
+      );
+    }
+    return { user, progress, amount };
+  }
+
+  async recordZellePayment(intent: any) {
+    const expiryDate = this.getCalendarYearExpiryDate(intent.contextData.targetYear);
+    const subscription = await this.subscriptionModel.findOneAndUpdate(
+      { reference: intent.providerReference },
+      {
+        $setOnInsert: {
+          reference: intent.providerReference,
+          user: intent.user,
+          amount: intent.amount,
+          currency: 'USD',
+          source: 'ZELLE',
+          isPaid: true,
+          frequency: 'Installment',
+          expiryDate,
+          subscriptionYear: intent.contextData.targetYear,
+          incomeBracket: intent.contextData.incomeBracket,
+        },
+      },
+      { upsert: true, new: true },
+    );
+    const active = await this.hasActiveCurrentYearSubscription(intent.user.toString());
+    await this.userModel.findByIdAndUpdate(intent.user, {
+      subscribed: active,
+      ...(active
+        ? { subscriptionExpiry: this.getCalendarYearExpiryDate(this.getCurrentYear()) }
+        : {}),
+      incomeBracket: intent.contextData.incomeBracket,
+    });
+    return subscription;
+  }
+
+  async hasZellePayment(reference: string) {
+    return !!(await this.subscriptionModel.exists({ reference, source: 'ZELLE', isPaid: true }));
+  }
+
   private resolveTargetYear(targetYear?: number, fallbackDate?: Date): number {
     if (typeof targetYear === 'number' && Number.isInteger(targetYear)) {
       if (targetYear < 2000 || targetYear > 2100) {
@@ -292,6 +385,11 @@ export class SubscriptionsService {
             paymentOption === 'annual'
               ? progress.remainingAmount
               : Math.min(UK_EUROPE_SUBSCRIPTION.monthlyAmount, progress.remainingAmount);
+          if (subscriptionData.amount !== undefined) {
+            amount = subscriptionData.amount;
+            if (amount > progress.remainingAmount)
+              throw new BadRequestException('Amount exceeds the remaining balance');
+          }
           frequency = paymentOption === 'annual' ? 'Annually' : 'Monthly';
           paymentCurrency = UK_EUROPE_SUBSCRIPTION.currency;
           targetYear = this.getCurrentYear();
@@ -301,9 +399,10 @@ export class SubscriptionsService {
           if (!incomeBracketData) {
             throw new BadRequestException('Select a valid income bracket');
           }
-          amount = incomeBracketData.annual;
+          const quote = await this.quoteGlobalInstallment(id, subscriptionData);
+          amount = quote.amount;
           frequency = 'Annually';
-          incomeBracket = subscriptionData.incomeBracket;
+          incomeBracket = (quote.progress as any).incomeBracket || subscriptionData.incomeBracket;
         }
       }
     } else {
@@ -1241,15 +1340,16 @@ export class SubscriptionsService {
       throw new NotFoundException('User not found');
     }
 
-    if (this.isUkEuropeGlobalMember(user)) {
-      const progress = await this.getUkEuropeProgress(userId);
+    if (user.role === UserRole.GLOBALNETWORK && !user.hasLifetimeMembership) {
+      const progress = await this.getGlobalProgress(user);
       const expiryDate = this.getCalendarYearExpiryDate(progress.subscriptionYear);
       const now = new Date();
       return {
         success: true,
-        message: 'UK/Europe subscription status fetched successfully',
+        message: 'Global subscription status fetched successfully',
         data: {
-          isUkEuropeSubscription: true,
+          isUkEuropeSubscription: this.isUkEuropeGlobalMember(user),
+          isGlobalSubscription: true,
           isActive: progress.hasPaidThisYear,
           expiryDate: progress.hasPaidThisYear ? expiryDate : null,
           cancelled: false,
@@ -1259,7 +1359,7 @@ export class SubscriptionsService {
             ? Math.max(0, Math.ceil((expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)))
             : 0,
           ...progress,
-          bankDetails: this.getUkEuropeBankDetails(),
+          bankDetails: this.isUkEuropeGlobalMember(user) ? this.getUkEuropeBankDetails() : null,
           bankTransferReference: user.membershipId,
         },
       };

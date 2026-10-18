@@ -39,6 +39,7 @@ import { CommentsReactionsModule } from './comments-reactions/comments-reactions
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { QueueModule } from './queue/queue.module';
 import { MonitoringModule } from './monitoring/monitoring.module';
+import { ZelleModule } from './zelle/zelle.module';
 
 @Module({
   imports: [
@@ -66,6 +67,7 @@ import { MonitoringModule } from './monitoring/monitoring.module';
     }),
     QueueModule,
     MonitoringModule,
+    ZelleModule,
     AuthModule,
     UsersModule,
     EventsModule,

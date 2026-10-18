@@ -3,6 +3,13 @@ import { IsBoolean, IsInt, IsNumber, IsOptional, IsString, IsIn, Max, Min } from
 import { Type } from 'class-transformer';
 
 export class InitSubscriptionDto {
+  @ApiPropertyOptional({ description: 'Amount to pay now toward the annual target' })
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0.01)
+  @IsOptional()
+  amount?: number;
+
   @ApiPropertyOptional({
     enum: ['monthly', 'annual'],
     description: 'UK/Europe payment option. Monthly payments are flexible GBP 20 installments.',

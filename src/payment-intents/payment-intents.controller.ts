@@ -87,6 +87,10 @@ export class PaymentIntentsController {
       }
 
       try {
+        if (intent.provider === PaymentIntentProvider.ZELLE) {
+          outcomes.push({ intentId: intent.id, providerStatus: intent.status });
+          continue;
+        }
         if (intent.provider === PaymentIntentProvider.PAYPAL) {
           const verification = await this.paypalService.captureOrGetCompletedOrder(reference);
           const providerStatus = verification?.status;

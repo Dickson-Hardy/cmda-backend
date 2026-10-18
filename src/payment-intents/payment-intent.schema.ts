@@ -8,11 +8,14 @@ export enum PaymentIntentStatus {
   SUCCESSFUL = 'SUCCESSFUL',
   FAILED = 'FAILED',
   ABANDONED = 'ABANDONED',
+  AWAITING_REVIEW = 'AWAITING_REVIEW',
+  REVIEWING = 'REVIEWING',
 }
 
 export enum PaymentIntentProvider {
   PAYSTACK = 'PAYSTACK',
   PAYPAL = 'PAYPAL',
+  ZELLE = 'ZELLE',
 }
 
 export enum PaymentIntentContext {
@@ -71,7 +74,32 @@ export class PaymentIntent extends Document {
 
   @Prop({ type: Date })
   expiresAt?: Date;
+
+  @Prop({ select: false })
+  proofPublicId?: string;
+
+  @Prop()
+  transferReference?: string;
+
+  @Prop()
+  reviewNote?: string;
+
+  @Prop()
+  reviewedBy?: string;
+
+  @Prop()
+  reviewedAt?: Date;
+
+  @Prop()
+  reviewStartedAt?: Date;
 }
 
 export const PaymentIntentSchema = SchemaFactory.createForClass(PaymentIntent);
 PaymentIntentSchema.index({ email: 1, status: 1, provider: 1 });
+PaymentIntentSchema.index(
+  { provider: 1, transferReference: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { provider: 'ZELLE', transferReference: { $type: 'string' } },
+  },
+);
