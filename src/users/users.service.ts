@@ -3,7 +3,7 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
-  InternalServerErrorException,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
@@ -30,6 +30,8 @@ import { IJwtPayload } from '../_global/interface/jwt-payload';
 
 @Injectable()
 export class UsersService {
+  private readonly logger = new Logger(UsersService.name);
+
   constructor(
     @InjectModel(User.name) private userModel: Model<User>,
     @InjectModel(UserSettings.name) private userSettingsModel: Model<UserSettings>,
@@ -306,14 +308,25 @@ export class UsersService {
       .findByIdAndUpdate(id, { status }, { new: true })
       .populate('user', '_id role fullName email');
 
+    if (!transition) {
+      throw new NotFoundException('Transition request not found');
+    }
+
     const { user, region, specialty, licenseNumber }: any = transition;
 
     if (status === TransitionStatus.COMPLETED) {
+      if (!user) {
+        throw new BadRequestException('Transition request is not linked to a valid member');
+      }
+
+      const newRole =
+        user.role === UserRole.STUDENT ? UserRole.DOCTOR : UserRole.GLOBALNETWORK;
+
       await this.userModel.findByIdAndUpdate(user._id, {
         region,
         specialty,
         licenseNumber,
-        role: user.role === UserRole.STUDENT ? UserRole.DOCTOR : UserRole.GLOBALNETWORK,
+        role: newRole,
         admissionYear: null,
         yearOfStudy: null,
       });
@@ -324,15 +337,15 @@ export class UsersService {
         name: user.fullName,
         email: user.email,
         oldRole: user.role,
-        newRole: user.role === UserRole.STUDENT ? UserRole.DOCTOR : UserRole.GLOBALNETWORK,
+        newRole,
         specialty,
         licenseNumber,
         newRegion: region,
       });
 
-      if (!res.success) {
-        throw new InternalServerErrorException(
-          'Transition confirmed. Error occured while sending email',
+      if (!res?.success) {
+        this.logger.error(
+          `Transition ${transition._id} was completed but the confirmation email to ${user.email} could not be sent`,
         );
       }
     }
