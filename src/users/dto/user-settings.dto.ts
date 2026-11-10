@@ -1,7 +1,19 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsBoolean, IsOptional } from 'class-validator';
+import { IsBoolean, IsInt, IsOptional, Max, Min } from 'class-validator';
 
 export class UpdateUserSettingsDto {
+  @ApiPropertyOptional({ description: 'Explicit confirmation when re-enabling marketing after an opt-out' })
+  @IsOptional()
+  @IsBoolean()
+  marketingConsentConfirmed?: boolean;
+
+  @ApiPropertyOptional({ description: 'Consent version returned by GET settings' })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(Number.MAX_SAFE_INTEGER)
+  marketingConsentVersion?: number;
+
   @ApiPropertyOptional({ description: 'Receive notifications for new messages', example: false })
   @IsOptional()
   @IsBoolean()

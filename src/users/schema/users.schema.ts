@@ -15,6 +15,9 @@ import { Vacancy } from '../../vacancy/vacancy.schema';
       delete ret.passwordResetToken;
       delete ret.verificationCode;
       delete ret.refreshSessions;
+      delete ret.dispatchLastFeedbackSequence;
+      delete ret.dispatchConsentFeedbackSequence;
+      delete ret.dispatchConsentChangedAt;
     },
   },
 })
@@ -239,6 +242,16 @@ export class User extends Document {
 
   @Prop()
   tutorialCompletedAt?: Date;
+
+  // Connector causality markers. These are not membership/payment fields.
+  @Prop({ default: 0 })
+  dispatchLastFeedbackSequence: number;
+
+  @Prop({ default: 0 })
+  dispatchConsentFeedbackSequence: number;
+
+  @Prop()
+  dispatchConsentChangedAt?: Date;
 
   // Notification preferences
   @Prop(

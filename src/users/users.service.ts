@@ -217,57 +217,33 @@ export class UsersService {
   }
 
   async getSettings(user: string): Promise<ISuccessResponse> {
-    const settings = await this.userSettingsModel.findOne({ user });
-    return {
-      success: true,
-      message: 'User settings fetched successfully',
-      data: settings,
-    };
+    const [settings,member] = await Promise.all([
+      this.userSettingsModel.findOne({ user }).lean(),
+      this.userModel.findById(user).select('dispatchLastFeedbackSequence notificationPreferences').lean(),
+    ]);
+    return { success:true,message:'User settings fetched successfully',data:{...(settings || {}),...((member as any)?.notificationPreferences || {}),marketingConsentVersion:Number((member as any)?.dispatchLastFeedbackSequence || 0)} };
   }
 
-  async updateSettings(
-    user: string,
-    updateUserSettingsDto: UpdateUserSettingsDto,
-  ): Promise<ISuccessResponse> {
-    const settings = await this.userSettingsModel.findOneAndUpdate(
-      { user },
-      { $set: updateUserSettingsDto, $setOnInsert: { user } },
-      { new: true, upsert: true, setDefaultsOnInsert: true },
-    );
-
-    const notificationFields = [
-      'pushNotifications',
-      'emailNotifications',
-      'events',
-      'payments',
-      'announcements',
-      'reminders',
-      'marketing',
-    ];
-    const notificationPreferences = Object.fromEntries(
-      notificationFields
-        .filter((field) => updateUserSettingsDto[field] !== undefined)
-        .map((field) => [field, updateUserSettingsDto[field]]),
-    );
-    if (Object.keys(notificationPreferences).length) {
-      await this.userModel.updateOne(
-        { _id: user },
-        {
-          $set: Object.fromEntries(
-            Object.entries(notificationPreferences).map(([field, value]) => [
-              `notificationPreferences.${field}`,
-              value,
-            ]),
-          ),
-        },
-      );
+  async updateSettings(user: string, dto: UpdateUserSettingsDto): Promise<ISuccessResponse> {
+    const member:any = await this.userModel.findById(user).select('notificationPreferences dispatchLastFeedbackSequence').lean();
+    if (!member) throw new NotFoundException('Member not found');
+    const version=Number(member.dispatchLastFeedbackSequence || 0);
+    const changesConsent=dto.marketing !== undefined && dto.marketing !== member.notificationPreferences?.marketing;
+    if(changesConsent && dto.marketing===true && version>0 && (dto.marketingConsentConfirmed!==true || dto.marketingConsentVersion!==version)) {
+      throw new ConflictException('Refresh your preferences and explicitly confirm that you want to receive marketing emails again.');
     }
-
-    return {
-      success: true,
-      message: 'User settings updated successfully',
-      data: settings,
-    };
+    const {marketingConsentConfirmed:_confirmation,marketingConsentVersion:_version,...values}=dto;
+    const notificationFields=['pushNotifications','emailNotifications','events','payments','announcements','reminders','marketing'];
+    const notificationPreferences=Object.fromEntries(notificationFields.filter(field=>values[field]!==undefined).map(field=>[field,values[field]]));
+    if(Object.keys(notificationPreferences).length){
+      const filter:any={_id:user};
+      // Do not accept a preference change over an opt-out arriving during this request.
+      if(changesConsent && dto.marketing===true)filter.$or=[{dispatchLastFeedbackSequence:version},...(version===0?[{dispatchLastFeedbackSequence:{$exists:false}}]:[])];
+      const updated=await this.userModel.updateOne(filter,{$set:{...Object.fromEntries(Object.entries(notificationPreferences).map(([field,value])=>[`notificationPreferences.${field}`,value])),...(changesConsent?{dispatchConsentChangedAt:new Date(),dispatchConsentFeedbackSequence:version}:{})}});
+      if(!updated.matchedCount)throw new ConflictException('Preferences changed while saving. Refresh and try again.');
+    }
+    const settings=await this.userSettingsModel.findOneAndUpdate({user},{$set:values,$setOnInsert:{user}},{new:true,upsert:true,setDefaultsOnInsert:true});
+    return {success:true,message:'User settings updated successfully',data:{...settings.toObject(),marketingConsentVersion:version}};
   }
 
   async getTransition(user: string): Promise<ISuccessResponse> {

@@ -41,6 +41,7 @@ import { QueueModule } from './queue/queue.module';
 import { MonitoringModule } from './monitoring/monitoring.module';
 import { ZelleModule } from './zelle/zelle.module';
 import { SupportModule } from './support/support.module';
+import { DispatchIntegrationModule } from './dispatch-integration/dispatch-integration.module';
 
 @Module({
   imports: [
@@ -67,6 +68,7 @@ import { SupportModule } from './support/support.module';
       inject: [ConfigService],
     }),
     QueueModule,
+    DispatchIntegrationModule,
     MonitoringModule,
     ZelleModule,
     SupportModule,

@@ -55,3 +55,8 @@ $ yarn run test:cov
 For more information about NestJS framework, [read documentation here](https://docs.nestjs.com).
 
 (c) 2024 CMDA Nigeria.
+
+
+## Dispatch marketing connector (source only)
+
+Member synchronization and feedback processing are documented in `src/dispatch-integration/README.md`. Environment entries are in `dispatch.env.example`. The connector is disabled by default, runs collection in the existing worker, and leaves transactional email routing unchanged. The new source has not been built or tested.
