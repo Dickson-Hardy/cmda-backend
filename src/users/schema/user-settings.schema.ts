@@ -27,7 +27,7 @@ export class UserSettings extends Document {
   @Prop({ default: true })
   reminders: boolean;
 
-  @Prop({ default: false })
+  @Prop({ default: true })
   marketing: boolean;
 
   @Prop({ type: Types.ObjectId, ref: 'User' })

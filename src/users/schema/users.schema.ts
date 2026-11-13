@@ -262,7 +262,7 @@ export class User extends Document {
       payments: { type: Boolean, default: true },
       announcements: { type: Boolean, default: true },
       reminders: { type: Boolean, default: true },
-      marketing: { type: Boolean, default: false },
+      marketing: { type: Boolean, default: true },
     }),
   )
   notificationPreferences: {

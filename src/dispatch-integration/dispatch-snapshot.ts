@@ -2,7 +2,7 @@ export function snapshot(member:any,settings:any){
  const iso=(value:unknown)=>{const date=value?new Date(value as string):null;return date&&!Number.isNaN(date.getTime())?date.toISOString():null;};
  const preferences=member.notificationPreferences??{};
  // The member document is authoritative when present; settings is a legacy fallback.
- const marketing=typeof preferences.marketing==='boolean'?preferences.marketing:settings?.marketing===true;
+ const marketing=typeof preferences.marketing==='boolean'?preferences.marketing:settings?.marketing!==false;
  const emails=typeof preferences.emailNotifications==='boolean'?preferences.emailNotifications:settings?.emailNotifications!==false;
  const lifetime=member.hasLifetimeMembership===true&&(!member.lifetimeMembershipExpiry||new Date(member.lifetimeMembershipExpiry).getTime()>Date.now());
  const paid=lifetime||(member.subscribed===true&&!!member.subscriptionExpiry&&new Date(member.subscriptionExpiry).getTime()>Date.now());
