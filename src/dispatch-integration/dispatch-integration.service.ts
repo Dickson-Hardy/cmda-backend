@@ -63,16 +63,16 @@ export class DispatchIntegrationService {
   try{await this.syncs.updateOne(old?{_id:id,revision:old.revision}:{_id:id},update,{upsert:!old,setDefaultsOnInsert:false});}catch(error){if((error as any).code!==11000)throw error;}
  }
  private async deliver(){
-  for(let batch=0;batch<4;batch++){
+  for(let batch=0;batch<3;batch++){
    const claims:any[]=[];
-   for(let i=0;i<5;i++){const row:any=await this.syncs.findOneAndUpdate({$or:[{status:'pending',nextAttemptAt:{$lte:new Date()}},{status:'processing',claimedAt:{$lt:new Date(Date.now()-120000)}}]},{$set:{status:'processing',claimedAt:new Date(),claimToken:randomUUID()}},{new:true,sort:{nextAttemptAt:1}}).lean();if(row)claims.push(row);}
+   for(let i=0;i<3;i++){const row:any=await this.syncs.findOneAndUpdate({$or:[{status:'pending',nextAttemptAt:{$lte:new Date()}},{status:'processing',claimedAt:{$lt:new Date(Date.now()-120000)}}]},{$set:{status:'processing',claimedAt:new Date(),claimToken:randomUUID()}},{new:true,sort:{nextAttemptAt:1}}).lean();if(row)claims.push(row);}
    if(!claims.length)return;
    await Promise.all(claims.map(row=>this.send(row)));
   }
  }
  private async send(row:any){
   const body={...row.snapshot,eventId:row.eventId,revision:row.revision};
-  try{const response=await axios.post(this.endpoint(),JSON.stringify(body),{headers:headers(this.secret(),body),timeout:15000,maxRedirects:0,validateStatus:()=>true});if(response.status<200||response.status>=300||response.data?.accepted!==true)throw new Error(`Dispatch member sync HTTP ${response.status}${typeof response.data?.message==='string'?': '+response.data.message.replace(/[\r\n]/g,' ').slice(0,300):''}`);
+  try{const response=await axios.post(this.endpoint(),JSON.stringify(body),{headers:headers(this.secret(),body),timeout:30000,maxRedirects:0,validateStatus:()=>true});if(response.status<200||response.status>=300||response.data?.accepted!==true)throw new Error(`Dispatch member sync HTTP ${response.status}${typeof response.data?.message==='string'?': '+response.data.message.replace(/[\r\n]/g,' ').slice(0,300):''}`);
    await this.syncs.updateOne({_id:row._id,revision:row.revision,claimToken:row.claimToken},{$set:{status:'delivered',deliveredAt:new Date(),dispatchContactId:response.data.contactId??row.dispatchContactId??''},$unset:{lastError:1,claimedAt:1,claimToken:1}});
    await this.states.updateOne({_id:'collector'},{$set:{lastDeliveryAt:new Date()}},{upsert:true});
   }catch(error){const attempts=row.attempts+1;const message=axios.isAxiosError(error)?`Dispatch request failed (${error.code??'network'})`:error instanceof Error?error.message:'Dispatch member sync failed';await this.syncs.updateOne({_id:row._id,revision:row.revision,claimToken:row.claimToken},{$set:{status:attempts>=10?'failed':'pending',attempts,nextAttemptAt:new Date(Date.now()+Math.min(3600000,2**attempts*5000)),lastError:message},$unset:{claimedAt:1,claimToken:1}});}
