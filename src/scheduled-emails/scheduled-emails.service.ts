@@ -1,10 +1,12 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { User } from '../users/schema/users.schema';
 import { Event } from '../events/events.schema';
 import { EmailService } from '../email/email.service';
+import { RabbitMqService } from '../queue/rabbitmq.service';
+import { ScheduledEmailSend } from './scheduled-email-send.schema';
 import { BIRTHDAY_EMAIL_TEMPLATE } from '../email/templates/birthday.template';
 import { SUBSCRIPTION_RENEWAL_REMINDER_TEMPLATE } from '../email/templates/subscription-renewal-reminder.template';
 import {
@@ -17,14 +19,123 @@ import {
 } from '../email/templates/followup.template';
 
 @Injectable()
-export class ScheduledEmailsService {
+export class ScheduledEmailsService implements OnModuleInit {
   private readonly logger = new Logger(ScheduledEmailsService.name);
 
   constructor(
     @InjectModel(User.name) private userModel: Model<User>,
     @InjectModel(Event.name) private eventModel: Model<Event>,
+    @InjectModel(ScheduledEmailSend.name)
+    private scheduledSendModel: Model<ScheduledEmailSend>,
     private emailService: EmailService,
+    private rabbitMq: RabbitMqService,
   ) {}
+
+  async onModuleInit() {
+    // Make sure the unique dedupe index exists before any cron/manual run
+    // can claim a send.
+    await this.scheduledSendModel.init();
+  }
+
+  /**
+   * Only the worker should run crons when a job queue is configured.
+   * Without a queue both processes must run them, which is why every
+   * send below also goes through an atomic per-recipient claim.
+   */
+  private shouldRunCron(force: boolean): boolean {
+    if (force) return true;
+    if (process.env.PROCESS_ROLE === 'worker') return true;
+    return !this.rabbitMq.isConfigured();
+  }
+
+  /**
+   * Atomically claim one scheduled email. Returns the dedupe key when this
+   * process won the claim, or null when another process already handled it.
+   */
+  private async claimSend(
+    campaign: string,
+    recipient: string,
+    context: string,
+  ): Promise<string | null> {
+    const normalizedRecipient = recipient.trim().toLowerCase();
+    const dedupeKey = `${campaign}:${normalizedRecipient}:${context}`;
+
+    try {
+      await this.scheduledSendModel.create({
+        dedupeKey,
+        campaign,
+        recipient: normalizedRecipient,
+        status: 'sending',
+        attemptedAt: new Date(),
+      });
+      return dedupeKey;
+    } catch (error) {
+      if ((error as { code?: number }).code === 11000) {
+        this.logger.debug(
+          `Skipping duplicate ${campaign} email to ${normalizedRecipient} (${context})`,
+        );
+        return null;
+      }
+      throw error;
+    }
+  }
+
+  private async markSent(dedupeKey: string): Promise<void> {
+    await this.scheduledSendModel
+      .updateOne({ dedupeKey }, { $set: { status: 'sent', sentAt: new Date() } })
+      .exec();
+  }
+
+  private async releaseClaim(dedupeKey: string, error?: unknown): Promise<void> {
+    // Remove the claim so a later run can retry this recipient.
+    await this.scheduledSendModel.deleteOne({ dedupeKey }).exec();
+    if (error) {
+      this.logger.warn(
+        `Released scheduled-email claim ${dedupeKey}: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+  }
+
+  /**
+   * Claim then send exactly once. EmailService returns `{ success: false }`
+   * instead of throwing on SMTP errors, so both outcomes are handled.
+   */
+  private async sendOnce(
+    campaign: string,
+    recipient: string,
+    context: string,
+    send: () => Promise<{ success: boolean }>,
+  ): Promise<'sent' | 'skipped' | 'failed'> {
+    const dedupeKey = await this.claimSend(campaign, recipient, context);
+    if (!dedupeKey) return 'skipped';
+
+    let result: { success: boolean };
+    try {
+      result = await send();
+    } catch (error) {
+      // The send itself failed before delivery; allow a later retry.
+      await this.releaseClaim(dedupeKey, error);
+      throw error;
+    }
+
+    if (!result?.success) {
+      await this.releaseClaim(dedupeKey, new Error('Email provider reported failure'));
+      return 'failed';
+    }
+
+    try {
+      await this.markSent(dedupeKey);
+    } catch (error) {
+      // The email was already delivered. Keep the claim so a retry cannot
+      // send it twice; only the bookkeeping status is stale.
+      this.logger.warn(
+        `Email delivered but failed to mark claim ${dedupeKey} as sent: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    }
+    return 'sent';
+  }
 
   /**
    * Send birthday emails daily at 6:00 AM
@@ -35,13 +146,14 @@ export class ScheduledEmailsService {
     timeZone: 'Africa/Lagos',
   })
   async sendBirthdayEmails(force = false) {
-    if (!force && process.env.RABBITMQ_URL && process.env.PROCESS_ROLE !== 'worker') return;
+    if (!this.shouldRunCron(force)) return;
     this.logger.log('Running birthday email cron job...');
 
     try {
       const today = new Date();
       const currentMonth = today.getMonth() + 1; // JavaScript months are 0-indexed
       const currentDay = today.getDate();
+      const currentYear = today.getFullYear();
 
       // Find users with birthdays today
       const users = await this.userModel
@@ -67,13 +179,21 @@ export class ScheduledEmailsService {
             user.firstName || 'Member',
           );
 
-          await this.emailService.sendBirthdayEmail({
-            to: user.email,
-            subject: `🎉 Happy Birthday ${user.firstName}! - CMDA Nigeria`,
-            html: emailContent,
-          });
+          const outcome = await this.sendOnce(
+            'birthday',
+            user.email,
+            `${user._id}:${currentYear}`,
+            () =>
+              this.emailService.sendBirthdayEmail({
+                to: user.email,
+                subject: `🎉 Happy Birthday ${user.firstName}! - CMDA Nigeria`,
+                html: emailContent,
+              }),
+          );
 
-          this.logger.log(`Birthday email sent to ${user.email}`);
+          if (outcome === 'sent') {
+            this.logger.log(`Birthday email sent to ${user.email}`);
+          }
         } catch (error) {
           this.logger.error(`Failed to send birthday email to ${user.email}:`, error);
         }
@@ -94,7 +214,7 @@ export class ScheduledEmailsService {
     timeZone: 'Africa/Lagos',
   })
   async sendSubscriptionReminders(force = false) {
-    if (!force && process.env.RABBITMQ_URL && process.env.PROCESS_ROLE !== 'worker') return;
+    if (!this.shouldRunCron(force)) return;
     this.logger.log('Running subscription reminder cron job...');
 
     try {
@@ -141,13 +261,21 @@ export class ScheduledEmailsService {
               .replace(/\[DaysRemaining\]/g, days.toString())
               .replace(/\[ExpiryDate\]/g, formattedDate);
 
-            await this.emailService.sendReminderEmail({
-              to: user.email,
-              subject: `⏰ Your CMDA Subscription Expires in ${days} Day${days !== 1 ? 's' : ''}`,
-              html: emailContent,
-            });
+            const outcome = await this.sendOnce(
+              'subscription-reminder',
+              user.email,
+              `${user._id}:${days}:${expiryDate.toISOString().slice(0, 10)}`,
+              () =>
+                this.emailService.sendReminderEmail({
+                  to: user.email,
+                  subject: `⏰ Your CMDA Subscription Expires in ${days} Day${days !== 1 ? 's' : ''}`,
+                  html: emailContent,
+                }),
+            );
 
-            this.logger.log(`Renewal reminder sent to ${user.email} (${days} days)`);
+            if (outcome === 'sent') {
+              this.logger.log(`Renewal reminder sent to ${user.email} (${days} days)`);
+            }
           } catch (error) {
             this.logger.error(`Failed to send reminder to ${user.email}:`, error);
           }
@@ -169,7 +297,7 @@ export class ScheduledEmailsService {
     timeZone: 'Africa/Lagos',
   })
   async sendEventReminders(force = false) {
-    if (!force && process.env.RABBITMQ_URL && process.env.PROCESS_ROLE !== 'worker') return;
+    if (!this.shouldRunCron(force)) return;
     this.logger.log('Running event reminder cron job...');
 
     try {
@@ -279,15 +407,23 @@ export class ScheduledEmailsService {
                 emailContent = emailContent.replace(/\[VirtualMeetingInfo\]/g, '');
               }
 
-              await this.emailService.sendReminderEmail({
-                to: user.email,
-                subject: `📅 Reminder: ${event.name} is in ${timeUntilEvent}!`,
-                html: emailContent,
-              });
-
-              this.logger.log(
-                `Event reminder sent to ${user.email} for ${event.name} (${days} days)`,
+              const outcome = await this.sendOnce(
+                'event-reminder',
+                user.email,
+                `${user._id}:${event._id}:${days}`,
+                () =>
+                  this.emailService.sendReminderEmail({
+                    to: user.email,
+                    subject: `📅 Reminder: ${event.name} is in ${timeUntilEvent}!`,
+                    html: emailContent,
+                  }),
               );
+
+              if (outcome === 'sent') {
+                this.logger.log(
+                  `Event reminder sent to ${user.email} for ${event.name} (${days} days)`,
+                );
+              }
             } catch (error) {
               const user = registeredUser.userId as any;
               this.logger.error(
@@ -314,7 +450,7 @@ export class ScheduledEmailsService {
     timeZone: 'Africa/Lagos',
   })
   async sendFollowUpEmails(force = false) {
-    if (!force && process.env.RABBITMQ_URL && process.env.PROCESS_ROLE !== 'worker') return;
+    if (!this.shouldRunCron(force)) return;
     this.logger.log('Running follow-up email cron job...');
 
     try {
@@ -360,13 +496,21 @@ export class ScheduledEmailsService {
               30: '💜 We Miss You at CMDA Nigeria',
             };
 
-            await this.emailService.sendReminderEmail({
-              to: user.email,
-              subject: subjects[days],
-              html: emailContent,
-            });
+            const outcome = await this.sendOnce(
+              'followup',
+              user.email,
+              `${user._id}:${days}`,
+              () =>
+                this.emailService.sendReminderEmail({
+                  to: user.email,
+                  subject: subjects[days],
+                  html: emailContent,
+                }),
+            );
 
-            this.logger.log(`Follow-up email sent to ${user.email} (${days} days)`);
+            if (outcome === 'sent') {
+              this.logger.log(`Follow-up email sent to ${user.email} (${days} days)`);
+            }
           } catch (error) {
             this.logger.error(`Failed to send follow-up to ${user.email}:`, error);
           }
