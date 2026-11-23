@@ -23,7 +23,7 @@ export const WELCOME_EMAIL_TEMPLATE = `
               <tr>
                 <td align="center" style="background-color: #ffffff; border-radius: 12px; padding: 10px">
                   <img
-                    src="https://cmdanigeria.net/CMDALOGO_white.png"
+                    src="[FrontendUrl]/CMDALOGO_white.png"
                     alt="CMDA Nigeria"
                     width="82"
                     height="82"
@@ -112,7 +112,7 @@ export const MEMBER_CREDENTIALS_TEMPLATE = `
               <tr>
                 <td align="center" style="background-color: #ffffff; border-radius: 12px; padding: 10px">
                   <img
-                    src="https://cmdanigeria.net/CMDALOGO_white.png"
+                    src="[FrontendUrl]/CMDALOGO_white.png"
                     alt="CMDA Nigeria"
                     width="82"
                     height="82"
@@ -147,7 +147,7 @@ export const MEMBER_CREDENTIALS_TEMPLATE = `
             </p>
             <div style="text-align: center; margin: 30px 0">
                 <a
-                href="https://cmdanigeria.net/login"
+                href="[FrontendUrl]/login"
                 style="
                     display: inline-block;
                     background-color: #994279;
@@ -166,7 +166,7 @@ export const MEMBER_CREDENTIALS_TEMPLATE = `
                 Please note that you will be prompted to change your password upon your first login for security purposes.
             </p>
             <div style="background-color: #fff3cd; border: 1px solid #ffc107; border-radius: 5px; padding: 15px; margin: 20px 0">
-                <p style="color: #856404; font-size: 16px; line-height: 1.5; margin: 0">
+                <p style="color: #6E2F50; font-size: 16px; line-height: 1.5; margin: 0">
                     <strong>Important:</strong> [ProfileReminder]
                 </p>
             </div>

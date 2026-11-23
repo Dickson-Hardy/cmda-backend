@@ -2,15 +2,17 @@ export const WELCOME_FOLLOWUP_TEMPLATE = `
 <!DOCTYPE html>
 <html>
 <head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="color-scheme" content="light">
   <meta charset="UTF-8">
   <title>Welcome to CMDA Nigeria - Getting Started</title>
 </head>
 <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-  <div style="background-color: #4CAF50; padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
-    <h1 style="color: white; margin: 0; font-size: 28px;">👋 Welcome Aboard!</h1>
+  <div style="background-color: #994279; padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
+    <h1 style="color: white; margin: 0; font-size: 28px;"><span style="display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:50%;background-color:#F7EAF2;color:#994279;font-size:16px;line-height:1;">👋</span> Welcome Aboard!</h1>
   </div>
   
-  <div style="background-color: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px;">
+  <div style="background-color: #F4F4F4; padding: 30px; border-radius: 0 0 10px 10px;">
     <p style="font-size: 18px; color: #555;">Dear [Name],</p>
     
     <p style="font-size: 16px; line-height: 1.8;">
@@ -18,15 +20,15 @@ export const WELCOME_FOLLOWUP_TEMPLATE = `
       and we wanted to reach out to help you make the most of your membership.
     </p>
     
-    <h3 style="color: #4CAF50;">🚀 Getting Started Guide</h3>
+    <h3 style="color: #994279;"><span style="display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:50%;background-color:#F7EAF2;color:#994279;font-size:16px;line-height:1;">🚀</span> Getting Started Guide</h3>
     
     <div style="background-color: white; padding: 20px; border-radius: 5px; margin: 15px 0; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
       <h4 style="margin-top: 0; color: #333;">1. Complete Your Profile</h4>
       <p style="font-size: 14px; color: #666; margin-bottom: 10px;">
         Add your profile photo, update your information, and connect with fellow members.
       </p>
-      <a href="https://cmdanigeria.net/dashboard/profile" 
-         style="color: #4CAF50; text-decoration: none; font-weight: bold;">Complete Profile →</a>
+      <a href="[FrontendUrl]/dashboard/profile" 
+         style="color: #994279; text-decoration: none; font-weight: bold;">Complete Profile →</a>
     </div>
     
     <div style="background-color: white; padding: 20px; border-radius: 5px; margin: 15px 0; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
@@ -34,8 +36,8 @@ export const WELCOME_FOLLOWUP_TEMPLATE = `
       <p style="font-size: 14px; color: #666; margin-bottom: 10px;">
         Unlock all features including event registration, resources, and networking opportunities.
       </p>
-      <a href="https://cmdanigeria.net/dashboard/payments" 
-         style="color: #4CAF50; text-decoration: none; font-weight: bold;">Subscribe Now →</a>
+      <a href="[FrontendUrl]/dashboard/payments" 
+         style="color: #994279; text-decoration: none; font-weight: bold;">Subscribe Now →</a>
     </div>
     
     <div style="background-color: white; padding: 20px; border-radius: 5px; margin: 15px 0; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
@@ -43,8 +45,8 @@ export const WELCOME_FOLLOWUP_TEMPLATE = `
       <p style="font-size: 14px; color: #666; margin-bottom: 10px;">
         Check out our calendar of conferences, trainings, and networking events.
       </p>
-      <a href="https://cmdanigeria.net/dashboard/events" 
-         style="color: #4CAF50; text-decoration: none; font-weight: bold;">View Events →</a>
+      <a href="[FrontendUrl]/dashboard/events" 
+         style="color: #994279; text-decoration: none; font-weight: bold;">View Events →</a>
     </div>
     
     <div style="background-color: white; padding: 20px; border-radius: 5px; margin: 15px 0; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
@@ -52,22 +54,22 @@ export const WELCOME_FOLLOWUP_TEMPLATE = `
       <p style="font-size: 14px; color: #666; margin-bottom: 10px;">
         Browse our library of devotionals, articles, and professional resources.
       </p>
-      <a href="https://cmdanigeria.net/dashboard/resources" 
-         style="color: #4CAF50; text-decoration: none; font-weight: bold;">Browse Resources →</a>
+      <a href="[FrontendUrl]/dashboard/resources" 
+         style="color: #994279; text-decoration: none; font-weight: bold;">Browse Resources →</a>
     </div>
     
-    <div style="background-color: #E8F5E9; padding: 20px; border-left: 4px solid #4CAF50; margin: 20px 0; border-radius: 5px;">
-      <h3 style="margin-top: 0; color: #2E7D32;">💡 Need Help?</h3>
+    <div style="background-color: #F7EAF2; padding: 20px; border-left: 4px solid #994279; margin: 20px 0; border-radius: 5px;">
+      <h3 style="margin-top: 0; color: #6E2F50;">💡 Need Help?</h3>
       <p style="margin-bottom: 0; font-size: 14px; color: #555;">
         Our team is here to assist you! Contact us at 
-        <a href="mailto:office@cmdanigeria.org" style="color: #4CAF50;">office@cmdanigeria.org</a> 
-        or visit our <a href="https://cmdanigeria.net/help" style="color: #4CAF50;">Help Center</a>.
+        <a href="mailto:office@cmdanigeria.org" style="color: #994279;">office@cmdanigeria.org</a> 
+        or visit our <a href="[FrontendUrl]/help" style="color: #994279;">Help Center</a>.
       </p>
     </div>
     
     <div style="text-align: center; margin: 30px 0;">
-      <a href="https://cmdanigeria.net/dashboard" 
-         style="background-color: #4CAF50; color: white; padding: 16px 40px; text-decoration: none; border-radius: 25px; display: inline-block; font-weight: bold; font-size: 18px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+      <a href="[FrontendUrl]/dashboard" 
+         style="background-color: #994279; color: white; padding: 16px 40px; text-decoration: none; border-radius: 25px; display: inline-block; font-weight: bold; font-size: 18px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
         Go to Dashboard
       </a>
     </div>
@@ -95,11 +97,11 @@ export const ENGAGEMENT_FOLLOWUP_TEMPLATE = `
   <title>We Miss You at CMDA Nigeria</title>
 </head>
 <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-  <div style="background-color: #9C27B0; padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
-    <h1 style="color: white; margin: 0; font-size: 28px;">👋 We Miss You!</h1>
+  <div style="background-color: #994279; padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
+    <h1 style="color: white; margin: 0; font-size: 28px;"><span style="display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:50%;background-color:#F7EAF2;color:#994279;font-size:16px;line-height:1;">👋</span> We Miss You!</h1>
   </div>
   
-  <div style="background-color: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px;">
+  <div style="background-color: #F4F4F4; padding: 30px; border-radius: 0 0 10px 10px;">
     <p style="font-size: 18px; color: #555;">Dear [Name],</p>
     
     <p style="font-size: 16px; line-height: 1.8;">
@@ -107,7 +109,7 @@ export const ENGAGEMENT_FOLLOWUP_TEMPLATE = `
       The CMDA Nigeria community is stronger with you in it.
     </p>
     
-    <h3 style="color: #9C27B0;">📅 What You've Missed:</h3>
+    <h3 style="color: #994279;"><span style="display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:50%;background-color:#F7EAF2;color:#994279;font-size:16px;line-height:1;">📅</span> What You've Missed:</h3>
     
     <div style="background-color: white; padding: 20px; border-radius: 5px; margin: 15px 0; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
       <ul style="color: #555; font-size: 15px; line-height: 1.8;">
@@ -119,8 +121,8 @@ export const ENGAGEMENT_FOLLOWUP_TEMPLATE = `
     </div>
     
     <div style="text-align: center; margin: 30px 0;">
-      <a href="https://cmdanigeria.net/dashboard" 
-         style="background-color: #9C27B0; color: white; padding: 16px 40px; text-decoration: none; border-radius: 25px; display: inline-block; font-weight: bold; font-size: 18px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+      <a href="[FrontendUrl]/dashboard" 
+         style="background-color: #994279; color: white; padding: 16px 40px; text-decoration: none; border-radius: 25px; display: inline-block; font-weight: bold; font-size: 18px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
         Return to Dashboard
       </a>
     </div>

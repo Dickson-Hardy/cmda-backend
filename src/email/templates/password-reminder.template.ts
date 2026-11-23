@@ -10,7 +10,7 @@ export const PASSWORD_CHANGE_REMINDER_TEMPLATE = `
     <tr>
     <td align="center">
         <table
-        width="600"
+        width="100%" style="max-width:600px"
         border="0"
         cellspacing="0"
         cellpadding="0"
@@ -20,7 +20,7 @@ export const PASSWORD_CHANGE_REMINDER_TEMPLATE = `
         <tr>
             <td align="center" style="background-color: #994279; padding: 40px 0">
              <img
-              src="https://cmdanigeria.net/CMDALogo.svg"
+              src="[FrontendUrl]/CMDALogo.svg"
               alt="CMDA Nigeria"
               width="200"
               height="56"
@@ -42,7 +42,7 @@ export const PASSWORD_CHANGE_REMINDER_TEMPLATE = `
             </p>
             <div style="text-align: center; margin: 30px 0">
                 <a
-                href="https://cmdanigeria.net/login"
+                href="[FrontendUrl]/login"
                 style="
                     display: inline-block;
                     background-color: #994279;
@@ -66,14 +66,14 @@ export const PASSWORD_CHANGE_REMINDER_TEMPLATE = `
                 font-size: 16px;
                 font-weight: bold;
                 margin: 20px 0;
-                background-color: #f9f9f9;
+                background-color: #F4F4F4;
                 padding: 15px;
                 border-left: 4px solid #994279;
                 "
             >
                 Email: [Email]
             </p>
-            <p style="color: #ff6b6b; font-size: 14px; line-height: 1.5; margin: 20px 0">
+            <p style="color: #994279; font-size: 14px; line-height: 1.5; margin: 20px 0">
                 <strong>Important:</strong> If you did not request this account or have any concerns, 
                 please contact us immediately at 
                 <a href="mailto:office@cmdanigeria.org" style="color: #994279; text-decoration: none">office@cmdanigeria.org</a>

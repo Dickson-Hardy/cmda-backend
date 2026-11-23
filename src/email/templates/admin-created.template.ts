@@ -10,7 +10,7 @@ export const ADMIN_CREDENTIALS_TEMPLATE = `
     <tr>
     <td align="center">
         <table
-        width="600"
+        width="100%" style="max-width:600px"
         border="0"
         cellspacing="0"
         cellpadding="0"
@@ -20,7 +20,7 @@ export const ADMIN_CREDENTIALS_TEMPLATE = `
         <tr>
             <td align="center" style="background-color: #994279; padding: 40px 0">
              <img
-              src="https://cmdanigeria.net/CMDALogo.svg"
+              src="[FrontendUrl]/CMDALogo.svg"
               alt="CMDA Nigeria"
               width="200"
               height="56"

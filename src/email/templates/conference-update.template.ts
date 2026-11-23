@@ -10,7 +10,7 @@ export const CONFERENCE_UPDATE_NOTIFICATION_TEMPLATE = `
     <tr>
         <td align="center">
         <table
-            width="600"
+            width="100%" style="max-width:600px"
             border="0"
             cellspacing="0"
             cellpadding="0"
@@ -18,9 +18,9 @@ export const CONFERENCE_UPDATE_NOTIFICATION_TEMPLATE = `
         >
             <!-- Header -->
             <tr>
-            <td align="center" style="background-color: #17a2b8; padding: 40px 0">
+            <td align="center" style="background-color: #994279; padding: 40px 0">
                 <img
-                src="https://cmdanigeria.net/CMDALogo.svg"
+                src="[FrontendUrl]/CMDALogo.svg"
                 alt="CMDA Nigeria"
                 width="200"
                 height="56"
@@ -40,7 +40,7 @@ export const CONFERENCE_UPDATE_NOTIFICATION_TEMPLATE = `
                 </p>
                 
                 <!-- Update Details Card -->
-                <div style="background-color: #f8f9fa; border-radius: 8px; padding: 30px; margin: 30px 0; border-left: 4px solid #17a2b8">
+                <div style="background-color: #F4F4F4; border-radius: 8px; padding: 30px; margin: 30px 0; border-left: 4px solid #994279">
                     <h3 style="color: #333333; font-size: 18px; margin: 0 0 15px 0">Update Details</h3>
                     <p style="color: #666666; font-size: 16px; line-height: 1.5; margin: 0">
                         [UpdateMessage]
@@ -48,7 +48,7 @@ export const CONFERENCE_UPDATE_NOTIFICATION_TEMPLATE = `
                 </div>
 
                 <!-- Conference Details Card -->
-                <div style="background-color: #e7f3ff; border-radius: 8px; padding: 30px; margin: 30px 0; border-left: 4px solid #994279">
+                <div style="background-color: #F4EEF2; border-radius: 8px; padding: 30px; margin: 30px 0; border-left: 4px solid #994279">
                     <h3 style="color: #333333; font-size: 18px; margin: 0 0 15px 0">Conference Information</h3>
                     <table width="100%" style="font-size: 14px; color: #666666;">
                         <tr>
@@ -99,12 +99,12 @@ export const CONFERENCE_UPDATE_NOTIFICATION_TEMPLATE = `
 
             <!-- Footer -->
             <tr>
-            <td style="background-color: #f8f9fa; padding: 30px; text-align: center">
+            <td style="background-color: #F4F4F4; padding: 30px; text-align: center">
                 <p style="color: #999999; font-size: 14px; margin: 0">
                 © 2025 Christian Medical and Dental Association of Nigeria
                 </p>
                 <p style="color: #999999; font-size: 14px; margin: 10px 0 0 0">
-                <a href="https://cmdanigeria.net" style="color: #994279; text-decoration: none">
+                <a href="[FrontendUrl]" style="color: #994279; text-decoration: none">
                     Visit our website
                 </a>
                 |

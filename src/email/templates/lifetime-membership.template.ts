@@ -63,14 +63,14 @@ export const buildLifetimeMembershipEmail = ({
 
   return {
     html: `
-<div style="margin: 0; padding: 0; background-color: #f4eef2; font-family: Arial, Helvetica, sans-serif">
-  <table width="100%" border="0" cellspacing="0" cellpadding="0" role="presentation" style="background-color: #f4eef2; padding: 24px 12px">
+<div style="margin: 0; padding: 0; background-color: #F4EEF2; font-family: Arial, Helvetica, sans-serif">
+  <table width="100%" border="0" cellspacing="0" cellpadding="0" role="presentation" style="background-color: #F4EEF2; padding: 24px 12px">
     <tr>
       <td align="center">
-        <table width="600" border="0" cellspacing="0" cellpadding="0" role="presentation" style="width: 100%; max-width: 600px; background-color: #ffffff; border-radius: 12px; overflow: hidden">
+        <table width="100%" style="max-width:600px" border="0" cellspacing="0" cellpadding="0" role="presentation" style="width: 100%; max-width: 600px; background-color: #ffffff; border-radius: 12px; overflow: hidden">
           <tr>
             <td align="center" style="background-color: #994279; padding: 30px 24px">
-              <img src="https://cmdanigeria.net/CMDALOGO_white.png" alt="CMDA Nigeria" width="190" style="display: block; width: 190px; max-width: 100%; height: auto" />
+              <img src="[FrontendUrl]/CMDALOGO_white.png" alt="CMDA Nigeria" width="190" style="display: block; width: 190px; max-width: 100%; height: auto" />
               <h1 style="color: #ffffff; font-size: 24px; line-height: 1.3; margin: 20px 0 0">With Deepest Gratitude</h1>
               <p style="color: #f7eaf2; font-size: 15px; margin: 8px 0 0">CMDA Nigeria Lifetime Membership</p>
             </td>
@@ -88,7 +88,7 @@ export const buildLifetimeMembershipEmail = ({
             </td>
           </tr>
           <tr>
-            <td align="center" style="background-color: #f7f4f6; padding: 18px 24px">
+            <td align="center" style="background-color: #F4EEF2; padding: 18px 24px">
               <p style="color: #767676; font-size: 13px; line-height: 1.5; margin: 0">CMDA Nigeria · Wholeness House, Gwagwalada, FCT, Nigeria</p>
             </td>
           </tr>

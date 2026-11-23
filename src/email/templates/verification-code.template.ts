@@ -10,7 +10,7 @@ export const VERIFICATION_CODE_EMAIL_TEMPLATE = `
   <tr>
     <td align="center">
       <table
-        width="600"
+        width="100%" style="max-width:600px"
         border="0"
         cellspacing="0"
         cellpadding="0"
@@ -20,7 +20,7 @@ export const VERIFICATION_CODE_EMAIL_TEMPLATE = `
         <tr>
           <td align="center" style="background-color: #994279; padding: 40px 0">
             <img
-              src="https://cmdanigeria.net/CMDALogo.svg"
+              src="[FrontendUrl]/CMDALogo.svg"
               alt="CMDA Nigeria"
               width="200"
               height="56"
@@ -42,7 +42,7 @@ export const VERIFICATION_CODE_EMAIL_TEMPLATE = `
             <p style="color: #666666; font-size: 16px; line-height: 1.5; margin: 20px 0">
               To complete your registration, please enter the code below in the app:
             </p>
-            <div style="background-color: #f8f9fa; border: 2px solid #994279; border-radius: 8px; padding: 20px; text-align: center; margin: 30px 0;">
+            <div style="background-color: #F4F4F4; border: 2px solid #994279; border-radius: 8px; padding: 20px; text-align: center; margin: 30px 0;">
               <p style="color: #333; font-size: 16px; margin: 0 0 10px 0;">Registration Code:</p>
               <p style="color: #994279; font-size: 32px; font-weight: bold; margin: 0; letter-spacing: 4px; font-family: 'Courier New', monospace;">
                 [VerificationCode]
@@ -84,7 +84,7 @@ export const VERIFICATION_CODE_EMAIL_TEMPLATE = `
             </p>
             <p style="color: #666666; font-size: 14px; margin: 0 0 10px 0">
               Email: <a href="mailto:office@cmdanigeria.org" style="color: #994279;">office@cmdanigeria.org</a> | 
-              Website: <a href="https://cmdanigeria.net" style="color: #994279;">cmdanigeria.net</a>
+              Website: <a href="[FrontendUrl]" style="color: #994279;">cmdanigeria.net</a>
             </p>
             <p style="color: #666666; font-size: 12px; margin: 15px 0 0 0">
               &copy; 2024 CMDA Nigeria. All rights reserved.

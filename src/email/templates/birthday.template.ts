@@ -2,22 +2,24 @@ export const BIRTHDAY_EMAIL_TEMPLATE = `
 <!DOCTYPE html>
 <html>
 <head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="color-scheme" content="light">
   <meta charset="UTF-8">
   <title>Happy Birthday from CMDA Nigeria</title>
 </head>
 <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-  <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
-    <h1 style="color: white; margin: 0; font-size: 28px;">🎉 Happy Birthday, [Name]! 🎂</h1>
+  <div style="background: #994279; padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
+    <h1 style="color: white; margin: 0; font-size: 28px;"><span style="display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:50%;background-color:#F7EAF2;color:#994279;font-size:16px;line-height:1;">🎉</span> Happy Birthday, [Name]! <span style="display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:50%;background-color:#F7EAF2;color:#994279;font-size:16px;line-height:1;">🎂</span></h1>
   </div>
   
-  <div style="background-color: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px;">
+  <div style="background-color: #F4F4F4; padding: 30px; border-radius: 0 0 10px 10px;">
     <p style="font-size: 18px; color: #555;">Dear [Name],</p>
     
     <p style="font-size: 16px; line-height: 1.8;">
-      On behalf of the entire CMDA Nigeria family, we want to wish you a very <strong>Happy Birthday</strong>! 🎈
+      On behalf of the entire CMDA Nigeria family, we want to wish you a very <strong>Happy Birthday</strong>! <span style="display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:50%;background-color:#F7EAF2;color:#994279;font-size:16px;line-height:1;">🎈</span>
     </p>
     
-    <div style="background-color: white; padding: 20px; border-left: 4px solid #667eea; margin: 20px 0; border-radius: 5px;">
+    <div style="background-color: white; padding: 20px; border-left: 4px solid #994279; margin: 20px 0; border-radius: 5px;">
       <p style="font-size: 16px; margin: 0; font-style: italic; color: #555;">
         "The Lord bless you and keep you; the Lord make his face shine on you and be gracious to you; 
         the Lord turn his face toward you and give you peace." - Numbers 6:24-26
@@ -31,12 +33,12 @@ export const BIRTHDAY_EMAIL_TEMPLATE = `
     
     <p style="font-size: 16px;">
       We pray that God's grace continues to guide you in your medical practice and ministry. 
-      Enjoy your special day! 🎊
+      Enjoy your special day! <span style="display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:50%;background-color:#F7EAF2;color:#994279;font-size:16px;line-height:1;">🎊</span>
     </p>
     
     <div style="text-align: center; margin: 30px 0;">
-      <a href="https://cmdanigeria.net/dashboard" 
-         style="background-color: #667eea; color: white; padding: 14px 30px; text-decoration: none; border-radius: 25px; display: inline-block; font-weight: bold; font-size: 16px;">
+      <a href="[FrontendUrl]/dashboard" 
+         style="background-color: #994279; color: white; padding: 14px 30px; text-decoration: none; border-radius: 25px; display: inline-block; font-weight: bold; font-size: 16px;">
         Visit Your Dashboard
       </a>
     </div>

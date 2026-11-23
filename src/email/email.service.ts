@@ -39,17 +39,32 @@ export class EmailService {
   ) {}
 
   /**
-   * Replace the unsubscribe placeholder with a signed, public unsubscribe URL.
-   * Queue payloads keep the placeholder until the worker performs the final send.
+   * Replace shared template placeholders at final send time.
+   * Queue payloads keep the placeholders until the worker performs the final send.
    */
   private injectUnsubscribeUrl(html: string, to: string): string {
-    if (!html || !html.includes('[UnsubscribeUrl]')) return html;
-    const baseUrl =
+    if (!html) return html;
+
+    const frontendUrl =
+      this.configService.get<string>('FRONTEND_URL') ||
       this.configService.get<string>('PUBLIC_API_URL') ||
-      this.configService.get<string>('FRONTEND_URL');
-    if (!baseUrl) return html.split('[UnsubscribeUrl]').join('#');
-    const url = `${baseUrl.replace(/\/$/, '')}/unsubscribe?token=${createUnsubscribeToken(to)}`;
-    return html.split('[UnsubscribeUrl]').join(url);
+      'https://cmdanigeria.net';
+    let resolved = html
+      .split('[FrontendUrl]')
+      .join(frontendUrl.replace(/\/$/, ''))
+      .split('[Year]')
+      .join(String(new Date().getFullYear()));
+
+    if (resolved.includes('[UnsubscribeUrl]')) {
+      const baseUrl =
+        this.configService.get<string>('PUBLIC_API_URL') ||
+        this.configService.get<string>('FRONTEND_URL');
+      const url = baseUrl
+        ? `${baseUrl.replace(/\/$/, '')}/unsubscribe?token=${createUnsubscribeToken(to)}`
+        : '#';
+      resolved = resolved.split('[UnsubscribeUrl]').join(url);
+    }
+    return resolved;
   }
 
   /**
