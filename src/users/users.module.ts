@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { UsersController } from './users.controller';
+import { UnsubscribeController } from './unsubscribe.controller';
 import { UsersService } from './users.service';
 import { MongooseModule } from '@nestjs/mongoose';
 import { User, UserSchema } from './schema/users.schema';
@@ -18,7 +19,7 @@ import { EmailModule } from '../email/email.module';
     CloudinaryModule,
     EmailModule,
   ],
-  controllers: [UsersController],
+  controllers: [UsersController, UnsubscribeController],
   providers: [UsersService],
   exports: [UsersService],
 })

@@ -461,7 +461,9 @@ export class ScheduledEmailsService implements OnModuleInit {
       const followUpDays = [
         { days: 3, template: WELCOME_FOLLOWUP_TEMPLATE },
         { days: 7, template: WELCOME_FOLLOWUP_TEMPLATE },
-        { days: 30, template: ENGAGEMENT_FOLLOWUP_TEMPLATE },
+        ...(process.env.DISABLE_DAY30_FOLLOWUP === 'true'
+          ? []
+          : [{ days: 30, template: ENGAGEMENT_FOLLOWUP_TEMPLATE }]),
       ];
 
       for (const { days, template } of followUpDays) {

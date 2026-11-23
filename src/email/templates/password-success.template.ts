@@ -65,7 +65,7 @@ export const PASSWORD_RESET_SUCCESS_EMAIL_TEMPLATE = `
               Wholeness House Gwagwalada, FCT, Nigeria.
             </p>
             <p style="color: #666666; font-size: 14px; margin: 0">
-              <a href="#" style="color: #994279">Unsubscribe</a>
+              <a href="[UnsubscribeUrl]" style="color: #994279">Unsubscribe</a>
             </p>
           </td>
         </tr>

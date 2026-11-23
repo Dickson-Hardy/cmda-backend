@@ -1,4 +1,5 @@
 import { randomBytes } from 'crypto';
+import { verifyUnsubscribeToken } from './unsubscribe.util';
 import {
   BadRequestException,
   ConflictException,
@@ -244,6 +245,31 @@ export class UsersService {
     }
     const settings=await this.userSettingsModel.findOneAndUpdate({user},{$set:values,$setOnInsert:{user}},{new:true,upsert:true,setDefaultsOnInsert:true});
     return {success:true,message:'User settings updated successfully',data:{...settings.toObject(),marketingConsentVersion:version}};
+  }
+
+  /**
+   * Apply an unsubscribe link token. Always returns false for unknown/invalid
+   * tokens so the public endpoint cannot reveal whether an address is registered.
+   */
+  async unsubscribeByToken(token?: string): Promise<boolean> {
+    const email = verifyUnsubscribeToken(token);
+    if (!email) return false;
+
+    const user = await this.userModel.findOne({
+      email: { $regex: `^${escapeRegex(email)}$`, $options: 'i' },
+    }).select('_id');
+    if (!user) return false;
+
+    await this.userModel.updateOne(
+      { _id: user._id },
+      {
+        $set: {
+          'notificationPreferences.marketing': false,
+          dispatchConsentChangedAt: new Date(),
+        },
+      },
+    );
+    return true;
   }
 
   async getTransition(user: string): Promise<ISuccessResponse> {

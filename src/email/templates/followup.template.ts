@@ -81,6 +81,7 @@ export const WELCOME_FOLLOWUP_TEMPLATE = `
   <div style="text-align: center; padding: 20px; font-size: 12px; color: #999;">
     <p>Christian Medical & Dental Association of Nigeria</p>
     <p>Wholeness House Gwagwalada, FCT, Nigeria</p>
+    <p><a href="[UnsubscribeUrl]" style="color: #994279; text-decoration: none">Unsubscribe</a></p>
   </div>
 </body>
 </html>
@@ -131,6 +132,7 @@ export const ENGAGEMENT_FOLLOWUP_TEMPLATE = `
   
   <div style="text-align: center; padding: 20px; font-size: 12px; color: #999;">
     <p>Christian Medical & Dental Association of Nigeria</p>
+    <p><a href="[UnsubscribeUrl]" style="color: #994279; text-decoration: none">Unsubscribe</a></p>
   </div>
 </body>
 </html>

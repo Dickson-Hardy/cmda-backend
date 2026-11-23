@@ -95,7 +95,7 @@ export const PASSWORD_CHANGE_REMINDER_TEMPLATE = `
                 Wholeness House Gwagwalada, FCT, Nigeria.
             </p>
             <p style="color: #666666; font-size: 14px; margin: 0">
-                <a href="#" style="color: #994279; text-decoration: none">Unsubscribe</a>
+                <a href="[UnsubscribeUrl]" style="color: #994279; text-decoration: none">Unsubscribe</a>
             </p>
             </td>
         </tr>

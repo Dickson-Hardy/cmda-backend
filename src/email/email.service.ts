@@ -19,6 +19,7 @@ import {
 } from './templates/lifetime-membership.template';
 import { ConfigService } from '@nestjs/config';
 import { RabbitMqService } from '../queue/rabbitmq.service';
+import { createUnsubscribeToken } from '../users/unsubscribe.util';
 
 enum EmailPriority {
   CRITICAL = 'critical', // Onboarding, password resets - use Resend
@@ -36,6 +37,20 @@ export class EmailService {
     private configService: ConfigService,
     @Optional() private rabbitMq?: RabbitMqService,
   ) {}
+
+  /**
+   * Replace the unsubscribe placeholder with a signed, public unsubscribe URL.
+   * Queue payloads keep the placeholder until the worker performs the final send.
+   */
+  private injectUnsubscribeUrl(html: string, to: string): string {
+    if (!html || !html.includes('[UnsubscribeUrl]')) return html;
+    const baseUrl =
+      this.configService.get<string>('PUBLIC_API_URL') ||
+      this.configService.get<string>('FRONTEND_URL');
+    if (!baseUrl) return html.split('[UnsubscribeUrl]').join('#');
+    const url = `${baseUrl.replace(/\/$/, '')}/unsubscribe?token=${createUnsubscribeToken(to)}`;
+    return html.split('[UnsubscribeUrl]').join(url);
+  }
 
   /**
    * Route email to appropriate provider based on priority
@@ -74,7 +89,12 @@ export class EmailService {
     // CRITICAL and NORMAL → Try Resend first
     if (this.resendFallback.isAvailable()) {
       try {
-        const result = await this.resendFallback.sendEmail({ to, subject, html, text });
+        const result = await this.resendFallback.sendEmail({
+          to,
+          subject,
+          html: this.injectUnsubscribeUrl(html, to),
+          text,
+        });
         if (result.success) {
           this.logger.log(`[${priority}] Email sent to ${to} via Resend`);
           return { success: true };
@@ -100,7 +120,10 @@ export class EmailService {
         timeoutHandle = setTimeout(() => reject(new Error('SMTP timeout')), 30000);
       });
 
-      await Promise.race([this.mailerService.sendMail({ to, subject, html }), timeoutPromise]);
+      await Promise.race([
+        this.mailerService.sendMail({ to, subject, html: this.injectUnsubscribeUrl(html, to) }),
+        timeoutPromise,
+      ]);
 
       this.logger.log(`Email sent to ${to} via SMTP`);
       return { success: true };

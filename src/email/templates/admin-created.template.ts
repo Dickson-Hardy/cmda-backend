@@ -72,7 +72,7 @@ export const ADMIN_CREDENTIALS_TEMPLATE = `
                 3 Negroe Crescent, Maitama, Abuja, FCT, Nigeria.
             </p>
             <p style="color: #666666; font-size: 14px; margin: 0">
-                <a href="#" style="color: #994279">Unsubscribe</a>
+                <a href="[UnsubscribeUrl]" style="color: #994279">Unsubscribe</a>
             </p>
             </td>
         </tr>
