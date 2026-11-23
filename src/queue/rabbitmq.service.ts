@@ -1,6 +1,7 @@
 import { Injectable, Logger, OnApplicationShutdown } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import amqp, { Channel, ChannelModel, ConsumeMessage } from 'amqplib';
+import * as amqp from 'amqplib';
+import { Channel, ChannelModel, ConsumeMessage } from 'amqplib';
 import {
   DEAD_LETTER_EXCHANGE,
   DEAD_LETTER_QUEUE,
