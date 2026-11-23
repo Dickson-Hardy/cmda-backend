@@ -67,7 +67,7 @@ export class PaystackService {
           'Content-Type': 'application/json',
         },
         params: {
-          customer: email,
+          email,
           perPage,
           page,
         },
