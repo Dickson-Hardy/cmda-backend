@@ -54,7 +54,7 @@ import {
 
 @Controller('member-manager')
 @UseGuards(AuthGuard, RolesGuard)
-@Roles([UserRole.MEMBERMANAGER, UserRole.ADMIN])
+@Roles([UserRole.MEMBERMANAGER])
 export class MemberManagerController {
   constructor(private readonly memberManagerService: MemberManagerService) {}
 
@@ -87,7 +87,7 @@ export class MemberManagerController {
 
   @Post('notes/:memberId')
   async createNote(@Param('memberId') memberId: string, @Body() body: CreateNoteDto, @Req() req: any) {
-    return this.memberManagerService.createNote(memberId, body, req.user._id);
+    return this.memberManagerService.createNote(memberId, body, req.user.id);
   }
 
   @Patch('notes/:noteId')
@@ -113,7 +113,7 @@ export class MemberManagerController {
 
   @Post('communications')
   async logCommunication(@Body() body: LogCommunicationDto, @Req() req: any) {
-    return this.memberManagerService.logCommunication(body, req.user._id);
+    return this.memberManagerService.logCommunication(body, req.user.id);
   }
 
   // Follow-ups
@@ -129,7 +129,7 @@ export class MemberManagerController {
 
   @Post('follow-ups')
   async createFollowUp(@Body() body: CreateFollowUpDto, @Req() req: any) {
-    return this.memberManagerService.createFollowUp(body, req.user._id);
+    return this.memberManagerService.createFollowUp(body, req.user.id);
   }
 
   @Patch('follow-ups/:id')
@@ -155,7 +155,7 @@ export class MemberManagerController {
 
   @Post('tickets')
   async createTicket(@Body() body: CreateTicketDto, @Req() req: any) {
-    return this.memberManagerService.createTicket(body, req.user._id);
+    return this.memberManagerService.createTicket(body, req.user.id);
   }
 
   @Patch('tickets/:id')
@@ -165,7 +165,7 @@ export class MemberManagerController {
 
   @Post('tickets/:ticketId/comments')
   async addTicketComment(@Param('ticketId') ticketId: string, @Body() body: AddTicketCommentDto, @Req() req: any) {
-    return this.memberManagerService.addTicketComment(ticketId, body, req.user._id);
+    return this.memberManagerService.addTicketComment(ticketId, body, req.user.id);
   }
 
   // Subscriptions
@@ -192,12 +192,12 @@ export class MemberManagerController {
 
   @Post('email-templates')
   async createEmailTemplate(@Body() body: CreateEmailTemplateDto, @Req() req: any) {
-    return this.memberManagerService.createEmailTemplate(body, req.user._id);
+    return this.memberManagerService.createEmailTemplate(body, req.user.id);
   }
 
   @Patch('email-templates/:id')
   async updateEmailTemplate(@Param('id') id: string, @Body() body: UpdateEmailTemplateDto, @Req() req: any) {
-    return this.memberManagerService.updateEmailTemplate(id, body, req.user._id);
+    return this.memberManagerService.updateEmailTemplate(id, body, req.user.id);
   }
 
   @Delete('email-templates/:id')
@@ -208,7 +208,7 @@ export class MemberManagerController {
   // Bulk Email
   @Post('bulk-email')
   async sendBulkEmail(@Body() body: SendBulkEmailDto, @Req() req: any) {
-    return this.memberManagerService.sendBulkEmail(body, req.user._id);
+    return this.memberManagerService.sendBulkEmail(body, req.user.id);
   }
 
   // Tasks
@@ -229,7 +229,7 @@ export class MemberManagerController {
 
   @Post('tasks')
   async createTask(@Body() body: CreateTaskDto, @Req() req: any) {
-    return this.memberManagerService.createTask(body, req.user._id);
+    return this.memberManagerService.createTask(body, req.user.id);
   }
 
   @Patch('tasks/:id')
@@ -267,13 +267,13 @@ export class MemberManagerController {
   // Manual Member Creation
   @Post('members/create')
   async createMemberManually(@Body() body: CreateMemberManualDto, @Req() req: any) {
-    return this.memberManagerService.createMemberManually(body, req.user._id);
+    return this.memberManagerService.createMemberManually(body, req.user.id);
   }
 
   // Ban/Deactivate Member
   @Patch('members/:memberId/ban')
   async banMember(@Param('memberId') memberId: string, @Body() body: BanMemberDto, @Req() req: any) {
-    return this.memberManagerService.banMember(memberId, body, req.user._id);
+    return this.memberManagerService.banMember(memberId, body, req.user.id);
   }
 
   @Patch('members/:memberId/deactivate')
@@ -284,7 +284,7 @@ export class MemberManagerController {
   // Member Verification
   @Patch('members/:memberId/verify')
   async verifyMember(@Param('memberId') memberId: string, @Body() body: VerifyMemberDto, @Req() req: any) {
-    return this.memberManagerService.verifyMember(memberId, body, req.user._id);
+    return this.memberManagerService.verifyMember(memberId, body, req.user.id);
   }
 
   @Get('members/pending-verification')
@@ -300,7 +300,7 @@ export class MemberManagerController {
 
   @Post('moderation/moderate')
   async moderateContent(@Body() body: ModerateContentDto, @Req() req: any) {
-    return this.memberManagerService.moderateContent(body, req.user._id);
+    return this.memberManagerService.moderateContent(body, req.user.id);
   }
 
   @Get('moderation/logs')
@@ -321,7 +321,7 @@ export class MemberManagerController {
 
   @Post('announcements')
   async createAnnouncement(@Body() body: CreateAnnouncementDto, @Req() req: any) {
-    return this.memberManagerService.createAnnouncement(body, req.user._id);
+    return this.memberManagerService.createAnnouncement(body, req.user.id);
   }
 
   @Patch('announcements/:id')

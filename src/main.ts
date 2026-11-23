@@ -35,7 +35,15 @@ async function bootstrap() {
     if (req.path.startsWith('/support/')) res.setHeader('Cache-Control', 'no-store');
     next();
   });
-  app.use(json({ limit: '2mb' }));
+  app.use(
+    json({
+      limit: '2mb',
+      // Preserve the exact bytes for webhook HMAC verification.
+      verify: (req: any, _res, buf) => {
+        req.rawBody = buf;
+      },
+    }),
+  );
   app.use(urlencoded({ extended: true, limit: '2mb' }));
 
   // Configure timeout for file uploads

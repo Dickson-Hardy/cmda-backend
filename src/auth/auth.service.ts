@@ -14,7 +14,7 @@ import { LoginDto } from './dto/login.dto';
 import { User } from '../users/schema/users.schema';
 import { ISuccessResponse } from '../_global/interface/success-response';
 import { ConfigService } from '@nestjs/config';
-import { UserRole } from '../users/user.constant';
+import { AllSignupRoles, UserRole } from '../users/user.constant';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { VerifyEmailDto } from './dto/verify-email.dto';
@@ -84,6 +84,11 @@ export class AuthService {
         yearsOfExperience, // doctor || globalnetwork
         ...createUserDto
       } = signUpDto;
+
+      // Public signup must never grant a privileged role.
+      if (!AllSignupRoles.includes(role)) {
+        throw new BadRequestException('Invalid role for signup');
+      }
 
       // check for role specific fields and throw error
       if (role === UserRole.STUDENT) {
@@ -275,11 +280,12 @@ export class AuthService {
     const user = await this.userModel.findOne({
       email: { $regex: `^${escapeRegex(email)}$`, $options: 'i' },
     });
-    if (!user) {
-      throw new NotFoundException('Email does not exist');
-    }
-    if (user.emailVerified) {
-      throw new BadRequestException('Email is already verified');
+    // Do not reveal whether an address is registered or already verified.
+    if (!user || user.emailVerified) {
+      return {
+        success: true,
+        message: 'If the address needs verification, a new code has been sent',
+      };
     }
     const { randomUUID } = new ShortUniqueId({ length: 6, dictionary: 'number' });
     const code = randomUUID();
@@ -332,9 +338,6 @@ export class AuthService {
     const user = await this.userModel.findOne({
       email: { $regex: `^${escapeRegex(email)}$`, $options: 'i' },
     });
-    if (!user) {
-      throw new NotFoundException('Email does not exist');
-    }
     if (user) {
       const { randomUUID } = new ShortUniqueId({ length: 6, dictionary: 'number' });
       const code = randomUUID();

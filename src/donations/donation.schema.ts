@@ -15,6 +15,9 @@ export class Donation extends Document {
   isPaid: boolean;
 
   @Prop({ default: false })
+  confirmationEmailSent: boolean;
+
+  @Prop({ default: false })
   recurring: boolean;
 
   @Prop()

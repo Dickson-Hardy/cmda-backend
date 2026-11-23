@@ -314,7 +314,8 @@ export class DonationsService {
 
     if (
       (user as any).notificationPreferences?.emailNotifications !== false &&
-      (user as any).notificationPreferences?.payments !== false
+      (user as any).notificationPreferences?.payments !== false &&
+      (await this.claimConfirmationEmail(donation._id.toString()))
     ) {
       try {
         await this.emailService.sendDonationConfirmedEmail({
@@ -323,6 +324,7 @@ export class DonationsService {
         });
       } catch (emailError) {
         console.error('Failed to send donation confirmation email:', emailError);
+        await this.releaseConfirmationEmail(donation._id.toString());
       }
     }
     void this.notificationDispatcher?.notify({
@@ -743,13 +745,20 @@ export class DonationsService {
       await this.paymentIntentsService.markAsSuccessful(resolvedIntentId, transaction.data);
     }
 
-    try {
-      await this.emailService.sendDonationConfirmedEmail({
-        name: user.fullName,
-        email: user.email,
-      });
-    } catch (emailError) {
-      console.error('Failed to send donation confirmation email:', emailError);
+    if (
+      (user as any).notificationPreferences?.emailNotifications !== false &&
+      (user as any).notificationPreferences?.payments !== false &&
+      (await this.claimConfirmationEmail(donation._id.toString()))
+    ) {
+      try {
+        await this.emailService.sendDonationConfirmedEmail({
+          name: user.fullName,
+          email: user.email,
+        });
+      } catch (emailError) {
+        console.error('Failed to send donation confirmation email:', emailError);
+        await this.releaseConfirmationEmail(donation._id.toString());
+      }
     }
 
     return {
@@ -757,5 +766,26 @@ export class DonationsService {
       message: 'Donation payment status synchronized successfully',
       data: donation,
     };
+  }
+
+  /**
+   * Atomically claim the one-time confirmation email for a donation. Whichever
+   * path confirms the payment first (provider webhook, client callback or
+   * status sync) wins the claim; every later path skips the send.
+   */
+  private async claimConfirmationEmail(donationId: string): Promise<boolean> {
+    const claimed = await this.donationModel.findOneAndUpdate(
+      { _id: donationId, confirmationEmailSent: { $ne: true } },
+      { $set: { confirmationEmailSent: true } },
+      { new: false },
+    );
+    return Boolean(claimed);
+  }
+
+  /** Release a failed send so a later retry can deliver the email. */
+  private async releaseConfirmationEmail(donationId: string): Promise<void> {
+    await this.donationModel
+      .updateOne({ _id: donationId }, { $set: { confirmationEmailSent: false } })
+      .catch(() => undefined);
   }
 }

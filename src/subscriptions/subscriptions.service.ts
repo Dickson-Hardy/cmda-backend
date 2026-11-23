@@ -799,42 +799,45 @@ export class SubscriptionsService {
       user = await this.userModel.findByIdAndUpdate(user._id, updateData, { new: true });
     }
 
-    // Send appropriate email based on subscription type
-    try {
-      if (user.hasLifetimeMembership && subscription.frequency === 'Lifetime') {
-        await this.emailService.sendLifetimeMembershipEmail({
-          name: user.fullName,
-          email: user.email,
-          source: 'payment',
-          membershipType:
-            user.lifetimeMembershipType === 'lifetime'
-              ? 'Nigerian Lifetime Membership'
-              : `Lifetime ${user.lifetimeMembershipType.charAt(0).toUpperCase() + user.lifetimeMembershipType.slice(1)}`,
-          years:
-            user.lifetimeMembershipType === 'lifetime'
-              ? NIGERIAN_LIFETIME_MEMBERSHIP.lifetime.years
-              : LIFETIME_MEMBERSHIPS[user.lifetimeMembershipType]?.years || 25,
-          expiryDate: user.lifetimeMembershipExpiry.toLocaleDateString('en-US', {
-            year: 'numeric',
-            month: 'long',
-            day: 'numeric',
-          }),
-        });
-      } else {
-        if (
-          (user as any).notificationPreferences?.emailNotifications === false ||
-          (user as any).notificationPreferences?.payments === false
-        ) {
-          throw new Error('NOTIFICATION_PREFERENCE_DISABLED');
+    // Send appropriate email based on subscription type, exactly once.
+    if (await this.claimConfirmationEmail(subscription._id.toString())) {
+      try {
+        if (user.hasLifetimeMembership && subscription.frequency === 'Lifetime') {
+          await this.emailService.sendLifetimeMembershipEmail({
+            name: user.fullName,
+            email: user.email,
+            source: 'payment',
+            membershipType:
+              user.lifetimeMembershipType === 'lifetime'
+                ? 'Nigerian Lifetime Membership'
+                : `Lifetime ${user.lifetimeMembershipType.charAt(0).toUpperCase() + user.lifetimeMembershipType.slice(1)}`,
+            years:
+              user.lifetimeMembershipType === 'lifetime'
+                ? NIGERIAN_LIFETIME_MEMBERSHIP.lifetime.years
+                : LIFETIME_MEMBERSHIPS[user.lifetimeMembershipType]?.years || 25,
+            expiryDate: user.lifetimeMembershipExpiry.toLocaleDateString('en-US', {
+              year: 'numeric',
+              month: 'long',
+              day: 'numeric',
+            }),
+          });
+        } else {
+          if (
+            (user as any).notificationPreferences?.emailNotifications === false ||
+            (user as any).notificationPreferences?.payments === false
+          ) {
+            throw new Error('NOTIFICATION_PREFERENCE_DISABLED');
+          }
+          await this.emailService.sendSubscriptionConfirmedEmail({
+            name: user.fullName,
+            email: user.email,
+          });
         }
-        await this.emailService.sendSubscriptionConfirmedEmail({
-          name: user.fullName,
-          email: user.email,
-        });
-      }
-    } catch (emailError) {
-      if ((emailError as Error).message !== 'NOTIFICATION_PREFERENCE_DISABLED') {
-        console.error('Failed to send subscription confirmation email:', emailError);
+      } catch (emailError) {
+        if ((emailError as Error).message !== 'NOTIFICATION_PREFERENCE_DISABLED') {
+          console.error('Failed to send subscription confirmation email:', emailError);
+          await this.releaseConfirmationEmail(subscription._id.toString());
+        }
       }
     }
     void this.notificationDispatcher?.notify({
@@ -869,13 +872,32 @@ export class SubscriptionsService {
       ? this.resolveTargetYear(parsedYear)
       : this.resolveTargetYear(undefined, new Date(subYearOrDate));
     const isUkSubscription = this.isUkEuropeGlobalMember(user);
+
+    // A member can only hold one paid annual record per subscription year.
+    // UK/Europe members are excluded because their annual fee is paid in
+    // instalments, each of which is a legitimate separate record.
+    if (!isUkSubscription) {
+      const existingAnnual = await this.subscriptionModel.exists({
+        user: userId,
+        subscriptionYear: targetYear,
+        isPaid: true,
+        isLifetime: { $ne: true },
+        isVisionPartner: { $ne: true },
+      });
+      if (existingAnnual) {
+        throw new ConflictException(
+          `A ${targetYear} subscription already exists for this member`,
+        );
+      }
+    }
+
     let amount =
       user.role === UserRole.DOCTOR && user.yearsOfExperience?.toLowerCase()?.includes('above')
         ? SUBSCRIPTION_PRICES['DoctorSenior']
         : SUBSCRIPTION_PRICES[user.role];
     let currency = user.role === UserRole.GLOBALNETWORK ? 'USD' : 'NGN';
     let frequency = 'Annually';
-    let reference = `ADMIN-${Date.now()}`;
+    let reference = `ADMIN-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
     if (isUkSubscription) {
       const transferReference = manualData?.reference?.trim();
@@ -962,6 +984,17 @@ export class SubscriptionsService {
       throw new NotFoundException('User not found');
     }
 
+    const existingLifetime = await this.subscriptionModel.findOne({
+      user: userId,
+      isLifetime: true,
+      isPaid: true,
+    });
+    if (existingLifetime) {
+      throw new ConflictException(
+        'Lifetime membership has already been activated for this member',
+      );
+    }
+
     let amount: number;
     let expiryDate: Date;
     let currency: string;
@@ -996,7 +1029,7 @@ export class SubscriptionsService {
 
     // Create subscription record
     const subscription = await this.subscriptionModel.create({
-      reference: 'ADMIN_LIFETIME',
+      reference: `ADMIN-LIFETIME-${userId}`,
       amount,
       expiryDate,
       user: userId,
@@ -1612,35 +1645,38 @@ export class SubscriptionsService {
 
       // Send the appropriate confirmation email. A delivery failure must not undo
       // a payment that has already been verified and recorded.
-      try {
-        if (syncedLifetime) {
-          const isNigerianLifetime = syncedLifetimeType === 'lifetime';
-          const lifetimePlan = isNigerianLifetime
-            ? NIGERIAN_LIFETIME_MEMBERSHIP.lifetime
-            : LIFETIME_MEMBERSHIPS[syncedLifetimeType || 'gold'];
-          await this.emailService.sendLifetimeMembershipEmail({
-            name: user.fullName,
-            email: user.email,
-            source: 'payment',
-            membershipType: isNigerianLifetime
-              ? 'Nigerian Lifetime Membership'
-              : `Lifetime ${(syncedLifetimeType || 'gold').charAt(0).toUpperCase() + (syncedLifetimeType || 'gold').slice(1)}`,
-            years: lifetimePlan.years,
-            expiryDate: resolvedExpiryDate.toLocaleDateString('en-US', {
-              year: 'numeric',
-              month: 'long',
-              day: 'numeric',
-            }),
-          });
-        } else {
-          await this.emailService.sendSubscriptionConfirmedEmail({
-            name: user.fullName,
-            email: user.email,
-          });
+      if (await this.claimConfirmationEmail(newSubscription._id.toString())) {
+        try {
+          if (syncedLifetime) {
+            const isNigerianLifetime = syncedLifetimeType === 'lifetime';
+            const lifetimePlan = isNigerianLifetime
+              ? NIGERIAN_LIFETIME_MEMBERSHIP.lifetime
+              : LIFETIME_MEMBERSHIPS[syncedLifetimeType || 'gold'];
+            await this.emailService.sendLifetimeMembershipEmail({
+              name: user.fullName,
+              email: user.email,
+              source: 'payment',
+              membershipType: isNigerianLifetime
+                ? 'Nigerian Lifetime Membership'
+                : `Lifetime ${(syncedLifetimeType || 'gold').charAt(0).toUpperCase() + (syncedLifetimeType || 'gold').slice(1)}`,
+              years: lifetimePlan.years,
+              expiryDate: resolvedExpiryDate.toLocaleDateString('en-US', {
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric',
+              }),
+            });
+          } else {
+            await this.emailService.sendSubscriptionConfirmedEmail({
+              name: user.fullName,
+              email: user.email,
+            });
+          }
+        } catch (emailError) {
+          // Log email error but don't fail the sync
+          console.error('Failed to send subscription confirmation email:', emailError);
+          await this.releaseConfirmationEmail(newSubscription._id.toString());
         }
-      } catch (emailError) {
-        // Log email error but don't fail the sync
-        console.error('Failed to send subscription confirmation email:', emailError);
       }
 
       return {
@@ -1651,5 +1687,26 @@ export class SubscriptionsService {
     } catch (error) {
       throw error;
     }
+  }
+
+  /**
+   * Atomically claim the one-time confirmation email for a subscription. The
+   * provider webhook, the client callback and the status sync can all race;
+   * only the first caller to flip this flag sends the email.
+   */
+  private async claimConfirmationEmail(subscriptionId: string): Promise<boolean> {
+    const claimed = await this.subscriptionModel.findOneAndUpdate(
+      { _id: subscriptionId, confirmationEmailSent: { $ne: true } },
+      { $set: { confirmationEmailSent: true } },
+      { new: false },
+    );
+    return Boolean(claimed);
+  }
+
+  /** Release a failed send so a later retry can deliver the email. */
+  private async releaseConfirmationEmail(subscriptionId: string): Promise<void> {
+    await this.subscriptionModel
+      .updateOne({ _id: subscriptionId }, { $set: { confirmationEmailSent: false } })
+      .catch(() => undefined);
   }
 }

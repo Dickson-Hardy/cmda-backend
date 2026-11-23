@@ -54,19 +54,26 @@ export class PaymentIntentsService {
   }
 
   async markAsSuccessful(intentId: string, providerResponse?: any): Promise<PaymentIntent> {
-    const intent = await this.model.findByIdAndUpdate(
-      intentId,
+    // Conditional update: the first caller flips the status, concurrent
+    // webhook/callback retries just return the already-successful intent.
+    const intent = await this.model.findOneAndUpdate(
+      { _id: intentId, status: { $ne: PaymentIntentStatus.SUCCESSFUL } },
       {
-        status: PaymentIntentStatus.SUCCESSFUL,
-        providerResponse: providerResponse || undefined,
-        lastSyncedAt: new Date(),
+        $set: {
+          status: PaymentIntentStatus.SUCCESSFUL,
+          ...(providerResponse ? { providerResponse } : {}),
+          lastSyncedAt: new Date(),
+        },
       },
       { new: true },
     );
-    if (!intent) {
+    if (intent) return intent;
+
+    const existing = await this.model.findById(intentId);
+    if (!existing) {
       throw new NotFoundException('Payment intent not found');
     }
-    return intent;
+    return existing;
   }
 
   async markAsFailed(intentId: string, providerResponse?: any): Promise<PaymentIntent> {

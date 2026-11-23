@@ -13,6 +13,9 @@ export class Subscription extends Document {
   @Prop({ default: false })
   isPaid: boolean;
 
+  @Prop({ default: false })
+  confirmationEmailSent: boolean;
+
   @Prop({ default: 'Annually ' })
   frequency?: string;
 

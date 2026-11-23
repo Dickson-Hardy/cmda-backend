@@ -195,14 +195,30 @@ export class BackupService {
     if (process.env.RABBITMQ_URL && process.env.PROCESS_ROLE !== 'worker') return;
     // Check if it's a biweekly occurrence (every 2 weeks)
     const weekNumber = this.getWeekNumber(new Date());
-    if (weekNumber % 2 === 0) {
-      this.logger.log('Running scheduled biweekly backup');
-      try {
-        const result = await this.createBackup();
-        this.logger.log(`Scheduled backup completed: ${result.filename}`);
-      } catch (error) {
-        this.logger.error('Scheduled backup failed', error.stack);
+    if (weekNumber % 2 !== 0) return;
+
+    // Cross-process claim so the web process, the worker and any replicas run
+    // this backup exactly once for the period.
+    const claimId = `biweekly-backup:${new Date().getFullYear()}-W${weekNumber}`;
+    const claims = this.connection.collection('cron_claims');
+    try {
+      await claims.insertOne({ _id: claimId as any, createdAt: new Date() });
+    } catch (error) {
+      if ((error as any)?.code === 11000) {
+        this.logger.log(`Biweekly backup already claimed for ${claimId}`);
+        return;
       }
+      throw error;
+    }
+
+    this.logger.log('Running scheduled biweekly backup');
+    try {
+      const result = await this.createBackup();
+      this.logger.log(`Scheduled backup completed: ${result.filename}`);
+    } catch (error) {
+      // Release the claim so the next run can retry a failed backup.
+      await claims.deleteOne({ _id: claimId as any }).catch(() => undefined);
+      this.logger.error('Scheduled backup failed', error.stack);
     }
   }
 

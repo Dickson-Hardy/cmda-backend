@@ -19,6 +19,12 @@ export const AllUserRoles = [
   UserRole.ADMIN,
 ];
 
+/**
+ * Roles a member may self-assign at public signup. Privileged roles are only
+ * ever granted through the admin flows, never by the public endpoint.
+ */
+export const AllSignupRoles = [UserRole.STUDENT, UserRole.DOCTOR, UserRole.GLOBALNETWORK];
+
 // Import EventAudience for categorization
 import { EventAudience } from '../events/events.constant';
 

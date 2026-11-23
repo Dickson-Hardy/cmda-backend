@@ -403,12 +403,16 @@ export class ServiceSubscriptionsService {
   // Cron job to send renewal reminders (runs daily at 8 AM)
   @Cron(CronExpression.EVERY_DAY_AT_8AM)
   async sendRenewalReminders(force = false) {
+    // Only one process should own the cron. When no queue is configured the
+    // web and worker both run it, so the per-service claim below is what keeps
+    // the reminder single-send.
     if (!force && process.env.RABBITMQ_URL && process.env.PROCESS_ROLE !== 'worker') return;
     console.log('Checking for services needing renewal reminders...');
 
     await this.updateStatuses();
 
     const now = new Date();
+    const cutoff = new Date(now.getTime() - 24 * 60 * 60 * 1000);
     const services = await this.subscriptionModel.find({ isActive: true });
 
     for (const service of services) {
@@ -417,27 +421,47 @@ export class ServiceSubscriptionsService {
       const daysUntilRenewal = Math.ceil(
         (service.renewalDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24),
       );
+      if (daysUntilRenewal !== service.reminderDays) continue;
 
-      // Check if we should send reminder
-      if (daysUntilRenewal === service.reminderDays) {
-        // Check if we already sent reminder recently (within 24 hours)
-        if (service.lastReminderSent) {
-          const hoursSinceLastReminder =
-            (now.getTime() - service.lastReminderSent.getTime()) / (1000 * 60 * 60);
-          if (hoursSinceLastReminder < 24) continue;
+      // Atomically claim this reminder. Concurrent web/worker runs (or a
+      // retried cron) see the claim and skip instead of sending twice.
+      const previousLastSent = service.lastReminderSent;
+      const claimed = await this.subscriptionModel.findOneAndUpdate(
+        {
+          _id: service._id,
+          sendReminder: true,
+          isActive: true,
+          $or: [
+            { lastReminderSent: { $exists: false } },
+            { lastReminderSent: null },
+            { lastReminderSent: { $lt: cutoff } },
+          ],
+        },
+        { $set: { lastReminderSent: now } },
+        { new: false },
+      );
+      if (!claimed) continue;
+
+      const sent = await this.sendReminderEmail(service, daysUntilRenewal);
+      if (!sent) {
+        // Failed delivery: release the claim so the next run can retry.
+        if (previousLastSent) {
+          await this.subscriptionModel
+            .updateOne({ _id: service._id }, { $set: { lastReminderSent: previousLastSent } })
+            .catch(() => undefined);
+        } else {
+          await this.subscriptionModel
+            .updateOne({ _id: service._id }, { $unset: { lastReminderSent: 1 } })
+            .catch(() => undefined);
         }
-
-        // Send reminder email
-        await this.sendReminderEmail(service, daysUntilRenewal);
-
-        // Update last reminder sent
-        service.lastReminderSent = now;
-        await service.save();
       }
     }
   }
 
-  private async sendReminderEmail(service: ServiceSubscription, daysUntilRenewal: number) {
+  private async sendReminderEmail(
+    service: ServiceSubscription,
+    daysUntilRenewal: number,
+  ): Promise<boolean> {
     const subject = `⚠️ Service Renewal Reminder: ${service.serviceName}`;
     const message = `
       <h2>Service Renewal Reminder</h2>
@@ -462,14 +486,20 @@ export class ServiceSubscriptionsService {
 
     try {
       // Send to admin email (you can customize this)
-      await this.emailService.sendEmail({
+      const result = await this.emailService.sendEmail({
         to: process.env.ADMIN_EMAIL || 'admin@cmdanigeria.net',
         subject,
         html: message,
       });
+      if (result?.success === false) {
+        console.error(`Failed to send reminder for ${service.serviceName}`);
+        return false;
+      }
       console.log(`Renewal reminder sent for: ${service.serviceName}`);
+      return true;
     } catch (error) {
       console.error(`Failed to send reminder for ${service.serviceName}:`, error);
+      return false;
     }
   }
 

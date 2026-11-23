@@ -2,6 +2,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   IsEmail,
   IsEnum,
+  IsIn,
   IsNotEmpty,
   IsOptional,
   IsString,
@@ -11,7 +12,7 @@ import {
   IsNumber,
   IsDateString,
 } from 'class-validator';
-import { UserGender, UserRole } from '../../users/user.constant';
+import { AllSignupRoles, UserGender, UserRole } from '../../users/user.constant';
 
 export class CreateUserDto {
   @ApiProperty({ example: 'string', description: 'First name of the user' })
@@ -68,10 +69,10 @@ export class CreateUserDto {
   @ApiProperty({
     example: 'string - Student | Doctor | GlobalNetwork',
     description: 'Role of the user',
-    enum: UserRole,
+    enum: AllSignupRoles,
   })
   @IsNotEmpty()
-  @IsEnum(UserRole, { message: 'correct values for role are Student, Doctor or GlobalNetwork' })
+  @IsIn(AllSignupRoles, { message: 'correct values for role are Student, Doctor or GlobalNetwork' })
   readonly role: UserRole;
 
   @ApiPropertyOptional({ example: '2000-01-01', description: 'Date of birth (optional for Global Network members)' })

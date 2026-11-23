@@ -1196,6 +1196,9 @@ export class EventsService {
     }
 
     const user = await this.userModel.findById(userId);
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
 
     const accommodation =
       confirmedAccommodation ||
@@ -1229,14 +1232,31 @@ export class EventsService {
     const registrationPeriod = event.isConference
       ? this.getCurrentRegistrationPeriod(event)
       : undefined;
-    event.registeredUsers.push({
-      userId: userObjectId,
-      paymentReference: reference,
-      registrationPeriod,
-      accommodation,
-      customResponses: normalizedResponses,
-    });
-    await event.save();
+    // Atomic guard: only one concurrent caller can add this user. The early
+    // check above is just a fast path; this is what prevents duplicate
+    // registrations (and duplicate confirmation emails) during a race.
+    const registeredEvent = await this.eventModel.findOneAndUpdate(
+      {
+        _id: event._id,
+        'registeredUsers.userId': { $ne: userObjectId },
+      },
+      {
+        $push: {
+          registeredUsers: {
+            userId: userObjectId,
+            paymentReference: reference,
+            registrationPeriod,
+            accommodation,
+            customResponses: normalizedResponses,
+          },
+        },
+      },
+      { new: true },
+    );
+    if (!registeredEvent) {
+      throw new ConflictException('User is already registered for this event');
+    }
+
     void this.notificationDispatcher?.notify({
       userId,
       type: NotificationType.EVENT,
@@ -1278,7 +1298,7 @@ export class EventsService {
     return {
       success: true,
       message: `Successfully registered for the ${event.isConference ? 'conference' : 'event'}`,
-      data: event,
+      data: registeredEvent,
     };
   }
 
@@ -1685,15 +1705,40 @@ export class EventsService {
         }
       }
 
-      // Register the user for the event
-      await this.registerForEvent(
-        userId,
-        event.slug,
-        reference,
-        accommodationOptionId,
-        (registrationDraft?.accommodation || accommodation) as AccommodationSelection,
-        registrationDraft?.customResponses || {},
+      // Webhooks are retried. If this user is already registered the payment
+      // was already processed, so acknowledge without sending mail again.
+      const alreadyRegistered = (event.registeredUsers || []).some(
+        (registration: any) => registration.userId?.toString() === userId,
       );
+      if (alreadyRegistered) {
+        return {
+          success: true,
+          message: 'Payment already confirmed and registration is complete',
+          data: { event, paymentVerification },
+        };
+      }
+
+      // Register the user for the event
+      try {
+        await this.registerForEvent(
+          userId,
+          event.slug,
+          reference,
+          accommodationOptionId,
+          (registrationDraft?.accommodation || accommodation) as AccommodationSelection,
+          registrationDraft?.customResponses || {},
+        );
+      } catch (error) {
+        // Lost the race to a concurrent webhook: it registered and emailed.
+        if (error instanceof ConflictException) {
+          return {
+            success: true,
+            message: 'Payment already confirmed and registration is complete',
+            data: { event, paymentVerification },
+          };
+        }
+        throw error;
+      }
       if (source?.toLowerCase() === 'paypal') {
         const capture = paymentVerification.purchase_units?.[0]?.payments?.captures?.[0];
         const customId = capture?.custom_id || paymentVerification.purchase_units?.[0]?.custom_id;
