@@ -5,6 +5,7 @@ import { Model } from 'mongoose';
 import { NotificationType } from './notification.constant';
 import { NotificationsService } from './notifications.service';
 import { PushTokenService } from './push-token.service';
+import { WebPushService } from './web-push.service';
 import { NotificationOutbox } from './notification-outbox.schema';
 import { RabbitMqService } from '../queue/rabbitmq.service';
 
@@ -26,6 +27,7 @@ export class NotificationDispatcherService {
   constructor(
     private readonly notificationsService: NotificationsService,
     private readonly pushTokenService: PushTokenService,
+    private readonly webPushService: WebPushService,
     @InjectModel(NotificationOutbox.name)
     private readonly outboxModel: Model<NotificationOutbox>,
     private readonly rabbitMq: RabbitMqService,
@@ -77,6 +79,17 @@ export class NotificationDispatcherService {
         } as any);
 
         await this.pushTokenService.sendToUser(
+          input.userId,
+          input.title,
+          input.pushBody || input.body,
+          { type: input.type, ...input.data },
+          input.preference,
+        );
+
+        // Browser/PWA subscriptions use Web Push rather than Expo. Deliver to
+        // them as well so members who installed the PWA get the notification
+        // even when the app is closed.
+        await this.webPushService.sendToUser(
           input.userId,
           input.title,
           input.pushBody || input.body,

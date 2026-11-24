@@ -5,6 +5,10 @@ import { ApiBearerAuth, ApiBody, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { PaginationQueryDto } from '../_global/dto/pagination-query.dto';
 import { PushTokenService } from './push-token.service';
 import { RegisterPushTokenDto } from './dto/register-push-token.dto';
+import { Public } from '../auth/decorators/public.decorator';
+import { WebPushService } from './web-push.service';
+import { RegisterWebPushDto } from './dto/register-web-push.dto';
+import { RemoveWebPushDto } from './dto/remove-web-push.dto';
 
 @ApiTags('Notifications')
 @Controller('notifications')
@@ -12,7 +16,19 @@ export class NotificationsController {
   constructor(
     private readonly notificationService: NotificationsService,
     private readonly pushTokenService: PushTokenService,
+    private readonly webPushService: WebPushService,
   ) {}
+
+  @Public()
+  @Get('push-vapid-public-key')
+  @ApiOperation({ summary: 'Get the public VAPID key used to create browser push subscriptions' })
+  getPushVapidPublicKey() {
+    return {
+      success: true,
+      message: 'VAPID public key fetched',
+      data: { publicKey: this.webPushService.getPublicKey() },
+    };
+  }
 
   @Get()
   @ApiBearerAuth()
@@ -55,6 +71,28 @@ export class NotificationsController {
   @ApiOperation({ summary: 'Remove push token on logout' })
   async removePushToken(@Req() req: { user: IJwtPayload }, @Query('deviceId') deviceId: string) {
     return this.pushTokenService.removeToken(req.user.id, deviceId);
+  }
+
+  @Post('push-subscribe')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Register a browser Web Push subscription' })
+  @ApiBody({ type: RegisterWebPushDto })
+  async subscribeToWebPush(
+    @Req() req: { user: IJwtPayload },
+    @Body() dto: RegisterWebPushDto,
+  ) {
+    return this.webPushService.subscribe(req.user.id, dto);
+  }
+
+  @Delete('push-subscribe')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Remove a browser Web Push subscription' })
+  @ApiBody({ type: RemoveWebPushDto })
+  async unsubscribeFromWebPush(
+    @Req() req: { user: IJwtPayload },
+    @Body() dto: RemoveWebPushDto,
+  ) {
+    return this.webPushService.unsubscribe(req.user.id, dto.endpoint);
   }
 
   @Get(':id')

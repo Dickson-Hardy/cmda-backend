@@ -13,6 +13,8 @@ import { AdminNotificationService } from './admin-notification.service';
 import { NotificationDispatcherService } from './notification-dispatcher.service';
 import { NotificationOutbox, NotificationOutboxSchema } from './notification-outbox.schema';
 import { PushDelivery, PushDeliverySchema } from './push-delivery.schema';
+import { WebPushSubscription, WebPushSubscriptionSchema } from './web-push-subscription.schema';
+import { WebPushService } from './web-push.service';
 
 @Module({
   imports: [
@@ -24,6 +26,7 @@ import { PushDelivery, PushDeliverySchema } from './push-delivery.schema';
       { name: AdminNotification.name, schema: AdminNotificationSchema },
       { name: NotificationOutbox.name, schema: NotificationOutboxSchema },
       { name: PushDelivery.name, schema: PushDeliverySchema },
+      { name: WebPushSubscription.name, schema: WebPushSubscriptionSchema },
     ]),
   ],
   controllers: [NotificationsController],
@@ -31,6 +34,7 @@ import { PushDelivery, PushDeliverySchema } from './push-delivery.schema';
     NotificationsGateway,
     NotificationsService,
     PushTokenService,
+    WebPushService,
     AdminNotificationService,
     NotificationDispatcherService,
   ],
@@ -38,6 +42,7 @@ import { PushDelivery, PushDeliverySchema } from './push-delivery.schema';
     NotificationsGateway,
     NotificationsService,
     PushTokenService,
+    WebPushService,
     AdminNotificationService,
     NotificationDispatcherService,
   ],

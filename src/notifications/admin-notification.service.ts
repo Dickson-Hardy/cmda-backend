@@ -5,6 +5,7 @@ import { Model } from 'mongoose';
 import { AdminNotification } from './admin-notification.schema';
 import { CreateAdminNotificationDto } from './dto/create-admin-notification.dto';
 import { PushTokenService } from './push-token.service';
+import { WebPushService, WebPushRecipient } from './web-push.service';
 import { ISuccessResponse } from '../_global/interface/success-response';
 import { PaginationQueryDto } from '../_global/dto/pagination-query.dto';
 import { Expo, ExpoPushMessage } from 'expo-server-sdk';
@@ -50,6 +51,7 @@ export class AdminNotificationService {
     @InjectModel(NotificationOutbox.name)
     private readonly notificationOutboxModel: Model<NotificationOutbox>,
     private readonly pushTokenService: PushTokenService,
+    private readonly webPushService: WebPushService,
     private readonly notificationsService: NotificationsService,
   ) {
     this.expo = new Expo();
@@ -74,21 +76,30 @@ export class AdminNotificationService {
       return { total: 0, delivered: 0, failed: 0 };
     }
 
+    const pushData = {
+      type: 'message_received',
+      messageId: params.messageId,
+      senderId: params.senderId,
+      senderName: params.senderName,
+    };
     const results = await this.sendPushNotifications(
       tokens,
       `New message from ${params.senderName}`,
       'You have a new private message. Open CMDA to read it.',
-      {
-        type: 'message_received',
-        messageId: params.messageId,
-        senderId: params.senderId,
-        senderName: params.senderName,
-      },
+      pushData,
+    );
+
+    const webPushDelivered = await this.webPushService.sendToUser(
+      params.userId,
+      `New message from ${params.senderName}`,
+      'You have a new private message. Open CMDA to read it.',
+      pushData,
+      'newMessage',
     );
 
     return {
-      total: results.length,
-      delivered: results.filter((result) => result.success).length,
+      total: results.length + webPushDelivered,
+      delivered: results.filter((result) => result.success).length + webPushDelivered,
       failed: results.filter((result) => !result.success).length,
     };
   }
@@ -214,6 +225,10 @@ export class AdminNotificationService {
     const notificationIdByUser = new Map(
       recipientNotifications.map((item) => [item.userId, item.notificationId]),
     );
+    const webRecipients: WebPushRecipient[] = recipientNotifications.map((item) => ({
+      userId: item.userId,
+      data: { notificationId: item.notificationId },
+    }));
 
     // Flatten all tokens
     const allTokens: string[] = [];
@@ -231,11 +246,27 @@ export class AdminNotificationService {
     }
 
     if (allTokens.length === 0) {
-      this.logger.warn(`No push tokens found for notification ${notificationId}`);
+      // Expo may have no mobile tokens, but PWA/browser subscriptions can still
+      // receive this notification.
+      const webPushDelivered = await this.webPushService.sendToMany(
+        webRecipients,
+        notification.title,
+        notification.body,
+        { ...notification.data, type: notification.type },
+        preference,
+      );
+      this.logger.warn(
+        `No Expo push tokens for notification ${notificationId}; web push delivered to ${webPushDelivered} subscription(s)`,
+      );
       notification.sent = true;
       notification.processing = false;
       notification.sentAt = new Date();
-      notification.deliveryStats = { total: 0, delivered: 0, failed: 0 };
+      notification.deliveryStats = {
+        total: webPushDelivered,
+        accepted: webPushDelivered,
+        delivered: webPushDelivered,
+        failed: 0,
+      };
       await notification.save();
       return notification;
     }
@@ -251,6 +282,14 @@ export class AdminNotificationService {
       },
       notification._id.toString(),
       recipientDataByToken,
+    );
+
+    const webPushDelivered = await this.webPushService.sendToMany(
+      webRecipients,
+      notification.title,
+      notification.body,
+      { ...notification.data, type: notification.type },
+      preference,
     );
 
     // Update delivery stats
@@ -279,16 +318,16 @@ export class AdminNotificationService {
     notification.processing = false;
     notification.sentAt = new Date();
     notification.deliveryStats = {
-      total: allTokens.length,
-      accepted,
-      delivered: 0,
+      total: allTokens.length + webPushDelivered,
+      accepted: accepted + webPushDelivered,
+      delivered: webPushDelivered,
       failed,
     };
     notification.failedTokens = failedTokens;
     await notification.save();
 
     this.logger.log(
-      `Notification ${notificationId} accepted by Expo: ${accepted}/${allTokens.length}`,
+      `Notification ${notificationId}: Expo ${accepted}/${allTokens.length} accepted, web push delivered to ${webPushDelivered} subscription(s)`,
     );
 
     return notification;
