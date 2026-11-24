@@ -1554,12 +1554,21 @@ export class EventsService {
   }
 
   async checkUserExists(email: string): Promise<ISuccessResponse> {
+    const normalizedEmail = email?.trim().toLowerCase();
+    const user = normalizedEmail
+      ? await this.userModel
+          .findOne({ email: normalizedEmail })
+          .collation({ locale: 'en', strength: 2 })
+          .select('_id firstName lastName email emailVerified role')
+          .lean()
+      : null;
+
     return {
       success: true,
       message: 'User check completed',
       data: {
-        exists: false,
-        user: null,
+        exists: Boolean(user),
+        user,
       },
     };
   }
